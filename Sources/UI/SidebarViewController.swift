@@ -2,6 +2,7 @@ import AppKit
 
 protocol SidebarViewControllerDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didSelect workspace: Workspace)
+    func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String)
 }
 
 /// The vertical list of workspaces on the left of the window. Each row shows
@@ -34,6 +35,10 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.dataSource = self
         tableView.delegate = self
         tableView.allowsEmptySelection = false
+
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Rename Workspace", action: #selector(renameClickedWorkspace), keyEquivalent: "")
+        tableView.menu = menu
 
         let scrollView = NSScrollView()
         scrollView.documentView = tableView
@@ -69,6 +74,15 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         if let selected = store.selected,
            let row = store.workspaces.firstIndex(where: { $0 === selected }) {
             tableView.selectRowIndexes([row], byExtendingSelection: false)
+        }
+    }
+
+    @objc private func renameClickedWorkspace() {
+        let row = tableView.clickedRow
+        guard row >= 0, let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
+        cell.beginRenaming { [weak self] name in
+            guard let self, row < self.store.workspaces.count else { return }
+            self.delegate?.sidebar(self, didRename: self.store.workspaces[row], to: name)
         }
     }
 
@@ -125,14 +139,16 @@ private final class WorkspaceRowView: NSTableRowView {
     }
 }
 
-private final class WorkspaceCellView: NSTableCellView {
+private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let titleLabel = NSTextField(labelWithString: "")
     let subtitleLabel = NSTextField(labelWithString: "")
+    private var onRename: ((String) -> Void)?
 
     init() {
         super.init(frame: .zero)
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.delegate = self
         subtitleLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         subtitleLabel.lineBreakMode = .byTruncatingMiddle
 
@@ -146,11 +162,33 @@ private final class WorkspaceCellView: NSTableCellView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    func beginRenaming(_ completion: @escaping (String) -> Void) {
+        onRename = completion
+        titleLabel.isEditable = true
+        titleLabel.isBezeled = true
+        titleLabel.bezelStyle = .roundedBezel
+        titleLabel.drawsBackground = true
+        titleLabel.textColor = .labelColor
+        window?.makeFirstResponder(titleLabel)
+        titleLabel.currentEditor()?.selectAll(nil)
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        titleLabel.isEditable = false
+        titleLabel.isBezeled = false
+        titleLabel.drawsBackground = false
+        let name = titleLabel.stringValue.trimmingCharacters(in: .whitespaces)
+        let completion = onRename
+        onRename = nil
+        if !name.isEmpty { completion?(name) }
     }
 
     override var backgroundStyle: NSView.BackgroundStyle {

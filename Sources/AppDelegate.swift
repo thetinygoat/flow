@@ -169,6 +169,11 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
         windowController.terminalArea.focusSelectedSurface()
     }
 
+    func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String) {
+        workspace.name = name
+        store.notifyChanged()
+    }
+
     func terminalArea(_ area: TerminalAreaViewController, didSelect tab: TerminalTab, in workspace: Workspace) {
         workspace.select(tab)
         store.notifyChanged()

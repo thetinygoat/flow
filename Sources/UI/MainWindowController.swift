@@ -49,6 +49,7 @@ final class MainWindowController: NSWindowController {
     /// only a non-opaque window lets the desktop show through it.
     func applyAppearance(config: GhosttyConfig, app: ghostty_app_t) {
         guard let window else { return }
+        terminalArea.backgroundColor = config.backgroundColor
         if config.backgroundOpacity < 1 {
             window.isOpaque = false
             window.backgroundColor = .white.withAlphaComponent(0.001)

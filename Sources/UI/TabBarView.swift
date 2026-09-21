@@ -8,6 +8,9 @@ protocol TabBarViewDelegate: AnyObject {
 /// A row of closable tabs. Hidden by its owner when there is only one tab.
 final class TabBarView: NSView {
     weak var delegate: TabBarViewDelegate?
+    var backgroundColor: NSColor = .clear {
+        didSet { needsDisplay = true }
+    }
     private let stack = NSStackView()
 
     override init(frame: NSRect) {
@@ -27,6 +30,11 @@ final class TabBarView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        backgroundColor.setFill()
+        bounds.fill()
     }
 
     func reload(titles: [String], selectedIndex: Int?) {
@@ -52,6 +60,12 @@ private final class TabItemView: NSView {
     private let isSelected: Bool
     private let close: NSButton
     private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet {
+            close.isHidden = !(isSelected || isHovered)
+            needsDisplay = true
+        }
+    }
 
     init(title: String, isSelected: Bool) {
         self.isSelected = isSelected
@@ -96,13 +110,15 @@ private final class TabItemView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if isSelected {
-            NSColor.white.withAlphaComponent(0.06).setFill()
+        if isSelected || isHovered {
+            NSColor.white.withAlphaComponent(isSelected ? 0.06 : 0.04).setFill()
             bounds.fill()
+        }
+        if isSelected {
             NSColor.controlAccentColor.setFill()
             NSRect(x: 0, y: bounds.height - 2, width: bounds.width, height: 2).fill()
         } else {
-            NSColor.white.withAlphaComponent(0.1).setFill()
+            NSColor.white.withAlphaComponent(isHovered ? 0.25 : 0.1).setFill()
             NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
         }
         NSColor.white.withAlphaComponent(0.1).setFill()
@@ -118,11 +134,11 @@ private final class TabItemView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        close.isHidden = false
+        isHovered = true
     }
 
     override func mouseExited(with event: NSEvent) {
-        close.isHidden = !isSelected
+        isHovered = false
     }
 
     override func mouseDown(with event: NSEvent) {

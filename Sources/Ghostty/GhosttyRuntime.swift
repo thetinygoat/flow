@@ -18,6 +18,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
 /// that arrives from other threads, so it hops to main before ticking.
 final class GhosttyRuntime {
     weak var delegate: GhosttyRuntimeDelegate?
+    var onConfigChange: (() -> Void)?
     private(set) var config: GhosttyConfig
     private(set) var app: ghostty_app_t!
     private let surfaces = NSHashTable<TerminalSurfaceView>.weakObjects()
@@ -94,6 +95,7 @@ final class GhosttyRuntime {
         for surface in surfaces.allObjects {
             surface.updateConfig(newConfig)
         }
+        onConfigChange?()
     }
 
     // MARK: Actions

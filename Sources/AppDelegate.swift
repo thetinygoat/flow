@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = MainWindowController(store: store)
         windowController.sidebar.delegate = self
         windowController.terminalArea.delegate = self
+        windowController.applyAppearance(config: runtime.config, app: runtime.app)
+        runtime.onConfigChange = { [weak self] in
+            guard let self else { return }
+            self.windowController.applyAppearance(config: self.runtime.config, app: self.runtime.app)
+        }
         store.onChange = { [weak self] in
             self?.windowController.refresh()
             self?.scheduleSave()

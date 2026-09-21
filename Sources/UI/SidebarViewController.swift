@@ -11,6 +11,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     private let store: WorkspaceStore
     private let tableView = NSTableView()
+    private var isReloading = false
 
     init(store: WorkspaceStore) {
         self.store = store
@@ -55,7 +56,16 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     func reload() {
-        tableView.reloadData()
+        isReloading = true
+        defer { isReloading = false }
+
+        if tableView.numberOfRows == store.workspaces.count {
+            tableView.reloadData(
+                forRowIndexes: IndexSet(0..<store.workspaces.count),
+                columnIndexes: [0])
+        } else {
+            tableView.reloadData()
+        }
         if let selected = store.selected,
            let row = store.workspaces.firstIndex(where: { $0 === selected }) {
             tableView.selectRowIndexes([row], byExtendingSelection: false)
@@ -88,6 +98,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
+        guard !isReloading else { return }
         let row = tableView.selectedRow
         guard row >= 0, row < store.workspaces.count else { return }
         let workspace = store.workspaces[row]

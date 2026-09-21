@@ -15,24 +15,27 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
     /// Stays opaque even when the terminal is translucent, so tab titles stay readable.
     var backgroundColor: NSColor {
         get { tabBar.backgroundColor }
-        set { tabBar.backgroundColor = newValue }
+        set {
+            tabBar.backgroundColor = newValue
+            paneTreeView.backgroundColor = newValue
+        }
     }
-    private let surfaceContainer = NSView()
+    let paneTreeView = PaneTreeView()
     private var workspace: Workspace?
 
     override func loadView() {
         tabBar.delegate = self
 
-        let stack = NSStackView(views: [tabBar, surfaceContainer])
+        let stack = NSStackView(views: [tabBar, paneTreeView])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
-        surfaceContainer.translatesAutoresizingMaskIntoConstraints = false
+        paneTreeView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            surfaceContainer.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            paneTreeView.widthAnchor.constraint(equalTo: stack.widthAnchor),
             tabBar.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
-        surfaceContainer.setContentHuggingPriority(.defaultLow, for: .vertical)
+        paneTreeView.setContentHuggingPriority(.defaultLow, for: .vertical)
         tabBar.setContentHuggingPriority(.required, for: .vertical)
         view = stack
     }
@@ -44,7 +47,8 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
     func show(_ workspace: Workspace?) {
         self.workspace = workspace
         reloadTabs()
-        showSelectedSurface()
+        paneTreeView.show(workspace?.selectedTab?.panes)
+        paneTreeView.updateDimming(focused: workspace?.selectedTab?.focusedSurface)
     }
 
     private func reloadTabs() {
@@ -54,19 +58,8 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
         tabBar.isHidden = tabs.count < 2
     }
 
-    private func showSelectedSurface() {
-        let surface = workspace?.selectedTab?.surface
-        guard surfaceContainer.subviews.first !== surface else { return }
-        surfaceContainer.subviews.forEach { $0.removeFromSuperview() }
-        guard let surface else { return }
-        surface.frame = surfaceContainer.bounds
-        surface.autoresizingMask = [.width, .height]
-        surfaceContainer.addSubview(surface)
-        view.window?.makeFirstResponder(surface)
-    }
-
     func focusSelectedSurface() {
-        guard let surface = workspace?.selectedTab?.surface else { return }
+        guard let surface = workspace?.selectedTab?.focusedSurface else { return }
         view.window?.makeFirstResponder(surface)
     }
 

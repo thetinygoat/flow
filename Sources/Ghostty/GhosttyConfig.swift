@@ -42,8 +42,21 @@ final class GhosttyConfig {
     }
 
     var backgroundColor: NSColor {
+        color(for: "background") ?? .windowBackgroundColor
+    }
+
+    /// How strongly unfocused panes are dimmed, 0 to 1.
+    var unfocusedSplitOpacity: Double {
+        value(for: "unfocused-split-opacity", default: 0.85)
+    }
+
+    var unfocusedSplitFill: NSColor {
+        color(for: "unfocused-split-fill") ?? backgroundColor
+    }
+
+    private func color(for key: String) -> NSColor? {
         var color = ghostty_config_color_s()
-        guard read("background", into: &color) else { return .windowBackgroundColor }
+        guard read(key, into: &color) else { return nil }
         return NSColor(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
     }
 

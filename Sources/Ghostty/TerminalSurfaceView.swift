@@ -4,6 +4,7 @@ import GhosttyKit
 protocol TerminalSurfaceViewDelegate: AnyObject {
     /// Title or working directory changed.
     func surfaceDidChange(_ surface: TerminalSurfaceView)
+    func surfaceDidFocus(_ surface: TerminalSurfaceView)
 }
 
 struct TerminalSurfaceConfiguration {
@@ -52,10 +53,11 @@ final class TerminalSurfaceView: NSView {
     private(set) var focused = false
 
     private var cursor: NSCursor = .iBeam
+    private let dimOverlay = PassthroughView()
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
     private var lastPerformKeyEvent: TimeInterval?
-    private var suppressNextLeftMouseUp = false
+    private var leftButtonPressed = false
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
 
@@ -67,7 +69,7 @@ final class TerminalSurfaceView: NSView {
 
         // Command key-ups never reach the responder chain, and a click on an
         // unfocused surface should move focus without also reaching the shell.
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp, .leftMouseDown]) { [weak self] event in
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp, .leftMouseDown, .leftMouseUp]) { [weak self] event in
             self?.handleLocalEvent(event) ?? event
         }
         let center = NotificationCenter.default
@@ -85,8 +87,23 @@ final class TerminalSurfaceView: NSView {
         surface = configuration.withCValue(view: self) { config in
             ghostty_surface_new(runtime.app, &config)
         }
+        if let surface {
+            ghostty_surface_set_focus(surface, false)
+        }
         runtime.register(self)
         updateTrackingAreas()
+
+        dimOverlay.wantsLayer = true
+        dimOverlay.isHidden = true
+        dimOverlay.frame = bounds
+        dimOverlay.autoresizingMask = [.width, .height]
+        addSubview(dimOverlay)
+    }
+
+    /// Tints the pane to show it is not the focused split. Pass nil to clear.
+    func setDimColor(_ color: NSColor?) {
+        dimOverlay.layer?.backgroundColor = color?.cgColor
+        dimOverlay.isHidden = color == nil
     }
 
     required init?(coder: NSCoder) {
@@ -139,6 +156,9 @@ final class TerminalSurfaceView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateOcclusion()
+        // Being detached while first responder loses focus without a
+        // resignFirstResponder call, so the state is re-derived here.
+        focusDidChange(window?.firstResponder === self)
         guard window != nil else { return }
         updateDisplay()
     }
@@ -194,8 +214,8 @@ final class TerminalSurfaceView: NSView {
     private func focusDidChange(_ focused: Bool) {
         guard let surface, self.focused != focused else { return }
         self.focused = focused
-        if !focused { suppressNextLeftMouseUp = false }
         ghostty_surface_set_focus(surface, focused)
+        if focused { delegate?.surfaceDidFocus(self) }
     }
 
     override func updateTrackingAreas() {
@@ -242,27 +262,39 @@ final class TerminalSurfaceView: NSView {
         switch event.type {
         case .keyUp: return localEventKeyUp(event)
         case .leftMouseDown: return localEventLeftMouseDown(event)
+        case .leftMouseUp: return localEventLeftMouseUp(event)
         default: return event
         }
     }
 
-    private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
-        guard let window, event.window === window else { return event }
-        guard hitTest(convert(event.locationInWindow, from: nil)) === self else { return event }
+    private func isUnderMouse(_ event: NSEvent) -> Bool {
+        guard let window, event.window === window, let superview else { return false }
+        return hitTest(superview.convert(event.locationInWindow, from: nil)) === self
+    }
 
-        suppressNextLeftMouseUp = false
-        guard window.firstResponder !== self else { return event }
+    private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
+        guard isUnderMouse(event), let window, window.firstResponder !== self else { return event }
 
         // The click only moves focus between surfaces, so the shell must not see it.
         if NSApp.isActive && window.isKeyWindow {
             window.makeFirstResponder(self)
-            suppressNextLeftMouseUp = true
             return nil
         }
 
         // The window itself is not key yet. AppKit still needs the event to
         // activate it, so it is passed on.
         window.makeFirstResponder(self)
+        return event
+    }
+
+    /// Releases are matched to presses here rather than in mouseUp, because
+    /// AppKit can deliver the release elsewhere when focus changed mid-click,
+    /// and a press without a release leaves the terminal dragging a selection.
+    private func localEventLeftMouseUp(_ event: NSEvent) -> NSEvent? {
+        guard leftButtonPressed, let surface else { return event }
+        leftButtonPressed = false
+        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, Ghostty.ghosttyMods(event.modifierFlags))
+        ghostty_surface_mouse_pressure(surface, 0, 0)
         return event
     }
 
@@ -276,17 +308,15 @@ final class TerminalSurfaceView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         guard let surface else { return }
+        if window?.firstResponder !== self {
+            window?.makeFirstResponder(self)
+        }
+        leftButtonPressed = true
         _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, Ghostty.ghosttyMods(event.modifierFlags))
     }
 
     override func mouseUp(with event: NSEvent) {
-        if suppressNextLeftMouseUp {
-            suppressNextLeftMouseUp = false
-            return
-        }
-        guard let surface else { return }
-        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, Ghostty.ghosttyMods(event.modifierFlags))
-        ghostty_surface_mouse_pressure(surface, 0, 0)
+        // Handled by the local event monitor.
     }
 
     override func otherMouseDown(with event: NSEvent) {
@@ -772,5 +802,12 @@ extension TerminalSurfaceView: NSTextInputClient {
         } else if clearIfNeeded {
             ghostty_surface_preedit(surface, nil, 0)
         }
+    }
+}
+
+/// A view that never takes mouse events, so overlays don't block the terminal.
+final class PassthroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }

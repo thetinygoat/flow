@@ -12,6 +12,9 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: ghostty_action_split_direction_e, from surface: TerminalSurfaceView) -> Bool
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoTab target: ghostty_action_goto_tab_e)
+    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: ghostty_action_goto_split_e, from surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ghostty_action_resize_split_direction_e, amount: Int, from surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView)
 }
 
 /// Owns the single `ghostty_app_t` and receives its callbacks. Every libghostty
@@ -130,6 +133,19 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_GOTO_TAB:
             delegate?.runtime(self, wantsGotoTab: action.action.goto_tab)
+
+        case GHOSTTY_ACTION_GOTO_SPLIT:
+            guard let surface else { return false }
+            delegate?.runtime(self, wantsGotoSplit: action.action.goto_split, from: surface)
+
+        case GHOSTTY_ACTION_RESIZE_SPLIT:
+            guard let surface else { return false }
+            let resize = action.action.resize_split
+            delegate?.runtime(self, wantsResizeSplit: resize.direction, amount: Int(resize.amount), from: surface)
+
+        case GHOSTTY_ACTION_EQUALIZE_SPLITS:
+            guard let surface else { return false }
+            delegate?.runtime(self, wantsEqualizeSplitsFrom: surface)
 
         case GHOSTTY_ACTION_SET_TITLE:
             guard let surface else { return false }

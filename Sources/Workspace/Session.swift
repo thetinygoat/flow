@@ -10,7 +10,30 @@ struct Session: Codable {
     }
 
     struct Tab: Codable {
-        var workingDirectory: String?
+        var layout: Layout
+    }
+
+    indirect enum Layout: Codable {
+        case terminal(workingDirectory: String?)
+        case split(axis: SplitAxis, ratio: Double, first: Layout, second: Layout)
+
+        init(pane: Pane) {
+            if let surface = pane.surface {
+                self = .terminal(workingDirectory: surface.pwd)
+            } else {
+                self = .split(axis: pane.axis ?? .horizontal, ratio: pane.ratio,
+                              first: Layout(pane: pane.first!), second: Layout(pane: pane.second!))
+            }
+        }
+
+        func makePane(_ makeSurface: (String?) -> TerminalSurfaceView) -> Pane {
+            switch self {
+            case .terminal(let workingDirectory):
+                return Pane(surface: makeSurface(workingDirectory))
+            case .split(let axis, let ratio, let first, let second):
+                return Pane(axis: axis, first: first.makePane(makeSurface), second: second.makePane(makeSurface), ratio: ratio)
+            }
+        }
     }
 
     var workspaces: [Workspace]
@@ -45,7 +68,7 @@ extension WorkspaceStore {
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
                     name: workspace.name,
-                    tabs: workspace.tabs.map { Session.Tab(workingDirectory: $0.surface.pwd) },
+                    tabs: workspace.tabs.map { Session.Tab(layout: Session.Layout(pane: $0.panes.root)) },
                     selectedTab: workspace.tabs.firstIndex { $0 === workspace.selectedTab } ?? 0)
             },
             selectedWorkspace: workspaces.firstIndex { $0 === selected } ?? 0)

@@ -2,14 +2,26 @@ import Foundation
 
 final class TerminalTab {
     let id = UUID()
-    let surface: TerminalSurfaceView
+    let panes: PaneTree
+    private(set) var focusedSurface: TerminalSurfaceView
 
     init(surface: TerminalSurfaceView) {
-        self.surface = surface
+        panes = PaneTree(surface: surface)
+        focusedSurface = surface
+    }
+
+    init(panes: PaneTree, focused: TerminalSurfaceView) {
+        self.panes = panes
+        focusedSurface = focused
     }
 
     var title: String {
-        surface.title.isEmpty ? "Terminal" : surface.title
+        focusedSurface.title.isEmpty ? "Terminal" : focusedSurface.title
+    }
+
+    func focus(_ surface: TerminalSurfaceView) {
+        guard panes.contains(surface) else { return }
+        focusedSurface = surface
     }
 }
 
@@ -42,7 +54,7 @@ final class Workspace {
     }
 
     func tab(containing surface: TerminalSurfaceView) -> TerminalTab? {
-        tabs.first { $0.surface === surface }
+        tabs.first { $0.panes.contains(surface) }
     }
 }
 

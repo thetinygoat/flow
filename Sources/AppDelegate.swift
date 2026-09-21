@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.commandKeyChanged(held: event.modifierFlags.contains(.command))
             return event
         }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.commandKeyChanged(held: false)
+        }
     }
 
     private func commandKeyChanged(held: Bool) {
@@ -88,7 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for saved in session.workspaces {
             let workspace = store.addWorkspace(named: saved.name)
             for tab in saved.tabs {
-                addTab(to: workspace, workingDirectory: tab.workingDirectory)
+                let root = tab.layout.makePane { self.makeSurface(workingDirectory: $0) }
+                guard let first = root.surfaces.first else { continue }
+                workspace.add(TerminalTab(panes: PaneTree(root: root), focused: first))
             }
             if saved.selectedTab < workspace.tabs.count {
                 workspace.select(workspace.tabs[saved.selectedTab])
@@ -125,7 +132,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func closeTab() {
         guard let tab = store.selected?.selectedTab else { return }
-        close(tab.surface)
+        close(tab)
+    }
+
+    @objc private func splitRight() {
+        guard let surface = store.selected?.selectedTab?.focusedSurface else { return }
+        split(surface, direction: GHOSTTY_SPLIT_DIRECTION_RIGHT)
+    }
+
+    @objc private func splitDown() {
+        guard let surface = store.selected?.selectedTab?.focusedSurface else { return }
+        split(surface, direction: GHOSTTY_SPLIT_DIRECTION_DOWN)
     }
 
     @objc private func selectWorkspace(_ sender: NSMenuItem) {
@@ -160,26 +177,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         selectWorkspace(at: ((index + offset) % count + count) % count)
     }
 
-    private func addTab(to workspace: Workspace, workingDirectory: String? = nil) {
+    private func makeSurface(workingDirectory: String?) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
-        configuration.workingDirectory = workingDirectory ?? workspace.selectedTab?.surface.pwd
+        configuration.workingDirectory = workingDirectory
         let surface = TerminalSurfaceView(runtime: runtime, configuration: configuration)
         surface.delegate = self
+        return surface
+    }
+
+    private func addTab(to workspace: Workspace) {
+        let surface = makeSurface(workingDirectory: workspace.selectedTab?.focusedSurface.pwd)
         workspace.add(TerminalTab(surface: surface))
         store.notifyChanged()
         windowController.terminalArea.focusSelectedSurface()
     }
 
+    private func split(_ surface: TerminalSurfaceView, direction: ghostty_action_split_direction_e) {
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        let added = makeSurface(workingDirectory: surface.pwd)
+        tab.panes.split(surface, direction: direction, with: added)
+        tab.focus(added)
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
+    }
+
+    private func confirmClose(_ surfaces: [TerminalSurfaceView], what: String) -> Bool {
+        guard surfaces.contains(where: \.needsConfirmQuit) else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Close this \(what)?"
+        alert.informativeText = "It still has a running process. Closing the \(what) will kill it."
+        alert.addButton(withTitle: "Close")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Closes one pane. The tab closes with its last pane.
     private func close(_ surface: TerminalSurfaceView) {
-        guard let (workspace, tab) = store.workspace(containing: surface) else { return }
-        if surface.needsConfirmQuit {
-            let alert = NSAlert()
-            alert.messageText = "Close terminal?"
-            alert.informativeText = "The terminal still has a running process."
-            alert.addButton(withTitle: "Close")
-            alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        guard tab.panes.surfaces.count > 1 else { return close(tab) }
+        guard confirmClose([surface], what: "pane") else { return }
+        if let next = tab.panes.remove(surface) {
+            tab.focus(next)
         }
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
+    }
+
+    private func close(_ tab: TerminalTab) {
+        guard let workspace = store.workspaces.first(where: { $0.tabs.contains { $0 === tab } }) else { return }
+        guard confirmClose(tab.panes.surfaces, what: "tab") else { return }
         workspace.remove(tab)
         if workspace.tabs.isEmpty {
             store.remove(workspace)
@@ -191,10 +237,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         windowController.terminalArea.focusSelectedSurface()
-    }
-
-    private func close(_ tab: TerminalTab) {
-        close(tab.surface)
     }
 
     // MARK: Menu
@@ -210,6 +252,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: "New Workspace", action: #selector(newWorkspace), keyEquivalent: "n")
         fileMenu.addItem(withTitle: "New Tab", action: #selector(newTab), keyEquivalent: "t")
         fileMenu.addItem(withTitle: "Close Tab", action: #selector(closeTab), keyEquivalent: "w")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Split Right", action: #selector(splitRight), keyEquivalent: "d")
+        let splitDownItem = fileMenu.addItem(withTitle: "Split Down", action: #selector(splitDown), keyEquivalent: "d")
+        splitDownItem.keyEquivalentModifierMask = [.command, .shift]
         mainMenu.addItem(submenu: fileMenu, title: "File")
 
         let editMenu = NSMenu(title: "Edit")
@@ -268,8 +314,25 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: ghostty_action_split_direction_e, from surface: TerminalSurfaceView) -> Bool {
-        logger.info("splits are not implemented yet")
-        return false
+        split(surface, direction: direction)
+        return true
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: ghostty_action_goto_split_e, from surface: TerminalSurfaceView) {
+        guard let (_, tab) = store.workspace(containing: surface),
+              let target = tab.panes.neighbor(of: surface, direction: direction) else { return }
+        windowController.window?.makeFirstResponder(target)
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ghostty_action_resize_split_direction_e, amount: Int, from surface: TerminalSurfaceView) {
+        windowController.terminalArea.paneTreeView.resize(surface, direction: direction, amount: CGFloat(amount))
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView) {
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        tab.panes.equalize()
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView) {
@@ -312,6 +375,12 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
     }
 
     func surfaceDidChange(_ surface: TerminalSurfaceView) {
+        windowController.refresh()
+    }
+
+    func surfaceDidFocus(_ surface: TerminalSurfaceView) {
+        guard let (_, tab) = store.workspace(containing: surface), tab.focusedSurface !== surface else { return }
+        tab.focus(surface)
         windowController.refresh()
     }
 }

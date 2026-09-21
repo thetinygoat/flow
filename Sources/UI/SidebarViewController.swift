@@ -114,7 +114,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         }()
         let workspace = store.workspaces[row]
         cell.titleLabel.stringValue = workspace.name
-        cell.subtitleLabel.stringValue = workspace.selectedTab?.surface.pwd.map(Self.abbreviateHome) ?? ""
+        cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.pwd.map(Self.abbreviateHome) ?? ""
         return cell
     }
 

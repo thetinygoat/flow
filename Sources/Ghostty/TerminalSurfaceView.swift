@@ -57,7 +57,7 @@ final class TerminalSurfaceView: NSView {
     private var lastPerformKeyEvent: TimeInterval?
     private var suppressNextLeftMouseUp = false
     private var eventMonitor: Any?
-    private var screenObserver: NSObjectProtocol?
+    private var windowObservers: [NSObjectProtocol] = []
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -70,12 +70,17 @@ final class TerminalSurfaceView: NSView {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp, .leftMouseDown]) { [weak self] event in
             self?.handleLocalEvent(event) ?? event
         }
-        screenObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main
-        ) { [weak self] notification in
-            guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
-            self.updateDisplay()
-        }
+        let center = NotificationCenter.default
+        windowObservers = [
+            center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
+                self.updateDisplay()
+            },
+            center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
+                self.updateOcclusion()
+            },
+        ]
 
         surface = configuration.withCValue(view: self) { config in
             ghostty_surface_new(runtime.app, &config)
@@ -91,7 +96,7 @@ final class TerminalSurfaceView: NSView {
     deinit {
         titleTimer?.invalidate()
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
-        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        windowObservers.forEach(NotificationCenter.default.removeObserver)
         if let surface { ghostty_surface_free(surface) }
     }
 
@@ -133,8 +138,17 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        updateOcclusion()
         guard window != nil else { return }
         updateDisplay()
+    }
+
+    /// Hidden surfaces (other tabs, other workspaces, covered windows) tell
+    /// Ghostty to stop rendering until they are visible again.
+    private func updateOcclusion() {
+        guard let surface else { return }
+        let visible = window?.occlusionState.contains(.visible) ?? false
+        ghostty_surface_set_occlusion(surface, visible)
     }
 
     override func setFrameSize(_ newSize: NSSize) {

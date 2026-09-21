@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: GhosttyRuntime!
     private let store = WorkspaceStore()
     private var windowController: MainWindowController!
+    private var pendingSave: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -25,12 +26,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = MainWindowController(store: store)
         windowController.sidebar.delegate = self
         windowController.terminalArea.delegate = self
-        store.onChange = { [weak self] in self?.windowController.refresh() }
+        store.onChange = { [weak self] in
+            self?.windowController.refresh()
+            self?.scheduleSave()
+        }
 
-        newWorkspace()
+        if let session = Session.load(), !session.workspaces.isEmpty {
+            restore(session)
+        } else {
+            newWorkspace()
+        }
         windowController.showWindow(nil)
         windowController.terminalArea.focusSelectedSurface()
         NSApp.activate()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        pendingSave?.cancel()
+        store.session().save()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -41,6 +54,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
+    // MARK: Session
+
+    private func restore(_ session: Session) {
+        for saved in session.workspaces {
+            let workspace = store.addWorkspace(named: saved.name)
+            for tab in saved.tabs {
+                addTab(to: workspace, workingDirectory: tab.workingDirectory)
+            }
+            if saved.selectedTab < workspace.tabs.count {
+                workspace.select(workspace.tabs[saved.selectedTab])
+            }
+            if workspace.tabs.isEmpty {
+                addTab(to: workspace)
+            }
+        }
+        if session.selectedWorkspace < store.workspaces.count {
+            store.select(store.workspaces[session.selectedWorkspace])
+        }
+    }
+
+    /// Changes arrive in bursts (every shell prompt updates the directory), so
+    /// writes are coalesced.
+    private func scheduleSave() {
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.store.session().save() }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     // MARK: Workspace operations
@@ -60,9 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         close(tab.surface)
     }
 
-    private func addTab(to workspace: Workspace) {
+    private func addTab(to workspace: Workspace, workingDirectory: String? = nil) {
         var configuration = TerminalSurfaceConfiguration()
-        configuration.workingDirectory = workspace.selectedTab?.surface.pwd
+        configuration.workingDirectory = workingDirectory ?? workspace.selectedTab?.surface.pwd
         let surface = TerminalSurfaceView(runtime: runtime, configuration: configuration)
         surface.delegate = self
         workspace.add(TerminalTab(surface: surface))

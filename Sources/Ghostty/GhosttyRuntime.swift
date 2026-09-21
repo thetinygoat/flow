@@ -11,6 +11,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsNewTabFrom surface: TerminalSurfaceView?)
     func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: ghostty_action_split_direction_e, from surface: TerminalSurfaceView) -> Bool
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsGotoTab target: ghostty_action_goto_tab_e)
 }
 
 /// Owns the single `ghostty_app_t` and receives its callbacks. Every libghostty
@@ -126,6 +127,9 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_CLOSE_TAB, GHOSTTY_ACTION_CLOSE_WINDOW:
             guard let surface else { return false }
             delegate?.runtime(self, wantsClose: surface)
+
+        case GHOSTTY_ACTION_GOTO_TAB:
+            delegate?.runtime(self, wantsGotoTab: action.action.goto_tab)
 
         case GHOSTTY_ACTION_SET_TITLE:
             guard let surface else { return false }

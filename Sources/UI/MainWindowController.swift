@@ -62,6 +62,11 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    func setShortcutHintsVisible(_ visible: Bool) {
+        sidebar.setShortcutHintsVisible(visible)
+        terminalArea.setShortcutHintsVisible(visible)
+    }
+
     /// Re-reads the store and updates the sidebar, tab strip, and window title.
     func refresh() {
         sidebar.reload()

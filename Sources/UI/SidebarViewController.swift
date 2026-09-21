@@ -60,6 +60,13 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         view = container
     }
 
+    func setShortcutHintsVisible(_ visible: Bool) {
+        for row in 0..<tableView.numberOfRows {
+            guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
+            cell.showShortcutHint(visible && row < 9 ? "⌘\(row + 1)" : nil)
+        }
+    }
+
     func reload() {
         isReloading = true
         defer { isReloading = false }
@@ -142,6 +149,7 @@ private final class WorkspaceRowView: NSTableRowView {
 private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let titleLabel = NSTextField(labelWithString: "")
     let subtitleLabel = NSTextField(labelWithString: "")
+    private let hint = ShortcutHintView()
     private var onRename: ((String) -> Void)?
 
     init() {
@@ -158,12 +166,20 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+        hint.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hint)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
         ])
+    }
+
+    func showShortcutHint(_ text: String?) {
+        hint.text = text
     }
 
     required init?(coder: NSCoder) {
@@ -197,5 +213,42 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             titleLabel.textColor = selected ? .white : .labelColor
             subtitleLabel.textColor = selected ? NSColor.white.withAlphaComponent(0.8) : .secondaryLabelColor
         }
+    }
+}
+
+/// The small keyboard shortcut badge shown while the command key is held.
+final class ShortcutHintView: NSView {
+    private let label = NSTextField(labelWithString: "")
+
+    var text: String? {
+        didSet {
+            label.stringValue = text ?? ""
+            isHidden = text == nil
+        }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        isHidden = true
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
+
+        label.font = .systemFont(ofSize: 11, weight: .bold)
+        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
     }
 }

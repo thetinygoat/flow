@@ -37,6 +37,12 @@ final class TabBarView: NSView {
         bounds.fill()
     }
 
+    func setShortcutHintsVisible(_ visible: Bool) {
+        for (index, item) in stack.arrangedSubviews.enumerated() {
+            (item as? TabItemView)?.showShortcutHint(visible && index < 9 ? "⌃\(index + 1)" : nil)
+        }
+    }
+
     func reload(titles: [String], selectedIndex: Int?) {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for (index, title) in titles.enumerated() {
@@ -59,10 +65,11 @@ private final class TabItemView: NSView {
     var onClose: (() -> Void)?
     private let isSelected: Bool
     private let close: NSButton
+    private let hint = ShortcutHintView()
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
         didSet {
-            close.isHidden = !(isSelected || isHovered)
+            close.isHidden = hint.text != nil || !(isSelected || isHovered)
             needsDisplay = true
         }
     }
@@ -88,7 +95,7 @@ private final class TabItemView: NSView {
         close.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
         close.contentTintColor = .secondaryLabelColor
 
-        let stack = NSStackView(views: [label, close])
+        let stack = NSStackView(views: [label, hint, close])
         stack.orientation = .horizontal
         stack.distribution = .fill
         stack.spacing = 8
@@ -139,6 +146,11 @@ private final class TabItemView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         isHovered = false
+    }
+
+    func showShortcutHint(_ text: String?) {
+        hint.text = text
+        close.isHidden = text != nil || !(isSelected || isHovered)
     }
 
     override func mouseDown(with event: NSEvent) {

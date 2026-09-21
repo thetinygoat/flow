@@ -1,0 +1,7 @@
+/Vendor/GhosttyKit.xcframework/
+/Vendor/GhosttyResources/
+/flow.xcodeproj/
+/build/
+/DerivedData/
+xcuserdata/
+.DS_Store

@@ -1,0 +1,40 @@
+name: flow
+options:
+  bundleIdPrefix: dev.thetinygoat
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    OTHER_LDFLAGS: -lstdc++
+targets:
+  flow:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: Vendor/GhosttyResources/terminfo
+        type: folder
+      - path: Vendor/GhosttyResources/ghostty
+        type: folder
+    dependencies:
+      - framework: Vendor/GhosttyKit.xcframework
+        embed: false
+      - sdk: Carbon.framework
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleName: flow
+        CFBundleDisplayName: flow
+        LSMinimumSystemVersion: "14.0"
+        NSHighResolutionCapable: true
+        NSPrincipalClass: NSApplication
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_ENTITLEMENTS: ""

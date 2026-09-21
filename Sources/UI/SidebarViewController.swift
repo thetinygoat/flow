@@ -1,0 +1,152 @@
+import AppKit
+
+protocol SidebarViewControllerDelegate: AnyObject {
+    func sidebar(_ sidebar: SidebarViewController, didSelect workspace: Workspace)
+}
+
+/// The vertical list of workspaces on the left of the window. Each row shows
+/// the workspace name and the working directory of its selected tab.
+final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    weak var delegate: SidebarViewControllerDelegate?
+
+    private let store: WorkspaceStore
+    private let tableView = NSTableView()
+
+    init(store: WorkspaceStore) {
+        self.store = store
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func loadView() {
+        let column = NSTableColumn(identifier: .init("workspace"))
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+        tableView.headerView = nil
+        tableView.style = .plain
+        tableView.backgroundColor = .clear
+        tableView.intercellSpacing = .zero
+        tableView.rowHeight = 52
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.allowsEmptySelection = false
+
+        let scrollView = NSScrollView()
+        scrollView.documentView = tableView
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSVisualEffectView()
+        container.material = .sidebar
+        container.blendingMode = .behindWindow
+        container.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        view = container
+    }
+
+    func reload() {
+        tableView.reloadData()
+        if let selected = store.selected,
+           let row = store.workspaces.firstIndex(where: { $0 === selected }) {
+            tableView.selectRowIndexes([row], byExtendingSelection: false)
+        }
+    }
+
+    // MARK: NSTableViewDataSource
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        store.workspaces.count
+    }
+
+    // MARK: NSTableViewDelegate
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        WorkspaceRowView()
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let identifier = NSUserInterfaceItemIdentifier("workspaceCell")
+        let cell = tableView.makeView(withIdentifier: identifier, owner: nil) as? WorkspaceCellView ?? {
+            let cell = WorkspaceCellView()
+            cell.identifier = identifier
+            return cell
+        }()
+        let workspace = store.workspaces[row]
+        cell.titleLabel.stringValue = workspace.name
+        cell.subtitleLabel.stringValue = workspace.selectedTab?.surface.pwd.map(Self.abbreviateHome) ?? ""
+        return cell
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        let row = tableView.selectedRow
+        guard row >= 0, row < store.workspaces.count else { return }
+        let workspace = store.workspaces[row]
+        guard workspace !== store.selected else { return }
+        delegate?.sidebar(self, didSelect: workspace)
+    }
+
+    private static func abbreviateHome(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        guard path.hasPrefix(home) else { return path }
+        return "~" + path.dropFirst(home.count)
+    }
+}
+
+private final class WorkspaceRowView: NSTableRowView {
+    override var isEmphasized: Bool {
+        get { true }
+        set {}
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        NSColor.controlAccentColor.setFill()
+        bounds.fill()
+    }
+}
+
+private final class WorkspaceCellView: NSTableCellView {
+    let titleLabel = NSTextField(labelWithString: "")
+    let subtitleLabel = NSTextField(labelWithString: "")
+
+    init() {
+        super.init(frame: .zero)
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        subtitleLabel.lineBreakMode = .byTruncatingMiddle
+
+        let stack = NSStackView(views: [titleLabel, subtitleLabel])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 2
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            let selected = backgroundStyle == .emphasized
+            titleLabel.textColor = selected ? .white : .labelColor
+            subtitleLabel.textColor = selected ? NSColor.white.withAlphaComponent(0.8) : .secondaryLabelColor
+        }
+    }
+}

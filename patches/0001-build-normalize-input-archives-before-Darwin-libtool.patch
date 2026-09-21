@@ -1,0 +1,75 @@
+From 9bed28dda094e496fc5fee90a0c097958fe50907 Mon Sep 17 00:00:00 2001
+From: Barut <barut@barutsmacstudio.home>
+Date: Mon, 30 Mar 2026 15:51:16 -0400
+Subject: [PATCH 1/2] build: normalize input archives before Darwin libtool
+ merge
+
+Apple's recent libtool can warn about misaligned 64-bit archive members
+and silently drop them when merging static libraries. In Ghostty this
+showed up in the Darwin libtool step that builds libghostty-fat.a.
+
+Normalize each input archive by copying it and running ranlib on the
+copy
+before handing it to libtool. That rewrites the archive into a layout
+Apple's linker tools accept without flattening members through the
+filesystem or changing Ghostty's archive format.
+
+(cherry picked from commit a83a82b3f87b6efeb4384cbc9350056be70ecde0)
+---
+ src/build/LibtoolStep.zig | 36 +++++++++++++++++++++++++++++++++++-
+ 1 file changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/src/build/LibtoolStep.zig b/src/build/LibtoolStep.zig
+index d2b514927..856a33aa8 100644
+--- a/src/build/LibtoolStep.zig
++++ b/src/build/LibtoolStep.zig
+@@ -33,7 +33,15 @@ pub fn create(b: *std.Build, opts: Options) *LibtoolStep {
+     const run_step = RunStep.create(b, b.fmt("libtool {s}", .{opts.name}));
+     run_step.addArgs(&.{ "libtool", "-static", "-o" });
+     const output = run_step.addOutputFileArg(opts.out_name);
+-    for (opts.sources) |source| run_step.addFileArg(source);
++    for (opts.sources, 0..) |source, i| {
++        run_step.addFileArg(normalizeArchive(
++            b,
++            opts.name,
++            opts.out_name,
++            i,
++            source,
++        ));
++    }
+ 
+     self.* = .{
+         .step = &run_step.step,
+@@ -42,3 +50,29 @@ pub fn create(b: *std.Build, opts: Options) *LibtoolStep {
+ 
+     return self;
+ }
++
++fn normalizeArchive(
++    b: *std.Build,
++    step_name: []const u8,
++    out_name: []const u8,
++    index: usize,
++    source: LazyPath,
++) LazyPath {
++    // Newer Xcode libtool can drop 64-bit archive members if the input
++    // archive layout doesn't match what it expects. ranlib rewrites the
++    // archive without flattening members through the filesystem, so we
++    // normalize each source archive first. This is a Zig/toolchain
++    // interoperability workaround, not a Ghostty archive format change.
++    const run_step = RunStep.create(
++        b,
++        b.fmt("ranlib {s} #{d}", .{ step_name, index }),
++    );
++    run_step.addArgs(&.{
++        "/bin/sh",
++        "-c",
++        "/bin/cp \"$1\" \"$2\" && /usr/bin/ranlib \"$2\"",
++        "_",
++    });
++    run_step.addFileArg(source);
++    return run_step.addOutputFileArg(b.fmt("{d}-{s}", .{ index, out_name }));
++}
+-- 
+2.54.0 (Apple Git-157)
+

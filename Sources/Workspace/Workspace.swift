@@ -1,5 +1,25 @@
 import Foundation
 
+extension String {
+    /// "/Users/me/Code" becomes "~/Code".
+    var abbreviatingHome: String {
+        let home = NSHomeDirectory()
+        guard hasPrefix(home) else { return self }
+        return "~" + dropFirst(home.count)
+    }
+
+    /// "~/Documents/project" becomes "~/D/project", the way fish shows the prompt.
+    var fishStylePath: String {
+        var parts = abbreviatingHome.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count > 1 else { return abbreviatingHome }
+        for index in parts.indices.dropLast() where parts[index] != "~" && !parts[index].isEmpty {
+            let keep = parts[index].hasPrefix(".") ? 2 : 1
+            parts[index] = String(parts[index].prefix(keep))
+        }
+        return parts.joined(separator: "/")
+    }
+}
+
 final class TerminalTab {
     let id = UUID()
     let panes: PaneTree
@@ -27,12 +47,18 @@ final class TerminalTab {
 
 final class Workspace {
     let id = UUID()
-    var name: String
+    /// Set when the user renames the workspace. Otherwise the name follows
+    /// the focused pane's directory.
+    var customName: String?
     private(set) var tabs: [TerminalTab] = []
     private(set) var selectedTab: TerminalTab?
 
-    init(name: String) {
-        self.name = name
+    init(customName: String? = nil) {
+        self.customName = customName
+    }
+
+    var name: String {
+        customName ?? selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? "~"
     }
 
     func add(_ tab: TerminalTab) {
@@ -65,8 +91,8 @@ final class WorkspaceStore {
     var onChange: (() -> Void)?
 
     @discardableResult
-    func addWorkspace(named name: String) -> Workspace {
-        let workspace = Workspace(name: name)
+    func addWorkspace(customName: String? = nil) -> Workspace {
+        let workspace = Workspace(customName: customName)
         workspaces.append(workspace)
         selected = workspace
         onChange?()

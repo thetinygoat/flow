@@ -4,7 +4,7 @@ import Foundation
 /// and which of each is selected. Shell processes and screen contents do not.
 struct Session: Codable {
     struct Workspace: Codable {
-        var name: String
+        var customName: String?
         var tabs: [Tab]
         var selectedTab: Int
     }
@@ -19,7 +19,7 @@ struct Session: Codable {
 
         init(pane: Pane) {
             if let surface = pane.surface {
-                self = .terminal(workingDirectory: surface.pwd)
+                self = .terminal(workingDirectory: surface.workingDirectory)
             } else {
                 self = .split(axis: pane.axis ?? .horizontal, ratio: pane.ratio,
                               first: Layout(pane: pane.first!), second: Layout(pane: pane.second!))
@@ -67,7 +67,7 @@ extension WorkspaceStore {
         Session(
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
-                    name: workspace.name,
+                    customName: workspace.customName,
                     tabs: workspace.tabs.map { Session.Tab(layout: Session.Layout(pane: $0.panes.root)) },
                     selectedTab: workspace.tabs.firstIndex { $0 === workspace.selectedTab } ?? 0)
             },

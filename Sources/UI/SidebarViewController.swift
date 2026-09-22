@@ -3,6 +3,7 @@ import AppKit
 protocol SidebarViewControllerDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didSelect workspace: Workspace)
     func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String)
+    func sidebar(_ sidebar: SidebarViewController, wantsClose workspace: Workspace)
 }
 
 /// The vertical list of workspaces on the left of the window. Each row shows
@@ -12,6 +13,8 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     private let store: WorkspaceStore
     private let tableView = NSTableView()
+    private let git = GitStatusMonitor()
+    private var gitTimer: Timer?
     private var isReloading = false
 
     init(store: WorkspaceStore) {
@@ -35,9 +38,17 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.dataSource = self
         tableView.delegate = self
         tableView.allowsEmptySelection = false
+        git.onUpdate = { [weak self] in self?.reload() }
+        gitTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            for row in 0..<self.store.workspaces.count {
+                _ = self.gitStatus(forRow: row)
+            }
+        }
 
         let menu = NSMenu()
         menu.addItem(withTitle: "Rename Workspace", action: #selector(renameClickedWorkspace), keyEquivalent: "")
+        menu.addItem(withTitle: "Close Workspace", action: #selector(closeClickedWorkspace), keyEquivalent: "")
         tableView.menu = menu
 
         let scrollView = NSScrollView()
@@ -72,9 +83,9 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         defer { isReloading = false }
 
         if tableView.numberOfRows == store.workspaces.count {
-            tableView.reloadData(
-                forRowIndexes: IndexSet(0..<store.workspaces.count),
-                columnIndexes: [0])
+            let rows = IndexSet(0..<store.workspaces.count)
+            tableView.reloadData(forRowIndexes: rows, columnIndexes: [0])
+            tableView.noteHeightOfRows(withIndexesChanged: rows)
         } else {
             tableView.reloadData()
         }
@@ -93,6 +104,12 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         }
     }
 
+    @objc private func closeClickedWorkspace() {
+        let row = tableView.clickedRow
+        guard row >= 0, row < store.workspaces.count else { return }
+        delegate?.sidebar(self, wantsClose: store.workspaces[row])
+    }
+
     // MARK: NSTableViewDataSource
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -105,6 +122,16 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         WorkspaceRowView()
     }
 
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        gitStatus(forRow: row) == nil ? 52 : 68
+    }
+
+    private func gitStatus(forRow row: Int) -> GitStatus? {
+        guard row < store.workspaces.count,
+              let directory = store.workspaces[row].selectedTab?.focusedSurface.workingDirectory else { return nil }
+        return git.status(for: directory)
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let identifier = NSUserInterfaceItemIdentifier("workspaceCell")
         let cell = tableView.makeView(withIdentifier: identifier, owner: nil) as? WorkspaceCellView ?? {
@@ -114,7 +141,12 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         }()
         let workspace = store.workspaces[row]
         cell.titleLabel.stringValue = workspace.name
-        cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.pwd.map(Self.abbreviateHome) ?? ""
+        cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
+        cell.gitStatus = gitStatus(forRow: row)
+        cell.onClose = { [weak self] in
+            guard let self, row < self.store.workspaces.count else { return }
+            self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
+        }
         return cell
     }
 
@@ -125,12 +157,6 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         let workspace = store.workspaces[row]
         guard workspace !== store.selected else { return }
         delegate?.sidebar(self, didSelect: workspace)
-    }
-
-    private static func abbreviateHome(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        guard path.hasPrefix(home) else { return path }
-        return "~" + path.dropFirst(home.count)
     }
 }
 
@@ -149,8 +175,12 @@ private final class WorkspaceRowView: NSTableRowView {
 private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let titleLabel = NSTextField(labelWithString: "")
     let subtitleLabel = NSTextField(labelWithString: "")
+    private let gitLabel = NSTextField(labelWithString: "")
     private let hint = ShortcutHintView()
+    private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
+    private var trackingArea: NSTrackingArea?
     private var onRename: ((String) -> Void)?
+    var onClose: (() -> Void)?
 
     init() {
         super.init(frame: .zero)
@@ -160,7 +190,11 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         subtitleLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         subtitleLabel.lineBreakMode = .byTruncatingMiddle
 
-        let stack = NSStackView(views: [titleLabel, subtitleLabel])
+        gitLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        gitLabel.lineBreakMode = .byTruncatingTail
+        gitLabel.isHidden = true
+
+        let stack = NSStackView(views: [titleLabel, subtitleLabel, gitLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 2
@@ -168,14 +202,55 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         addSubview(stack)
         hint.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hint)
+        closeButton.isBordered = false
+        closeButton.imagePosition = .imageOnly
+        closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        closeButton.isHidden = true
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(closeButton)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            closeButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
         ])
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        closeButton.isHidden = hint.text != nil
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        closeButton.isHidden = true
+    }
+
+    @objc private func closeTapped() {
+        onClose?()
+    }
+
+    var gitStatus: GitStatus? {
+        didSet {
+            guard let gitStatus else {
+                gitLabel.isHidden = true
+                return
+            }
+            gitLabel.isHidden = false
+            gitLabel.stringValue = gitStatus.isDirty ? "\(gitStatus.branch)*" : gitStatus.branch
+        }
     }
 
     func showShortcutHint(_ text: String?) {
@@ -212,6 +287,8 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             let selected = backgroundStyle == .emphasized
             titleLabel.textColor = selected ? .white : .labelColor
             subtitleLabel.textColor = selected ? NSColor.white.withAlphaComponent(0.8) : .secondaryLabelColor
+            closeButton.contentTintColor = selected ? .white : .secondaryLabelColor
+            gitLabel.textColor = subtitleLabel.textColor
         }
     }
 }

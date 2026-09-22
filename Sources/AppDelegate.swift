@@ -91,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func restore(_ session: Session) {
         for saved in session.workspaces {
-            let workspace = store.addWorkspace(named: saved.name)
+            let workspace = store.addWorkspace(customName: saved.customName)
             for tab in saved.tabs {
                 let root = tab.layout.makePane { self.makeSurface(workingDirectory: $0) }
                 guard let first = root.surfaces.first else { continue }
@@ -121,8 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Workspace operations
 
     @objc func newWorkspace() {
-        let workspace = store.addWorkspace(named: "Workspace \(store.workspaces.count + 1)")
-        addTab(to: workspace)
+        addTab(to: store.addWorkspace())
     }
 
     @objc func newTab() {
@@ -186,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func addTab(to workspace: Workspace) {
-        let surface = makeSurface(workingDirectory: workspace.selectedTab?.focusedSurface.pwd)
+        let surface = makeSurface(workingDirectory: workspace.selectedTab?.focusedSurface.workingDirectory)
         workspace.add(TerminalTab(surface: surface))
         store.notifyChanged()
         windowController.terminalArea.focusSelectedSurface()
@@ -194,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func split(_ surface: TerminalSurfaceView, direction: ghostty_action_split_direction_e) {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
-        let added = makeSurface(workingDirectory: surface.pwd)
+        let added = makeSurface(workingDirectory: surface.workingDirectory)
         tab.panes.split(surface, direction: direction, with: added)
         tab.focus(added)
         store.notifyChanged()
@@ -220,6 +219,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tab.focus(next)
         }
         store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
+    }
+
+    private func close(_ workspace: Workspace) {
+        guard confirmClose(workspace.tabs.flatMap(\.panes.surfaces), what: "workspace") else { return }
+        store.remove(workspace)
+        if store.workspaces.isEmpty {
+            NSApp.terminate(nil)
+            return
+        }
         windowController.terminalArea.focusSelectedSurface()
     }
 
@@ -360,8 +369,12 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
     }
 
     func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String) {
-        workspace.name = name
+        workspace.customName = name
         store.notifyChanged()
+    }
+
+    func sidebar(_ sidebar: SidebarViewController, wantsClose workspace: Workspace) {
+        close(workspace)
     }
 
     func terminalArea(_ area: TerminalAreaViewController, didSelect tab: TerminalTab, in workspace: Workspace) {
@@ -376,6 +389,7 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
 
     func surfaceDidChange(_ surface: TerminalSurfaceView) {
         windowController.refresh()
+        scheduleSave()
     }
 
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {

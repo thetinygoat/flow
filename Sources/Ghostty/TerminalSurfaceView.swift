@@ -41,12 +41,18 @@ final class TerminalSurfaceView: NSView {
     weak var delegate: TerminalSurfaceViewDelegate?
     private(set) weak var runtime: GhosttyRuntime?
     private(set) var surface: ghostty_surface_t?
+    /// The directory the shell was started in, until the shell reports its own.
+    let initialWorkingDirectory: String?
 
     private(set) var title = "" {
         didSet { if title != oldValue { delegate?.surfaceDidChange(self) } }
     }
     var pwd: String? {
         didSet { if pwd != oldValue { delegate?.surfaceDidChange(self) } }
+    }
+
+    var workingDirectory: String? {
+        pwd ?? initialWorkingDirectory
     }
     private var titleTimer: Timer?
     var cellSize = NSSize.zero
@@ -65,6 +71,7 @@ final class TerminalSurfaceView: NSView {
 
     init(runtime: GhosttyRuntime, configuration: TerminalSurfaceConfiguration = .init()) {
         self.runtime = runtime
+        self.initialWorkingDirectory = configuration.workingDirectory
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
 
         // Command key-ups never reach the responder chain, and a click on an

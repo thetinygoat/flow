@@ -161,13 +161,8 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 }
 
 private final class WorkspaceRowView: NSTableRowView {
-    override var isEmphasized: Bool {
-        get { true }
-        set {}
-    }
-
     override func drawSelection(in dirtyRect: NSRect) {
-        NSColor.controlAccentColor.setFill()
+        NSColor.labelColor.withAlphaComponent(0.1).setFill()
         bounds.fill()
     }
 }
@@ -187,10 +182,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.delegate = self
+        subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         subtitleLabel.lineBreakMode = .byTruncatingMiddle
 
         gitLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        gitLabel.textColor = .secondaryLabelColor
         gitLabel.lineBreakMode = .byTruncatingTail
         gitLabel.isHidden = true
 
@@ -205,6 +202,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
         closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
+        closeButton.contentTintColor = .secondaryLabelColor
         closeButton.isHidden = true
         closeButton.target = self
         closeButton.action = #selector(closeTapped)
@@ -280,16 +278,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         let completion = onRename
         onRename = nil
         if !name.isEmpty { completion?(name) }
-    }
-
-    override var backgroundStyle: NSView.BackgroundStyle {
-        didSet {
-            let selected = backgroundStyle == .emphasized
-            titleLabel.textColor = selected ? .white : .labelColor
-            subtitleLabel.textColor = selected ? NSColor.white.withAlphaComponent(0.8) : .secondaryLabelColor
-            closeButton.contentTintColor = selected ? .white : .secondaryLabelColor
-            gitLabel.textColor = subtitleLabel.textColor
-        }
     }
 }
 

@@ -46,7 +46,7 @@ final class GitStatusMonitor {
     private static func run(in directory: String) -> GitStatus? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", directory, "--no-optional-locks", "status", "--porcelain=v1", "--branch"]
+        process.arguments = ["-C", directory, "--no-optional-locks", "status", "--porcelain=v1", "--branch", "--ignore-submodules=dirty"]
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
@@ -59,7 +59,13 @@ final class GitStatusMonitor {
         process.waitUntilExit()
         guard process.terminationStatus == 0,
               let text = String(data: data, encoding: .utf8) else { return nil }
+        return GitStatus(porcelain: text)
+    }
+}
 
+extension GitStatus {
+    /// Parses `git status --porcelain=v1 --branch` output.
+    init?(porcelain text: String) {
         var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
         guard let header = lines.first, header.hasPrefix("## ") else { return nil }
         lines.removeFirst()
@@ -75,6 +81,6 @@ final class GitStatusMonitor {
         if branch.hasPrefix("HEAD ") {
             branch = "detached"
         }
-        return GitStatus(branch: branch, isDirty: !lines.isEmpty)
+        self.init(branch: branch, isDirty: !lines.isEmpty)
     }
 }

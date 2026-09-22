@@ -20,53 +20,53 @@ extension String {
     }
 }
 
-final class TerminalTab {
+final class TabModel<Leaf: PaneLeaf> {
     let id = UUID()
-    let panes: PaneTree
-    private(set) var focusedSurface: TerminalSurfaceView
+    let panes: PaneTreeModel<Leaf>
+    private(set) var focusedLeaf: Leaf
 
-    init(surface: TerminalSurfaceView) {
-        panes = PaneTree(surface: surface)
-        focusedSurface = surface
+    init(leaf: Leaf) {
+        panes = PaneTreeModel(leaf: leaf)
+        focusedLeaf = leaf
     }
 
-    init(panes: PaneTree, focused: TerminalSurfaceView) {
+    init(panes: PaneTreeModel<Leaf>, focused: Leaf) {
         self.panes = panes
-        focusedSurface = focused
+        focusedLeaf = focused
     }
 
     var title: String {
-        focusedSurface.title.isEmpty ? "Terminal" : focusedSurface.title
+        focusedLeaf.title.isEmpty ? "Terminal" : focusedLeaf.title
     }
 
-    func focus(_ surface: TerminalSurfaceView) {
-        guard panes.contains(surface) else { return }
-        focusedSurface = surface
+    func focus(_ leaf: Leaf) {
+        guard panes.contains(leaf) else { return }
+        focusedLeaf = leaf
     }
 }
 
-final class Workspace {
+final class WorkspaceModel<Leaf: PaneLeaf> {
     let id = UUID()
     /// Set when the user renames the workspace. Otherwise the name follows
     /// the focused pane's directory.
     var customName: String?
-    private(set) var tabs: [TerminalTab] = []
-    private(set) var selectedTab: TerminalTab?
+    private(set) var tabs: [TabModel<Leaf>] = []
+    private(set) var selectedTab: TabModel<Leaf>?
 
     init(customName: String? = nil) {
         self.customName = customName
     }
 
     var name: String {
-        customName ?? selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? "~"
+        customName ?? selectedTab?.focusedLeaf.workingDirectory?.fishStylePath ?? "~"
     }
 
-    func add(_ tab: TerminalTab) {
+    func add(_ tab: TabModel<Leaf>) {
         tabs.append(tab)
         selectedTab = tab
     }
 
-    func remove(_ tab: TerminalTab) {
+    func remove(_ tab: TabModel<Leaf>) {
         guard let index = tabs.firstIndex(where: { $0 === tab }) else { return }
         tabs.remove(at: index)
         if selectedTab === tab {
@@ -74,32 +74,32 @@ final class Workspace {
         }
     }
 
-    func select(_ tab: TerminalTab) {
+    func select(_ tab: TabModel<Leaf>) {
         guard tabs.contains(where: { $0 === tab }) else { return }
         selectedTab = tab
     }
 
-    func tab(containing surface: TerminalSurfaceView) -> TerminalTab? {
-        tabs.first { $0.panes.contains(surface) }
+    func tab(containing leaf: Leaf) -> TabModel<Leaf>? {
+        tabs.first { $0.panes.contains(leaf) }
     }
 }
 
 /// All workspaces plus which one is selected. Observers get `onChange` after every mutation.
-final class WorkspaceStore {
-    private(set) var workspaces: [Workspace] = []
-    private(set) var selected: Workspace?
+final class WorkspaceStoreModel<Leaf: PaneLeaf> {
+    private(set) var workspaces: [WorkspaceModel<Leaf>] = []
+    private(set) var selected: WorkspaceModel<Leaf>?
     var onChange: (() -> Void)?
 
     @discardableResult
-    func addWorkspace(customName: String? = nil) -> Workspace {
-        let workspace = Workspace(customName: customName)
+    func addWorkspace(customName: String? = nil) -> WorkspaceModel<Leaf> {
+        let workspace = WorkspaceModel<Leaf>(customName: customName)
         workspaces.append(workspace)
         selected = workspace
         onChange?()
         return workspace
     }
 
-    func remove(_ workspace: Workspace) {
+    func remove(_ workspace: WorkspaceModel<Leaf>) {
         guard let index = workspaces.firstIndex(where: { $0 === workspace }) else { return }
         workspaces.remove(at: index)
         if selected === workspace {
@@ -108,14 +108,14 @@ final class WorkspaceStore {
         onChange?()
     }
 
-    func select(_ workspace: Workspace) {
+    func select(_ workspace: WorkspaceModel<Leaf>) {
         selected = workspace
         onChange?()
     }
 
-    func workspace(containing surface: TerminalSurfaceView) -> (Workspace, TerminalTab)? {
+    func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
         for workspace in workspaces {
-            if let tab = workspace.tab(containing: surface) { return (workspace, tab) }
+            if let tab = workspace.tab(containing: leaf) { return (workspace, tab) }
         }
         return nil
     }

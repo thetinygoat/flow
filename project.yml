@@ -38,3 +38,20 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow
         ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_ENTITLEMENTS: ""
+    scheme:
+      testTargets:
+        - flowTests
+  flowTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: Sources/Logger.swift
+      - path: Sources/Workspace/PaneTree.swift
+      - path: Sources/Workspace/Workspace.swift
+      - path: Sources/Workspace/Session.swift
+      - path: Sources/Workspace/GitStatus.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests
+        GENERATE_INFOPLIST_FILE: YES

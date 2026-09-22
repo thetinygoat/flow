@@ -17,9 +17,18 @@ open flow.xcodeproj             # or: xcodebuild -scheme flow -configuration Deb
 `patches/` holds upstream build fixes needed for Xcode 27 that landed after that release.
 The build script applies them.
 
+## Tests
+
+```
+xcodebuild test -scheme flow -destination 'platform=macOS'
+```
+
+The test bundle compiles the model sources directly and does not launch the app.
+
 ## Layout
 
 - `Sources/Ghostty/` wraps the libghostty C API: runtime, config, input mapping, surface view.
-- `Sources/Workspace/` is the workspace and tab model.
+- `Sources/Workspace/` is the workspace, tab, and pane model, generic over a `PaneLeaf` so tests run without terminals.
+- `Tests/` holds unit tests for the model.
 - `Sources/UI/` is the AppKit window: sidebar on the left, terminal area on the right.
 - `Vendor/GhosttyKit.xcframework` and `Vendor/GhosttyResources` are build outputs, not committed.

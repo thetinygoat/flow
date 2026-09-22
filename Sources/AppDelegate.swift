@@ -90,22 +90,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Session
 
     private func restore(_ session: Session) {
-        for saved in session.workspaces {
-            let workspace = store.addWorkspace(customName: saved.customName)
-            for tab in saved.tabs {
-                let root = tab.layout.makePane { self.makeSurface(workingDirectory: $0) }
-                guard let first = root.surfaces.first else { continue }
-                workspace.add(TerminalTab(panes: PaneTree(root: root), focused: first))
-            }
-            if saved.selectedTab < workspace.tabs.count {
-                workspace.select(workspace.tabs[saved.selectedTab])
-            }
-            if workspace.tabs.isEmpty {
-                addTab(to: workspace)
-            }
-        }
-        if session.selectedWorkspace < store.workspaces.count {
-            store.select(store.workspaces[session.selectedWorkspace])
+        store.restore(session) { makeSurface(workingDirectory: $0) }
+        if store.workspaces.isEmpty {
+            newWorkspace()
         }
     }
 
@@ -136,12 +123,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func splitRight() {
         guard let surface = store.selected?.selectedTab?.focusedSurface else { return }
-        split(surface, direction: GHOSTTY_SPLIT_DIRECTION_RIGHT)
+        split(surface, direction: .right)
     }
 
     @objc private func splitDown() {
         guard let surface = store.selected?.selectedTab?.focusedSurface else { return }
-        split(surface, direction: GHOSTTY_SPLIT_DIRECTION_DOWN)
+        split(surface, direction: .down)
     }
 
     @objc private func selectWorkspace(_ sender: NSMenuItem) {
@@ -186,12 +173,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func addTab(to workspace: Workspace) {
         let surface = makeSurface(workingDirectory: workspace.selectedTab?.focusedSurface.workingDirectory)
-        workspace.add(TerminalTab(surface: surface))
+        workspace.add(TerminalTab(leaf: surface))
         store.notifyChanged()
         windowController.terminalArea.focusSelectedSurface()
     }
 
-    private func split(_ surface: TerminalSurfaceView, direction: ghostty_action_split_direction_e) {
+    private func split(_ surface: TerminalSurfaceView, direction: SplitDirection) {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
         let added = makeSurface(workingDirectory: surface.workingDirectory)
         tab.panes.split(surface, direction: direction, with: added)
@@ -322,18 +309,18 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         }
     }
 
-    func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: ghostty_action_split_direction_e, from surface: TerminalSurfaceView) -> Bool {
+    func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: SplitDirection, from surface: TerminalSurfaceView) -> Bool {
         split(surface, direction: direction)
         return true
     }
 
-    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: ghostty_action_goto_split_e, from surface: TerminalSurfaceView) {
+    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView) {
         guard let (_, tab) = store.workspace(containing: surface),
-              let target = tab.panes.neighbor(of: surface, direction: direction) else { return }
+              let target = tab.panes.neighbor(of: surface, direction: direction, frame: { $0.convert($0.bounds, to: nil) }) else { return }
         windowController.window?.makeFirstResponder(target)
     }
 
-    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ghostty_action_resize_split_direction_e, amount: Int, from surface: TerminalSurfaceView) {
+    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView) {
         windowController.terminalArea.paneTreeView.resize(surface, direction: direction, amount: CGFloat(amount))
     }
 

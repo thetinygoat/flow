@@ -1,5 +1,4 @@
 import AppKit
-import GhosttyKit
 
 /// Renders a tab's pane tree as nested split views. Rebuilt whenever the tree's
 /// structure changes; divider drags write their ratio back into the tree.
@@ -48,10 +47,10 @@ final class PaneTreeView: NSView {
     }
 
     /// Moves the divider that borders the pane in the given direction.
-    func resize(_ surface: TerminalSurfaceView, direction: ghostty_action_resize_split_direction_e, amount: CGFloat) {
-        guard let tree, var child = tree.pane(for: surface) else { return }
-        let horizontal = direction == GHOSTTY_RESIZE_SPLIT_LEFT || direction == GHOSTTY_RESIZE_SPLIT_RIGHT
-        let towardSecond = direction == GHOSTTY_RESIZE_SPLIT_RIGHT || direction == GHOSTTY_RESIZE_SPLIT_DOWN
+    func resize(_ surface: TerminalSurfaceView, direction: ResizeDirection, amount: CGFloat) {
+        guard let tree, var child = tree.node(for: surface) else { return }
+        let horizontal = direction == .left || direction == .right
+        let towardSecond = direction == .right || direction == .down
         while let parent = child.parent {
             if (parent.axis == .horizontal) == horizontal, (child === parent.first) == towardSecond,
                let split = splitViews[ObjectIdentifier(parent)] {

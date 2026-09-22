@@ -1,19 +1,16 @@
 import AppKit
 import GhosttyKit
-import os
-
-let logger = Logger(subsystem: "dev.thetinygoat.flow", category: "ghostty")
 
 /// The host-side decisions libghostty delegates to the app: anything that is
 /// about windows, tabs, or splits rather than a single terminal surface.
 protocol GhosttyRuntimeDelegate: AnyObject {
     func runtimeWantsNewWorkspace(_ runtime: GhosttyRuntime)
     func runtime(_ runtime: GhosttyRuntime, wantsNewTabFrom surface: TerminalSurfaceView?)
-    func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: ghostty_action_split_direction_e, from surface: TerminalSurfaceView) -> Bool
+    func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: SplitDirection, from surface: TerminalSurfaceView) -> Bool
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoTab target: ghostty_action_goto_tab_e)
-    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: ghostty_action_goto_split_e, from surface: TerminalSurfaceView)
-    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ghostty_action_resize_split_direction_e, amount: Int, from surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView)
 }
 
@@ -125,7 +122,7 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_NEW_SPLIT:
             guard let surface, let delegate else { return false }
-            return delegate.runtime(self, wantsSplit: action.action.new_split, from: surface)
+            return delegate.runtime(self, wantsSplit: SplitDirection(action.action.new_split), from: surface)
 
         case GHOSTTY_ACTION_CLOSE_TAB, GHOSTTY_ACTION_CLOSE_WINDOW:
             guard let surface else { return false }
@@ -136,12 +133,12 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_GOTO_SPLIT:
             guard let surface else { return false }
-            delegate?.runtime(self, wantsGotoSplit: action.action.goto_split, from: surface)
+            delegate?.runtime(self, wantsGotoSplit: PaneNavigation(action.action.goto_split), from: surface)
 
         case GHOSTTY_ACTION_RESIZE_SPLIT:
             guard let surface else { return false }
             let resize = action.action.resize_split
-            delegate?.runtime(self, wantsResizeSplit: resize.direction, amount: Int(resize.amount), from: surface)
+            delegate?.runtime(self, wantsResizeSplit: ResizeDirection(resize.direction), amount: Int(resize.amount), from: surface)
 
         case GHOSTTY_ACTION_EQUALIZE_SPLITS:
             guard let surface else { return false }
@@ -189,5 +186,40 @@ final class GhosttyRuntime {
             return false
         }
         return true
+    }
+}
+
+extension SplitDirection {
+    init(_ c: ghostty_action_split_direction_e) {
+        switch c {
+        case GHOSTTY_SPLIT_DIRECTION_LEFT: self = .left
+        case GHOSTTY_SPLIT_DIRECTION_DOWN: self = .down
+        case GHOSTTY_SPLIT_DIRECTION_UP: self = .up
+        default: self = .right
+        }
+    }
+}
+
+extension PaneNavigation {
+    init(_ c: ghostty_action_goto_split_e) {
+        switch c {
+        case GHOSTTY_GOTO_SPLIT_PREVIOUS: self = .previous
+        case GHOSTTY_GOTO_SPLIT_UP: self = .up
+        case GHOSTTY_GOTO_SPLIT_LEFT: self = .left
+        case GHOSTTY_GOTO_SPLIT_DOWN: self = .down
+        case GHOSTTY_GOTO_SPLIT_RIGHT: self = .right
+        default: self = .next
+        }
+    }
+}
+
+extension ResizeDirection {
+    init(_ c: ghostty_action_resize_split_direction_e) {
+        switch c {
+        case GHOSTTY_RESIZE_SPLIT_UP: self = .up
+        case GHOSTTY_RESIZE_SPLIT_DOWN: self = .down
+        case GHOSTTY_RESIZE_SPLIT_LEFT: self = .left
+        default: self = .right
+        }
     }
 }

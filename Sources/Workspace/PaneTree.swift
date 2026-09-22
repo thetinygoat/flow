@@ -1,5 +1,12 @@
-import AppKit
-import GhosttyKit
+import Foundation
+
+/// What the layout model needs from a terminal. The app's surface view
+/// conforms; tests use a stand-in.
+protocol PaneLeaf: AnyObject {
+    var title: String { get }
+    var workingDirectory: String? { get }
+    var needsConfirmQuit: Bool { get }
+}
 
 enum SplitAxis: String, Codable {
     /// Panes side by side.
@@ -8,21 +15,33 @@ enum SplitAxis: String, Codable {
     case vertical
 }
 
+enum SplitDirection {
+    case right, left, down, up
+}
+
+enum PaneNavigation {
+    case previous, next, up, left, down, right
+}
+
+enum ResizeDirection {
+    case up, down, left, right
+}
+
 /// A node in a tab's split layout: either one terminal, or two child panes
 /// divided along an axis.
-final class Pane {
-    var surface: TerminalSurfaceView?
+final class PaneNode<Leaf: PaneLeaf> {
+    var leaf: Leaf?
     var axis: SplitAxis?
-    var first: Pane?
-    var second: Pane?
+    var first: PaneNode?
+    var second: PaneNode?
     var ratio: CGFloat = 0.5
-    weak var parent: Pane?
+    weak var parent: PaneNode?
 
-    init(surface: TerminalSurfaceView) {
-        self.surface = surface
+    init(leaf: Leaf) {
+        self.leaf = leaf
     }
 
-    init(axis: SplitAxis, first: Pane, second: Pane, ratio: CGFloat) {
+    init(axis: SplitAxis, first: PaneNode, second: PaneNode, ratio: CGFloat) {
         self.axis = axis
         self.first = first
         self.second = second
@@ -31,71 +50,67 @@ final class Pane {
         second.parent = self
     }
 
-    var surfaces: [TerminalSurfaceView] {
-        if let surface { return [surface] }
-        return (first?.surfaces ?? []) + (second?.surfaces ?? [])
+    var leaves: [Leaf] {
+        if let leaf { return [leaf] }
+        return (first?.leaves ?? []) + (second?.leaves ?? [])
     }
 
-    func pane(for surface: TerminalSurfaceView) -> Pane? {
-        if self.surface === surface { return self }
-        return first?.pane(for: surface) ?? second?.pane(for: surface)
+    func node(for leaf: Leaf) -> PaneNode? {
+        if self.leaf === leaf { return self }
+        return first?.node(for: leaf) ?? second?.node(for: leaf)
     }
 }
 
 /// The split layout of one tab. `version` changes on every structural edit so
 /// views know when to rebuild.
-final class PaneTree {
-    let root: Pane
+final class PaneTreeModel<Leaf: PaneLeaf> {
+    let root: PaneNode<Leaf>
     private(set) var version = 0
 
-    init(surface: TerminalSurfaceView) {
-        root = Pane(surface: surface)
+    init(leaf: Leaf) {
+        root = PaneNode(leaf: leaf)
     }
 
-    init(root: Pane) {
+    init(root: PaneNode<Leaf>) {
         self.root = root
     }
 
-    var surfaces: [TerminalSurfaceView] {
-        root.surfaces
+    var leaves: [Leaf] {
+        root.leaves
     }
 
-    func contains(_ surface: TerminalSurfaceView) -> Bool {
-        root.pane(for: surface) != nil
+    func contains(_ leaf: Leaf) -> Bool {
+        root.node(for: leaf) != nil
     }
 
-    func pane(for surface: TerminalSurfaceView) -> Pane? {
-        root.pane(for: surface)
+    func node(for leaf: Leaf) -> PaneNode<Leaf>? {
+        root.node(for: leaf)
     }
 
-    func split(_ surface: TerminalSurfaceView, direction: ghostty_action_split_direction_e, with newSurface: TerminalSurfaceView) {
-        guard let pane = root.pane(for: surface) else { return }
-        let existing = Pane(surface: surface)
-        let added = Pane(surface: newSurface)
-        pane.surface = nil
-        pane.ratio = 0.5
+    func split(_ leaf: Leaf, direction: SplitDirection, with newLeaf: Leaf) {
+        guard let node = root.node(for: leaf) else { return }
+        let existing = PaneNode(leaf: leaf)
+        let added = PaneNode(leaf: newLeaf)
+        node.leaf = nil
+        node.ratio = 0.5
         switch direction {
-        case GHOSTTY_SPLIT_DIRECTION_RIGHT:
-            (pane.axis, pane.first, pane.second) = (.horizontal, existing, added)
-        case GHOSTTY_SPLIT_DIRECTION_LEFT:
-            (pane.axis, pane.first, pane.second) = (.horizontal, added, existing)
-        case GHOSTTY_SPLIT_DIRECTION_DOWN:
-            (pane.axis, pane.first, pane.second) = (.vertical, existing, added)
-        default:
-            (pane.axis, pane.first, pane.second) = (.vertical, added, existing)
+        case .right: (node.axis, node.first, node.second) = (.horizontal, existing, added)
+        case .left: (node.axis, node.first, node.second) = (.horizontal, added, existing)
+        case .down: (node.axis, node.first, node.second) = (.vertical, existing, added)
+        case .up: (node.axis, node.first, node.second) = (.vertical, added, existing)
         }
-        existing.parent = pane
-        added.parent = pane
+        existing.parent = node
+        added.parent = node
         version += 1
     }
 
     /// Removes a terminal from the layout. Returns the terminal that should take
     /// focus next, or nil when the removed one was the last.
-    func remove(_ surface: TerminalSurfaceView) -> TerminalSurfaceView? {
-        guard let pane = root.pane(for: surface), let parent = pane.parent,
+    func remove(_ leaf: Leaf) -> Leaf? {
+        guard let node = root.node(for: leaf), let parent = node.parent,
               let first = parent.first, let second = parent.second else { return nil }
-        let sibling = pane === first ? second : first
-        parent.surface = sibling.surface
+        let sibling = node === first ? second : first
+        parent.leaf = sibling.leaf
         parent.axis = sibling.axis
         parent.first = sibling.first
         parent.second = sibling.second
@@ -103,51 +118,53 @@ final class PaneTree {
         parent.first?.parent = parent
         parent.second?.parent = parent
         version += 1
-        return parent.surfaces.first
+        return parent.leaves.first
     }
 
     func equalize() {
-        func visit(_ pane: Pane) {
-            pane.ratio = 0.5
-            pane.first.map(visit)
-            pane.second.map(visit)
+        func visit(_ node: PaneNode<Leaf>) {
+            node.ratio = 0.5
+            node.first.map(visit)
+            node.second.map(visit)
         }
         visit(root)
         version += 1
     }
 
-    func neighbor(of surface: TerminalSurfaceView, direction: ghostty_action_goto_split_e) -> TerminalSurfaceView? {
-        let all = surfaces
-        guard all.count > 1, let index = all.firstIndex(where: { $0 === surface }) else { return nil }
+    /// `frame` supplies each leaf's on-screen rectangle, in a shared coordinate
+    /// space with y pointing up, for the directional cases.
+    func neighbor(of leaf: Leaf, direction: PaneNavigation, frame: (Leaf) -> CGRect) -> Leaf? {
+        let all = leaves
+        guard all.count > 1, let index = all.firstIndex(where: { $0 === leaf }) else { return nil }
         switch direction {
-        case GHOSTTY_GOTO_SPLIT_PREVIOUS: return all[(index + all.count - 1) % all.count]
-        case GHOSTTY_GOTO_SPLIT_NEXT: return all[(index + 1) % all.count]
-        default: return spatialNeighbor(of: surface, direction: direction, among: all)
+        case .previous: return all[(index + all.count - 1) % all.count]
+        case .next: return all[(index + 1) % all.count]
+        default: return spatialNeighbor(of: leaf, direction: direction, among: all, frame: frame)
         }
     }
 
     /// Picks the closest pane in the given direction that overlaps the current
-    /// one on the other axis, using on-screen frames.
-    private func spatialNeighbor(of surface: TerminalSurfaceView, direction: ghostty_action_goto_split_e, among all: [TerminalSurfaceView]) -> TerminalSurfaceView? {
-        let frame = surface.convert(surface.bounds, to: nil)
-        var best: (surface: TerminalSurfaceView, distance: CGFloat, overlap: CGFloat)?
-        for other in all where other !== surface {
-            let candidate = other.convert(other.bounds, to: nil)
+    /// one on the other axis.
+    private func spatialNeighbor(of leaf: Leaf, direction: PaneNavigation, among all: [Leaf], frame: (Leaf) -> CGRect) -> Leaf? {
+        let origin = frame(leaf)
+        var best: (leaf: Leaf, distance: CGFloat, overlap: CGFloat)?
+        for other in all where other !== leaf {
+            let candidate = frame(other)
             let distance: CGFloat
             let overlap: CGFloat
             switch direction {
-            case GHOSTTY_GOTO_SPLIT_RIGHT:
-                distance = candidate.minX - frame.maxX
-                overlap = min(frame.maxY, candidate.maxY) - max(frame.minY, candidate.minY)
-            case GHOSTTY_GOTO_SPLIT_LEFT:
-                distance = frame.minX - candidate.maxX
-                overlap = min(frame.maxY, candidate.maxY) - max(frame.minY, candidate.minY)
-            case GHOSTTY_GOTO_SPLIT_UP:
-                distance = candidate.minY - frame.maxY
-                overlap = min(frame.maxX, candidate.maxX) - max(frame.minX, candidate.minX)
-            case GHOSTTY_GOTO_SPLIT_DOWN:
-                distance = frame.minY - candidate.maxY
-                overlap = min(frame.maxX, candidate.maxX) - max(frame.minX, candidate.minX)
+            case .right:
+                distance = candidate.minX - origin.maxX
+                overlap = min(origin.maxY, candidate.maxY) - max(origin.minY, candidate.minY)
+            case .left:
+                distance = origin.minX - candidate.maxX
+                overlap = min(origin.maxY, candidate.maxY) - max(origin.minY, candidate.minY)
+            case .up:
+                distance = candidate.minY - origin.maxY
+                overlap = min(origin.maxX, candidate.maxX) - max(origin.minX, candidate.minX)
+            case .down:
+                distance = origin.minY - candidate.maxY
+                overlap = min(origin.maxX, candidate.maxX) - max(origin.minX, candidate.minX)
             default:
                 return nil
             }
@@ -155,6 +172,6 @@ final class PaneTree {
             if let current = best, (distance, -overlap) >= (current.distance, -current.overlap) { continue }
             best = (other, distance, overlap)
         }
-        return best?.surface
+        return best?.leaf
     }
 }

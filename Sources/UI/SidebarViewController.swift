@@ -85,7 +85,13 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         if tableView.numberOfRows == store.workspaces.count {
             let rows = IndexSet(0..<store.workspaces.count)
             tableView.reloadData(forRowIndexes: rows, columnIndexes: [0])
-            tableView.noteHeightOfRows(withIndexesChanged: rows)
+            // Reloads arrive with every shell prompt. Animated height changes
+            // overlap and leave cells taller than their rows, which then snap
+            // back on the next full layout.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                tableView.noteHeightOfRows(withIndexesChanged: rows)
+            }
         } else {
             tableView.reloadData()
         }

@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingSave: DispatchWorkItem?
     private var modifierMonitor: Any?
     private var hintTimer: Timer?
+    private var hintsSuppressed = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -47,28 +48,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.terminalArea.focusSelectedSurface()
         NSApp.activate()
 
-        // Holding the command key for a moment reveals shortcut badges on
-        // workspaces and tabs.
-        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.commandKeyChanged(held: event.modifierFlags.contains(.command))
+        // Holding command or control for a moment reveals the shortcut badges
+        // for that modifier. Once a key is pressed the shortcut has been used,
+        // so the badges stay hidden until the modifier is released.
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
+            self?.updateShortcutHints(for: event)
             return event
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.commandKeyChanged(held: false)
+            self?.hintTimer?.invalidate()
+            self?.hintsSuppressed = false
+            self?.windowController.showShortcutHints(for: nil)
         }
     }
 
-    private func commandKeyChanged(held: Bool) {
+    private func updateShortcutHints(for event: NSEvent) {
         hintTimer?.invalidate()
-        hintTimer = nil
-        guard held else {
-            windowController.setShortcutHintsVisible(false)
-            return
+        windowController.showShortcutHints(for: nil)
+        let modifiers = event.modifierFlags.intersection(ShortcutModifier.relevantFlags)
+        if event.type == .keyDown {
+            hintsSuppressed = true
+        } else if modifiers.isEmpty {
+            hintsSuppressed = false
         }
+        guard !hintsSuppressed, let modifier = ShortcutModifier(modifiers) else { return }
         hintTimer = Timer.scheduledTimer(withTimeInterval: 0.32, repeats: false) { [weak self] _ in
-            self?.windowController.setShortcutHintsVisible(true)
+            self?.windowController.showShortcutHints(for: modifier)
         }
     }
 

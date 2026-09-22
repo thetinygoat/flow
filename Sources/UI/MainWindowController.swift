@@ -65,9 +65,11 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    func setShortcutHintsVisible(_ visible: Bool) {
-        sidebar.setShortcutHintsVisible(visible)
-        terminalArea.setShortcutHintsVisible(visible)
+    /// Workspace shortcuts use command and tab shortcuts use control, so each
+    /// modifier reveals only the hints it can complete.
+    func showShortcutHints(for modifier: ShortcutModifier?) {
+        sidebar.setShortcutHintsVisible(modifier == .command)
+        terminalArea.setShortcutHintsVisible(modifier == .control)
     }
 
     /// Re-reads the store and updates the sidebar, tab strip, and window title.
@@ -77,5 +79,21 @@ final class MainWindowController: NSWindowController {
         let workspace = store.selected?.name ?? "flow"
         let tab = store.selected?.selectedTab?.title
         window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
+    }
+}
+
+enum ShortcutModifier {
+    case command, control
+
+    /// Caps lock and the fn key are left out so they never hide the hints.
+    static let relevantFlags: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
+
+    /// Nil unless command or control is held on its own.
+    init?(_ flags: NSEvent.ModifierFlags) {
+        switch flags.intersection(Self.relevantFlags) {
+        case .command: self = .command
+        case .control: self = .control
+        default: return nil
+        }
     }
 }

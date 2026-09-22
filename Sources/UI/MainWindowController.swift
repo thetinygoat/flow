@@ -76,7 +76,7 @@ final class MainWindowController: NSWindowController {
     func refresh() {
         sidebar.reload()
         terminalArea.show(store.selected)
-        let workspace = store.selected?.name ?? "flow"
+        let workspace = store.selected?.name ?? "Flow"
         let tab = store.selected?.selectedTab?.title
         window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
     }

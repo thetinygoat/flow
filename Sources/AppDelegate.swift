@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runtime = try GhosttyRuntime()
         } catch {
             let alert = NSAlert()
-            alert.messageText = "flow could not start libghostty"
+            alert.messageText = "Flow could not start libghostty"
             alert.informativeText = "\(error)"
             alert.runModal()
             NSApp.terminate(nil)
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard runtime.needsConfirmQuit else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = "Quit flow?"
+        alert.messageText = "Quit Flow?"
         alert.informativeText = "A terminal still has a running process."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
@@ -248,8 +248,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mainMenu = NSMenu()
 
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit flow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        mainMenu.addItem(submenu: appMenu, title: "flow")
+        appMenu.addItem(withTitle: "Quit Flow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        mainMenu.addItem(submenu: appMenu, title: "Flow")
 
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(withTitle: "New Workspace", action: #selector(newWorkspace), keyEquivalent: "n")

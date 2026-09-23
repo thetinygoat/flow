@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modifierMonitor: Any?
     private var hintTimer: Timer?
     private var hintsSuppressed = false
+    private lazy var aboutWindow = AboutWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -277,11 +278,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showAbout() {
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .credits: NSAttributedString(
-                string: "Terminal emulation by libghostty.",
-                attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize), .foregroundColor: NSColor.secondaryLabelColor]),
-        ])
+        aboutWindow.showWindow(nil)
+        aboutWindow.window?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: Menu

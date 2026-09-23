@@ -322,6 +322,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(.separator())
+        let findMenu = NSMenu(title: "Find")
+        findMenu.addItem(withTitle: "Find…", action: #selector(TerminalSurfaceView.findInScrollback(_:)), keyEquivalent: "f")
+        findMenu.addItem(withTitle: "Find Next", action: #selector(TerminalSurfaceView.findNext(_:)), keyEquivalent: "g")
+        let findPrevious = findMenu.addItem(withTitle: "Find Previous", action: #selector(TerminalSurfaceView.findPrevious(_:)), keyEquivalent: "g")
+        findPrevious.keyEquivalentModifierMask = [.command, .shift]
+        findMenu.addItem(withTitle: "Use Selection for Find", action: #selector(TerminalSurfaceView.useSelectionForFind(_:)), keyEquivalent: "e")
+        editMenu.addItem(submenu: findMenu, title: "Find")
         mainMenu.addItem(submenu: editMenu, title: "Edit")
 
         let viewMenu = NSMenu(title: "View")

@@ -192,6 +192,27 @@ final class GhosttyRuntime {
                 delegate?.runtime(self, wantsSecureKeyboardEntry: mode.applied(to: SecureInput.shared.global))
             }
 
+        // Search actions can arrive while a key event is still being handled,
+        // so focus changes wait for the next turn of the run loop.
+        case GHOSTTY_ACTION_START_SEARCH:
+            guard let surface else { return false }
+            let needle = action.action.start_search.needle.map { String(cString: $0) }
+            DispatchQueue.main.async { surface.startSearch(needle: needle) }
+
+        case GHOSTTY_ACTION_END_SEARCH:
+            guard let surface else { return false }
+            DispatchQueue.main.async { surface.endSearch() }
+
+        case GHOSTTY_ACTION_SEARCH_TOTAL:
+            guard let surface else { return false }
+            let total = action.action.search_total.total
+            surface.setSearchTotal(total >= 0 ? Int(total) : nil)
+
+        case GHOSTTY_ACTION_SEARCH_SELECTED:
+            guard let surface else { return false }
+            let selected = action.action.search_selected.selected
+            surface.setSearchSelected(selected >= 0 ? Int(selected) : nil)
+
         case GHOSTTY_ACTION_TOGGLE_FULLSCREEN:
             guard let window = surface?.window else { return false }
             window.toggleFullScreen(nil)

@@ -67,6 +67,8 @@ final class TerminalSurfaceView: NSView {
     private var leftButtonPressed = false
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
+    private var searchBar: SearchBarView?
+    private var searchDebounce: Timer?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -153,6 +155,7 @@ final class TerminalSurfaceView: NSView {
         titleTimer?.invalidate()
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         windowObservers.forEach(NotificationCenter.default.removeObserver)
+        searchDebounce?.invalidate()
         if passwordInput { SecureInput.shared.removeScoped(ObjectIdentifier(self)) }
         if let surface { ghostty_surface_free(surface) }
     }
@@ -470,6 +473,83 @@ final class TerminalSurfaceView: NSView {
 
     @IBAction func resetFontSize(_ sender: Any?) {
         perform(action: "reset_font_size")
+    }
+
+    @IBAction func findInScrollback(_ sender: Any?) {
+        perform(action: "start_search")
+    }
+
+    @IBAction func findNext(_ sender: Any?) {
+        perform(action: "navigate_search:next")
+    }
+
+    @IBAction func findPrevious(_ sender: Any?) {
+        perform(action: "navigate_search:previous")
+    }
+
+    @IBAction func useSelectionForFind(_ sender: Any?) {
+        perform(action: "search_selection")
+    }
+
+    // MARK: Search
+
+    /// Opens the find bar, or refocuses it when already open. A needle comes
+    /// with `search_selection` and replaces whatever was typed.
+    func startSearch(needle: String?) {
+        let bar = searchBar ?? makeSearchBar()
+        if let needle, !needle.isEmpty {
+            bar.needle = needle
+        }
+        bar.focusField()
+    }
+
+    func endSearch() {
+        guard let bar = searchBar else { return }
+        searchDebounce?.invalidate()
+        searchBar = nil
+        let barHadFocus = (window?.firstResponder as? NSView)?.isDescendant(of: bar) == true
+        bar.removeFromSuperview()
+        if barHadFocus { window?.makeFirstResponder(self) }
+    }
+
+    func setSearchTotal(_ total: Int?) {
+        searchBar?.total = total
+    }
+
+    func setSearchSelected(_ selected: Int?) {
+        searchBar?.selected = selected
+    }
+
+    private func makeSearchBar() -> SearchBarView {
+        let bar = SearchBarView()
+        bar.onChange = { [weak self] needle in self?.searchChanged(needle) }
+        bar.onNext = { [weak self] in self?.perform(action: "navigate_search:next") }
+        bar.onPrevious = { [weak self] in self?.perform(action: "navigate_search:previous") }
+        bar.onClose = { [weak self] in self?.perform(action: "end_search") }
+        bar.onReturnToTerminal = { [weak self] in
+            guard let self else { return }
+            self.window?.makeFirstResponder(self)
+        }
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(bar)
+        NSLayoutConstraint.activate([
+            bar.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            bar.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+        ])
+        searchBar = bar
+        return bar
+    }
+
+    /// Very short needles match nearly everything, so they wait for a pause in
+    /// typing before searching the whole scrollback.
+    private func searchChanged(_ needle: String) {
+        searchDebounce?.invalidate()
+        let search = { [weak self] in _ = self?.perform(action: "search:\(needle)") }
+        if needle.isEmpty || needle.count >= 3 {
+            search()
+        } else {
+            searchDebounce = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in search() }
+        }
     }
 
     // MARK: Keyboard

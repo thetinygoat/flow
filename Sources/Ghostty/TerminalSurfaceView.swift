@@ -55,7 +55,15 @@ final class TerminalSurfaceView: NSView {
         pwd ?? initialWorkingDirectory
     }
     private var titleTimer: Timer?
-    var cellSize = NSSize.zero
+    var cellSizeInPixels = NSSize.zero
+
+    /// Ghostty reports cells in pixels. Converting on read keeps the value right
+    /// for surfaces that were sized before they had a window, and across moves
+    /// between displays with different scales.
+    var cellSize: NSSize {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        return NSSize(width: cellSizeInPixels.width / scale, height: cellSizeInPixels.height / scale)
+    }
     private(set) var focused = false
 
     private var cursor: NSCursor = .iBeam

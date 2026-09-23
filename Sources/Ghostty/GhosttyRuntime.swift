@@ -156,7 +156,7 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_CELL_SIZE:
             guard let surface else { return false }
-            surface.cellSize = NSSize(
+            surface.cellSizeInPixels = NSSize(
                 width: Int(action.action.cell_size.width),
                 height: Int(action.action.cell_size.height))
 

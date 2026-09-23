@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import GhosttyKit
 
 /// Wires libghostty, the workspace model, and the window together.
@@ -23,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         runtime.delegate = self
+        SecureInput.shared.global = UserDefaults.standard.bool(forKey: Self.secureKeyboardEntryKey)
 
         NSApp.mainMenu = buildMainMenu()
 
@@ -242,12 +244,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController.terminalArea.focusSelectedSurface()
     }
 
+    // MARK: App
+
+    private static let secureKeyboardEntryKey = "SecureKeyboardEntry"
+
+    @objc private func toggleSecureKeyboardEntry() {
+        setSecureKeyboardEntry(!SecureInput.shared.global)
+    }
+
+    private func setSecureKeyboardEntry(_ enabled: Bool) {
+        SecureInput.shared.global = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.secureKeyboardEntryKey)
+    }
+
+    @objc private func openConfig() {
+        let url = URL(fileURLWithPath: GhosttyConfig.editablePath)
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        // Ghostty config files have no extension, so they are opened as plain
+        // text rather than with whatever claims extensionless files.
+        guard let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    @objc private func reloadConfig() {
+        runtime.reloadConfig()
+    }
+
+    @objc private func showAbout() {
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: NSAttributedString(
+                string: "Terminal emulation by libghostty.",
+                attributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize), .foregroundColor: NSColor.secondaryLabelColor]),
+        ])
+    }
+
     // MARK: Menu
 
     private func buildMainMenu() -> NSMenu {
         let mainMenu = NSMenu()
 
         let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About Flow", action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openConfig), keyEquivalent: ",")
+        let reloadItem = appMenu.addItem(withTitle: "Reload Configuration", action: #selector(reloadConfig), keyEquivalent: ",")
+        reloadItem.keyEquivalentModifierMask = [.command, .shift]
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Secure Keyboard Entry", action: #selector(toggleSecureKeyboardEntry), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let servicesMenu = NSMenu(title: "Services")
+        appMenu.addItem(submenu: servicesMenu, title: "Services")
+        NSApp.servicesMenu = servicesMenu
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide Flow", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Flow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         mainMenu.addItem(submenu: appMenu, title: "Flow")
 
@@ -266,6 +325,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         mainMenu.addItem(submenu: editMenu, title: "Edit")
+
+        let viewMenu = NSMenu(title: "View")
+        viewMenu.addItem(withTitle: "Increase Font Size", action: #selector(TerminalSurfaceView.increaseFontSize(_:)), keyEquivalent: "=")
+        viewMenu.addItem(withTitle: "Decrease Font Size", action: #selector(TerminalSurfaceView.decreaseFontSize(_:)), keyEquivalent: "-")
+        viewMenu.addItem(withTitle: "Reset Font Size", action: #selector(TerminalSurfaceView.resetFontSize(_:)), keyEquivalent: "0")
+        viewMenu.addItem(.separator())
+        let sidebarItem = viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+        sidebarItem.keyEquivalentModifierMask = [.command, .control]
+        let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreenItem.keyEquivalentModifierMask = [.command, .control]
+        mainMenu.addItem(submenu: viewMenu, title: "View")
 
         let workspaceMenu = NSMenu(title: "Workspace")
         workspaceMenu.addItem(withTitle: "Previous Workspace", action: #selector(previousWorkspace), keyEquivalent: "[")
@@ -286,10 +356,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.zoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         mainMenu.addItem(submenu: windowMenu, title: "Window")
         NSApp.windowsMenu = windowMenu
 
         return mainMenu
+    }
+}
+
+extension AppDelegate: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleSecureKeyboardEntry) {
+            menuItem.state = SecureInput.shared.global ? .on : .off
+        }
+        return true
     }
 }
 
@@ -336,6 +417,14 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         tab.panes.equalize()
         store.notifyChanged()
         windowController.terminalArea.focusSelectedSurface()
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool) {
+        setSecureKeyboardEntry(enabled)
+    }
+
+    func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime) {
+        openConfig()
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView) {

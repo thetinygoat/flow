@@ -12,6 +12,8 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool)
+    func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime)
 }
 
 /// Owns the single `ghostty_app_t` and receives its callbacks. Every libghostty
@@ -178,6 +180,26 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_RELOAD_CONFIG:
             reloadConfig()
 
+        case GHOSTTY_ACTION_OPEN_CONFIG:
+            delegate?.runtimeWantsOpenConfig(self)
+
+        case GHOSTTY_ACTION_SECURE_INPUT:
+            let mode = action.action.secure_input
+            if let surface {
+                guard config.autoSecureInput else { return false }
+                surface.passwordInput = mode.applied(to: surface.passwordInput)
+            } else {
+                delegate?.runtime(self, wantsSecureKeyboardEntry: mode.applied(to: SecureInput.shared.global))
+            }
+
+        case GHOSTTY_ACTION_TOGGLE_FULLSCREEN:
+            guard let window = surface?.window else { return false }
+            window.toggleFullScreen(nil)
+
+        case GHOSTTY_ACTION_TOGGLE_MAXIMIZE:
+            guard let window = surface?.window else { return false }
+            window.zoom(nil)
+
         case GHOSTTY_ACTION_CONFIG_CHANGE, GHOSTTY_ACTION_RENDERER_HEALTH, GHOSTTY_ACTION_COLOR_CHANGE:
             break
 
@@ -220,6 +242,16 @@ extension ResizeDirection {
         case GHOSTTY_RESIZE_SPLIT_DOWN: self = .down
         case GHOSTTY_RESIZE_SPLIT_LEFT: self = .left
         default: self = .right
+        }
+    }
+}
+
+extension ghostty_action_secure_input_e {
+    func applied(to current: Bool) -> Bool {
+        switch self {
+        case GHOSTTY_SECURE_INPUT_ON: true
+        case GHOSTTY_SECURE_INPUT_OFF: false
+        default: !current
         }
     }
 }

@@ -54,6 +54,29 @@ final class GhosttyConfig {
         color(for: "unfocused-split-fill") ?? backgroundColor
     }
 
+    /// Turns on secure input while a terminal is at a password prompt.
+    var autoSecureInput: Bool {
+        value(for: "macos-auto-secure-input", default: true)
+    }
+
+    /// Shows a lock on the terminal while secure input is on.
+    var secureInputIndication: Bool {
+        value(for: "macos-secure-input-indication", default: true)
+    }
+
+    /// The file Settings opens.
+    static var editablePath: String {
+        if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
+            return override
+        }
+        if let url = ConfigFile.firstWithSettings(among: ConfigFile.candidates) {
+            return url.path
+        }
+        let path = ghostty_config_open_path()
+        defer { ghostty_string_free(path) }
+        return String(decoding: UnsafeRawBufferPointer(start: path.ptr, count: Int(path.len)), as: UTF8.self)
+    }
+
     private func color(for key: String) -> NSColor? {
         var color = ghostty_config_color_s()
         guard read(key, into: &color) else { return nil }

@@ -60,6 +60,7 @@ final class TerminalSurfaceView: NSView {
 
     private var cursor: NSCursor = .iBeam
     private let dimOverlay = PassthroughView()
+    private let secureInputBadge = NSImageView(image: NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Secure keyboard entry is on")!)
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
     private var lastPerformKeyEvent: TimeInterval?
@@ -89,6 +90,9 @@ final class TerminalSurfaceView: NSView {
                 guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
                 self.updateOcclusion()
             },
+            center.addObserver(forName: SecureInput.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.updateSecureInputBadge()
+            },
         ]
 
         surface = configuration.withCValue(view: self) { config in
@@ -105,6 +109,34 @@ final class TerminalSurfaceView: NSView {
         dimOverlay.frame = bounds
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
+
+        secureInputBadge.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
+        secureInputBadge.contentTintColor = .secondaryLabelColor
+        secureInputBadge.isHidden = true
+        secureInputBadge.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(secureInputBadge)
+        NSLayoutConstraint.activate([
+            secureInputBadge.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            secureInputBadge.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+        ])
+    }
+
+    /// Set while the shell is reading a password, detected by Ghostty from the
+    /// terminal's echo mode.
+    var passwordInput = false {
+        didSet {
+            guard passwordInput != oldValue else { return }
+            if passwordInput {
+                SecureInput.shared.setScoped(ObjectIdentifier(self), focused: focused)
+            } else {
+                SecureInput.shared.removeScoped(ObjectIdentifier(self))
+            }
+        }
+    }
+
+    private func updateSecureInputBadge() {
+        let indicate = runtime?.config.secureInputIndication ?? true
+        secureInputBadge.isHidden = !(indicate && focused && SecureInput.shared.enabled)
     }
 
     /// Tints the pane to show it is not the focused split. Pass nil to clear.
@@ -121,6 +153,7 @@ final class TerminalSurfaceView: NSView {
         titleTimer?.invalidate()
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         windowObservers.forEach(NotificationCenter.default.removeObserver)
+        if passwordInput { SecureInput.shared.removeScoped(ObjectIdentifier(self)) }
         if let surface { ghostty_surface_free(surface) }
     }
 
@@ -222,6 +255,10 @@ final class TerminalSurfaceView: NSView {
         guard let surface, self.focused != focused else { return }
         self.focused = focused
         ghostty_surface_set_focus(surface, focused)
+        if passwordInput {
+            SecureInput.shared.setScoped(ObjectIdentifier(self), focused: focused)
+        }
+        updateSecureInputBadge()
         if focused { delegate?.surfaceDidFocus(self) }
     }
 
@@ -421,6 +458,18 @@ final class TerminalSurfaceView: NSView {
 
     @IBAction override func selectAll(_ sender: Any?) {
         perform(action: "select_all")
+    }
+
+    @IBAction func increaseFontSize(_ sender: Any?) {
+        perform(action: "increase_font_size:1")
+    }
+
+    @IBAction func decreaseFontSize(_ sender: Any?) {
+        perform(action: "decrease_font_size:1")
+    }
+
+    @IBAction func resetFontSize(_ sender: Any?) {
+        perform(action: "reset_font_size")
     }
 
     // MARK: Keyboard

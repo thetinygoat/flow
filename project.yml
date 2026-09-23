@@ -56,6 +56,7 @@ targets:
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift
       - path: Sources/Workspace/GitStatus.swift
+      - path: Sources/Ghostty/ConfigFile.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

@@ -68,8 +68,12 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
 
     // MARK: Workspaces and tabs
 
-    func newWorkspace() {
-        addTab(to: store.addWorkspace())
+    /// Without a directory the workspace starts where the shell's own default is.
+    func newWorkspace(in directory: String? = nil) {
+        let workspace = store.addWorkspace()
+        workspace.add(TerminalTab(leaf: makeSurface(in: directory)))
+        store.notifyChanged()
+        controller.terminalArea.focusSelectedSurface()
     }
 
     func newTab() {

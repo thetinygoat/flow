@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hintsSuppressed = false
     private lazy var aboutWindow = AboutWindowController()
     private let notifications = DesktopNotifications()
+    private lazy var serviceProvider = ServiceProvider { [weak self] directory, newWindow in
+        self?.openWorkspace(in: directory, newWindow: newWindow)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -44,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SecureInput.shared.global = UserDefaults.standard.bool(forKey: Self.secureKeyboardEntryKey)
 
         NSApp.mainMenu = buildMainMenu()
+        NSApp.servicesProvider = serviceProvider
 
         let saved = Session.load()?.windows.filter { !$0.workspaces.isEmpty } ?? []
         for savedWindow in saved {
@@ -148,9 +152,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func newWindow() {
-        let window = makeWindow(frame: nil)
-        window.newWorkspace()
-        window.show()
+        openWorkspace(in: nil, newWindow: true)
+    }
+
+    /// Opens a workspace in the directory, in the front window unless a new one
+    /// is asked for or there is no window.
+    func openWorkspace(in directory: String?, newWindow: Bool) {
+        if !newWindow, let window = currentWindow {
+            window.newWorkspace(in: directory)
+            window.show()
+        } else {
+            let window = makeWindow(frame: nil)
+            window.newWorkspace(in: directory)
+            window.show()
+        }
+        NSApp.activate()
     }
 
     private func session() -> Session {

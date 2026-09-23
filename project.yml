@@ -38,6 +38,19 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
+        NSServices:
+          - NSMenuItem:
+              default: New Flow Workspace Here
+            NSMessage: openWorkspace
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendTypes: [NSFilenamesPboardType, public.plain-text]
+          - NSMenuItem:
+              default: New Flow Window Here
+            NSMessage: openWindow
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSSendTypes: [NSFilenamesPboardType, public.plain-text]
     settings:
       base:
         PRODUCT_NAME: Flow
@@ -68,6 +81,7 @@ targets:
       - path: Sources/Workspace/GitStatus.swift
       - path: Sources/Ghostty/ConfigFile.swift
       - path: Sources/Ghostty/CommandFinish.swift
+      - path: Sources/ServiceProvider.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

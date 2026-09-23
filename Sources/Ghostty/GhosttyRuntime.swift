@@ -15,6 +15,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool)
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime)
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, didFinish command: CommandFinish, in surface: TerminalSurfaceView)
 }
 
 /// Owns the single `ghostty_app_t` and receives its callbacks. Every libghostty
@@ -169,6 +170,16 @@ final class GhosttyRuntime {
                 wantsNotification: notification.title.map { String(cString: $0) } ?? "",
                 body: notification.body.map { String(cString: $0) } ?? "",
                 from: surface)
+
+        case GHOSTTY_ACTION_COMMAND_FINISHED:
+            guard let surface else { return false }
+            let finished = action.action.command_finished
+            delegate?.runtime(
+                self,
+                didFinish: CommandFinish(
+                    exitCode: finished.exit_code < 0 ? nil : Int(finished.exit_code),
+                    duration: .nanoseconds(Int64(clamping: finished.duration))),
+                in: surface)
 
         case GHOSTTY_ACTION_SCROLLBAR:
             guard let surface else { return false }

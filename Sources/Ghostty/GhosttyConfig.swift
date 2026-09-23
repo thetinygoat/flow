@@ -61,6 +61,20 @@ final class GhosttyConfig {
         return String(cString: value) != "never"
     }
 
+    var notifyOnCommandFinish: CommandFinish.When {
+        var value: UnsafePointer<CChar>?
+        guard read("notify-on-command-finish", into: &value), let value else { return .never }
+        return CommandFinish.When(rawValue: String(cString: value)) ?? .never
+    }
+
+    var notifyOnCommandFinishAction: CommandFinish.Actions {
+        CommandFinish.Actions(rawValue: value(for: "notify-on-command-finish-action", default: CommandFinish.Actions.bell.rawValue))
+    }
+
+    var notifyOnCommandFinishAfter: Duration {
+        .milliseconds(value(for: "notify-on-command-finish-after", default: UInt(5000)))
+    }
+
     /// Turns on secure input while a terminal is at a password prompt.
     var autoSecureInput: Bool {
         value(for: "macos-auto-secure-input", default: true)

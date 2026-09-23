@@ -27,8 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         runtime.delegate = self
         notifications.isInView = { [weak self] id in
-            guard let self, NSApp.isActive, self.windowController.window?.isKeyWindow == true else { return false }
-            return self.surface(withID: id)?.focused ?? false
+            guard let self, let surface = self.surface(withID: id) else { return false }
+            return self.isInView(surface)
         }
         notifications.onOpen = { [weak self] id in
             guard let self, let surface = self.surface(withID: id) else { return }
@@ -180,6 +180,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let index = store.workspaces.firstIndex(where: { $0 === selected }) else { return }
         let count = store.workspaces.count
         selectWorkspace(at: ((index + offset) % count + count) % count)
+    }
+
+    private func isInView(_ surface: TerminalSurfaceView) -> Bool {
+        NSApp.isActive && windowController.window?.isKeyWindow == true && surface.focused
     }
 
     private func surface(withID id: UUID) -> TerminalSurfaceView? {
@@ -460,6 +464,20 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {
         let workspace = store.workspace(containing: surface)?.0.name ?? ""
         notifications.post(title: title, body: body, subtitle: workspace, from: surface.id)
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, didFinish command: CommandFinish, in surface: TerminalSurfaceView) {
+        let config = runtime.config
+        let when = config.notifyOnCommandFinish
+        guard command.shouldAlert(when: when, inView: isInView(surface), minimumDuration: config.notifyOnCommandFinishAfter) else { return }
+        let actions = config.notifyOnCommandFinishAction
+        if actions.contains(.bell) {
+            NSSound.beep()
+        }
+        if actions.contains(.notify) {
+            let workspace = store.workspace(containing: surface)?.0.name ?? ""
+            notifications.post(title: command.title, body: command.body, subtitle: workspace, from: surface.id, evenIfInView: when == .always)
+        }
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView) {

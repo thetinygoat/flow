@@ -19,8 +19,8 @@ final class DesktopNotifications: NSObject, UNUserNotificationCenterDelegate {
         center.delegate = self
     }
 
-    func post(title: String, body: String, subtitle: String, from terminal: UUID) {
-        guard isInView?(terminal) != true else { return }
+    func post(title: String, body: String, subtitle: String, from terminal: UUID, evenIfInView: Bool = false) {
+        guard evenIfInView || isInView?(terminal) != true else { return }
         center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
             if let error { logger.warning("notification permission failed: \(error)") }
             guard granted, let self else { return }

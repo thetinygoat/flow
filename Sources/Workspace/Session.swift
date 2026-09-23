@@ -1,7 +1,8 @@
 import Foundation
 
-/// What survives a relaunch: workspace names, their tabs' working directories,
-/// and which of each is selected. Shell processes and screen contents do not.
+/// What survives a relaunch: workspace names, their tabs' working directories
+/// and zoomed panes, and which of each is selected. Shell processes and screen
+/// contents do not.
 struct Session: Codable, Equatable {
     struct Workspace: Codable, Equatable {
         var customName: String?
@@ -11,6 +12,8 @@ struct Session: Codable, Equatable {
 
     struct Tab: Codable, Equatable {
         var layout: Layout
+        /// Index of the zoomed pane among the layout's terminals, in order.
+        var zoomedPane: Int?
     }
 
     indirect enum Layout: Codable, Equatable {
@@ -68,7 +71,11 @@ extension WorkspaceStoreModel {
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
                     customName: workspace.customName,
-                    tabs: workspace.tabs.map { Session.Tab(layout: Session.Layout(node: $0.panes.root)) },
+                    tabs: workspace.tabs.map { tab in
+                        Session.Tab(
+                            layout: Session.Layout(node: tab.panes.root),
+                            zoomedPane: tab.panes.zoomed.flatMap { zoomed in tab.panes.leaves.firstIndex { $0 === zoomed } })
+                    },
                     selectedTab: workspace.tabs.firstIndex { $0 === workspace.selectedTab } ?? 0)
             },
             selectedWorkspace: workspaces.firstIndex { $0 === selected } ?? 0)
@@ -81,8 +88,12 @@ extension WorkspaceStoreModel {
             let workspace = addWorkspace(customName: saved.customName)
             for tab in saved.tabs {
                 let root = tab.layout.makeNode(makeLeaf)
-                guard let first = root.leaves.first else { continue }
-                workspace.add(TabModel(panes: PaneTreeModel(root: root), focused: first))
+                let leaves = root.leaves
+                guard let first = leaves.first else { continue }
+                let panes = PaneTreeModel(root: root)
+                let zoomed = tab.zoomedPane.flatMap { leaves.indices.contains($0) ? leaves[$0] : nil }
+                if let zoomed { panes.toggleZoom(zoomed) }
+                workspace.add(TabModel(panes: panes, focused: zoomed ?? first))
             }
             if saved.selectedTab < workspace.tabs.count {
                 workspace.select(workspace.tabs[saved.selectedTab])

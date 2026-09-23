@@ -75,6 +75,12 @@ final class GhosttyConfig {
         .milliseconds(value(for: "notify-on-command-finish-after", default: UInt(5000)))
     }
 
+    /// `split-preserve-zoom = navigation` keeps a tab zoomed while moving
+    /// between its panes, zooming whichever pane focus lands on.
+    var zoomFollowsNavigation: Bool {
+        value(for: "split-preserve-zoom", default: CUnsignedInt(0)) & 1 != 0
+    }
+
     /// Turns on secure input while a terminal is at a password prompt.
     var autoSecureInput: Bool {
         value(for: "macos-auto-secure-input", default: true)

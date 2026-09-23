@@ -113,4 +113,63 @@ final class PaneTreeTests: XCTestCase {
         let tree = TestTree(leaf: a)
         XCTAssertNil(tree.neighbor(of: a, direction: .next, frame: { $0.frame }))
     }
+
+    func testToggleZoomNeedsSplits() {
+        let a = FakeLeaf("a")
+        let tree = TestTree(leaf: a)
+        tree.toggleZoom(a)
+        XCTAssertNil(tree.zoomed)
+    }
+
+    func testToggleZoomZoomsAndUnzooms() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b")
+        let tree = TestTree(leaf: a)
+        tree.split(a, direction: .right, with: b)
+        let before = tree.version
+
+        tree.toggleZoom(b)
+        XCTAssertTrue(tree.zoomed === b)
+        XCTAssertEqual(tree.version, before + 1)
+
+        tree.toggleZoom(a)
+        XCTAssertTrue(tree.zoomed === a, "zooming another pane moves the zoom")
+
+        tree.toggleZoom(a)
+        XCTAssertNil(tree.zoomed)
+    }
+
+    func testToggleZoomIgnoresForeignLeaf() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b")
+        let tree = TestTree(leaf: a)
+        tree.split(a, direction: .right, with: b)
+        tree.toggleZoom(FakeLeaf("elsewhere"))
+        XCTAssertNil(tree.zoomed)
+    }
+
+    func testLayoutChangesClearZoom() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b"), c = FakeLeaf("c")
+        let tree = TestTree(leaf: a)
+        tree.split(a, direction: .right, with: b)
+
+        tree.toggleZoom(a)
+        tree.split(b, direction: .down, with: c)
+        XCTAssertNil(tree.zoomed, "splitting unzooms")
+
+        tree.toggleZoom(a)
+        _ = tree.remove(c)
+        XCTAssertNil(tree.zoomed, "closing a pane unzooms")
+    }
+
+    func testUnzoom() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b")
+        let tree = TestTree(leaf: a)
+        tree.split(a, direction: .right, with: b)
+        tree.toggleZoom(a)
+        let before = tree.version
+        tree.unzoom()
+        XCTAssertNil(tree.zoomed)
+        XCTAssertEqual(tree.version, before + 1)
+        tree.unzoom()
+        XCTAssertEqual(tree.version, before + 1, "unzooming twice changes nothing")
+    }
 }

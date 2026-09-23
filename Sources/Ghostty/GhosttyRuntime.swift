@@ -12,6 +12,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsToggleZoomFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool)
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime)
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView)
@@ -143,6 +144,10 @@ final class GhosttyRuntime {
             guard let surface else { return false }
             let resize = action.action.resize_split
             delegate?.runtime(self, wantsResizeSplit: ResizeDirection(resize.direction), amount: Int(resize.amount), from: surface)
+
+        case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
+            guard let surface else { return false }
+            delegate?.runtime(self, wantsToggleZoomFrom: surface)
 
         case GHOSTTY_ACTION_EQUALIZE_SPLITS:
             guard let surface else { return false }

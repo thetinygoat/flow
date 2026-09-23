@@ -20,7 +20,7 @@ final class PaneTreeView: NSView {
         splitViews.removeAll()
         subviews.forEach { $0.removeFromSuperview() }
         guard let tree else { return }
-        let view = build(tree.root)
+        let view = tree.zoomed.map(zoomedView) ?? build(tree.root)
         view.frame = bounds
         view.autoresizingMask = [.width, .height]
         addSubview(view)
@@ -28,9 +28,15 @@ final class PaneTreeView: NSView {
 
     func updateDimming(focused: TerminalSurfaceView?) {
         let surfaces = tree?.surfaces ?? []
+        let dims = surfaces.count > 1 && tree?.zoomed == nil
         for surface in surfaces {
-            surface.setDimColor(surfaces.count > 1 && surface !== focused ? unfocusedFill : nil)
+            surface.setDimColor(dims && surface !== focused ? unfocusedFill : nil)
         }
+    }
+
+    private func zoomedView(_ surface: TerminalSurfaceView) -> NSView {
+        surface.removeFromSuperview()
+        return surface
     }
 
     private func build(_ pane: Pane) -> NSView {

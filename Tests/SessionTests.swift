@@ -41,11 +41,44 @@ final class SessionTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .appendingPathComponent("session.json")
         let session = Session(
-            workspaces: [.init(customName: nil, tabs: [.init(layout: .terminal(workingDirectory: "/x"))], selectedTab: 0)],
+            workspaces: [.init(customName: nil, tabs: [.init(layout: .terminal(workingDirectory: "/x"), zoomedPane: nil)], selectedTab: 0)],
             selectedWorkspace: 0)
 
         session.save(to: url)
         XCTAssertEqual(Session.load(from: url), session)
+    }
+
+    func testRoundTripPreservesZoomedPane() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let a = FakeLeaf(workingDirectory: "/a"), b = FakeLeaf(workingDirectory: "/b"), c = FakeLeaf(workingDirectory: "/c")
+        let tab = TestTab(leaf: a)
+        tab.panes.split(a, direction: .right, with: b)
+        tab.panes.split(b, direction: .down, with: c)
+        tab.panes.toggleZoom(b)
+        workspace.add(tab)
+        workspace.add(TestTab(leaf: FakeLeaf(workingDirectory: "/d")))
+
+        let session = store.session()
+        XCTAssertEqual(session.workspaces[0].tabs.map(\.zoomedPane), [1, nil])
+
+        let restored = TestStore()
+        restored.restore(session) { FakeLeaf(workingDirectory: $0) }
+        let restoredTab = restored.workspaces[0].tabs[0]
+        XCTAssertEqual(restoredTab.panes.zoomed?.workingDirectory, "/b")
+        XCTAssertTrue(restoredTab.focusedLeaf === restoredTab.panes.zoomed, "the zoomed pane gets focus")
+        XCTAssertNil(restored.workspaces[0].tabs[1].panes.zoomed)
+    }
+
+    func testOutOfRangeZoomIsIgnored() {
+        let session = Session(
+            workspaces: [.init(customName: nil, tabs: [.init(
+                layout: .split(axis: .horizontal, ratio: 0.5, first: .terminal(workingDirectory: "/a"), second: .terminal(workingDirectory: "/b")),
+                zoomedPane: 5)], selectedTab: 0)],
+            selectedWorkspace: 0)
+        let restored = TestStore()
+        restored.restore(session) { FakeLeaf(workingDirectory: $0) }
+        XCTAssertNil(restored.workspaces[0].tabs[0].panes.zoomed)
     }
 
     func testMissingFileLoadsNil() {

@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         windowController = MainWindowController(store: store)
         windowController.sidebar.delegate = self
+        windowController.onResetZoom = { [weak self] in self?.resetZoom() }
         windowController.terminalArea.delegate = self
         windowController.applyAppearance(config: runtime.config, app: runtime.app)
         runtime.onConfigChange = { [weak self] in
@@ -365,6 +366,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewMenu.addItem(withTitle: "Decrease Font Size", action: #selector(TerminalSurfaceView.decreaseFontSize(_:)), keyEquivalent: "-")
         viewMenu.addItem(withTitle: "Reset Font Size", action: #selector(TerminalSurfaceView.resetFontSize(_:)), keyEquivalent: "0")
         viewMenu.addItem(.separator())
+        let zoomItem = viewMenu.addItem(withTitle: "Zoom Split", action: #selector(TerminalSurfaceView.toggleSplitZoom(_:)), keyEquivalent: "\r")
+        zoomItem.keyEquivalentModifierMask = [.command, .shift]
+        viewMenu.addItem(.separator())
         let sidebarItem = viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
         sidebarItem.keyEquivalentModifierMask = [.command, .control]
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
@@ -436,10 +440,43 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         return true
     }
 
+    /// Hidden panes have no frames to navigate by, so a zoomed tab is laid out
+    /// in full before looking for the neighbor.
     func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView) {
-        guard let (_, tab) = store.workspace(containing: surface),
-              let target = tab.panes.neighbor(of: surface, direction: direction, frame: { $0.convert($0.bounds, to: nil) }) else { return }
-        windowController.window?.makeFirstResponder(target)
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        let wasZoomed = tab.panes.zoomed != nil
+        if wasZoomed {
+            tab.panes.unzoom()
+            windowController.terminalArea.show(store.selected)
+            windowController.terminalArea.view.layoutSubtreeIfNeeded()
+        }
+        guard let target = tab.panes.neighbor(of: surface, direction: direction, frame: { $0.convert($0.bounds, to: nil) }) else {
+            if wasZoomed { tab.panes.toggleZoom(surface) }
+            store.notifyChanged()
+            windowController.terminalArea.focusSelectedSurface()
+            return
+        }
+        tab.focus(target)
+        if wasZoomed && runtime.config.zoomFollowsNavigation {
+            tab.panes.toggleZoom(target)
+        }
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsToggleZoomFrom surface: TerminalSurfaceView) {
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        tab.panes.toggleZoom(surface)
+        tab.focus(surface)
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
+    }
+
+    @objc private func resetZoom() {
+        guard let tab = store.selected?.selectedTab else { return }
+        tab.panes.unzoom()
+        store.notifyChanged()
+        windowController.terminalArea.focusSelectedSurface()
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView) {

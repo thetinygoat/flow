@@ -66,6 +66,9 @@ final class PaneNode<Leaf: PaneLeaf> {
 final class PaneTreeModel<Leaf: PaneLeaf> {
     let root: PaneNode<Leaf>
     private(set) var version = 0
+    /// The pane filling the whole tab while the others are hidden. Any change
+    /// to the layout clears it.
+    private(set) var zoomed: Leaf?
 
     init(leaf: Leaf) {
         root = PaneNode(leaf: leaf)
@@ -101,6 +104,7 @@ final class PaneTreeModel<Leaf: PaneLeaf> {
         }
         existing.parent = node
         added.parent = node
+        zoomed = nil
         version += 1
     }
 
@@ -117,8 +121,27 @@ final class PaneTreeModel<Leaf: PaneLeaf> {
         parent.ratio = sibling.ratio
         parent.first?.parent = parent
         parent.second?.parent = parent
+        zoomed = nil
         version += 1
         return parent.leaves.first
+    }
+
+    /// Zooms the pane, or unzooms it when it is the zoomed one. A tab without
+    /// splits has nothing to zoom.
+    func toggleZoom(_ leaf: Leaf) {
+        if zoomed === leaf {
+            zoomed = nil
+        } else {
+            guard root.leaf == nil, contains(leaf) else { return }
+            zoomed = leaf
+        }
+        version += 1
+    }
+
+    func unzoom() {
+        guard zoomed != nil else { return }
+        zoomed = nil
+        version += 1
     }
 
     func equalize() {
@@ -128,6 +151,7 @@ final class PaneTreeModel<Leaf: PaneLeaf> {
             node.second.map(visit)
         }
         visit(root)
+        zoomed = nil
         version += 1
     }
 

@@ -494,6 +494,10 @@ final class TerminalSurfaceView: NSView {
         perform(action: "reset_font_size")
     }
 
+    @IBAction func toggleSplitZoom(_ sender: Any?) {
+        perform(action: "toggle_split_zoom")
+    }
+
     @IBAction func findInScrollback(_ sender: Any?) {
         perform(action: "start_search")
     }

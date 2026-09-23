@@ -83,6 +83,8 @@ final class TerminalSurfaceView: NSView {
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
     private var searchBar: SearchBarView?
+    private let progressBar = ProgressBarView()
+    private var progressTimeout: Timer?
     private var searchDebounce: Timer?
 
     override var acceptsFirstResponder: Bool { true }
@@ -126,6 +128,10 @@ final class TerminalSurfaceView: NSView {
         dimOverlay.frame = bounds
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
+
+        progressBar.frame = NSRect(x: 0, y: bounds.height - ProgressBarView.height, width: bounds.width, height: ProgressBarView.height)
+        progressBar.autoresizingMask = [.width, .minYMargin]
+        addSubview(progressBar)
 
         scrollbar.frame = bounds
         scrollbar.autoresizingMask = [.width, .height]
@@ -177,6 +183,7 @@ final class TerminalSurfaceView: NSView {
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         windowObservers.forEach(NotificationCenter.default.removeObserver)
         searchDebounce?.invalidate()
+        progressTimeout?.invalidate()
         if passwordInput { SecureInput.shared.removeScoped(ObjectIdentifier(self)) }
         if let surface { ghostty_surface_free(surface) }
     }
@@ -537,6 +544,17 @@ final class TerminalSurfaceView: NSView {
         let barHadFocus = (window?.firstResponder as? NSView)?.isDescendant(of: bar) == true
         bar.removeFromSuperview()
         if barHadFocus { window?.makeFirstResponder(self) }
+    }
+
+    /// Programs refresh their progress while they work, so a report that goes
+    /// quiet for 15 seconds is dropped rather than left on screen forever.
+    func setProgress(_ report: ProgressReport?) {
+        progressBar.report = report
+        progressTimeout?.invalidate()
+        guard report != nil else { return }
+        progressTimeout = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in
+            self?.progressBar.report = nil
+        }
     }
 
     func setScrollbar(total: Int, offset: Int, visibleRows: Int) {

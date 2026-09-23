@@ -191,6 +191,10 @@ final class GhosttyRuntime {
                     duration: .nanoseconds(Int64(clamping: finished.duration))),
                 in: surface)
 
+        case GHOSTTY_ACTION_PROGRESS_REPORT:
+            guard let surface else { return false }
+            surface.setProgress(ProgressReport(action.action.progress_report))
+
         case GHOSTTY_ACTION_SCROLLBAR:
             guard let surface else { return false }
             let scrollbar = action.action.scrollbar
@@ -310,5 +314,20 @@ extension ghostty_action_secure_input_e {
         case GHOSTTY_SECURE_INPUT_OFF: false
         default: !current
         }
+    }
+}
+
+extension ProgressReport {
+    /// Nil when the program asked for the bar to be removed.
+    init?(_ c: ghostty_action_progress_report_s) {
+        let state: State
+        switch c.state {
+        case GHOSTTY_PROGRESS_STATE_SET: state = .set
+        case GHOSTTY_PROGRESS_STATE_ERROR: state = .error
+        case GHOSTTY_PROGRESS_STATE_INDETERMINATE: state = .indeterminate
+        case GHOSTTY_PROGRESS_STATE_PAUSE: state = .pause
+        default: return nil
+        }
+        self.init(state: state, percent: c.progress < 0 ? nil : Int(c.progress))
     }
 }

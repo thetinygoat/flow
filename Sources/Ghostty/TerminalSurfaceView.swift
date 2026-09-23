@@ -131,6 +131,7 @@ final class TerminalSurfaceView: NSView {
         progressBar.autoresizingMask = [.width, .minYMargin]
         addSubview(progressBar)
         linkPreview.install(in: self)
+        registerForDraggedTypes([.fileURL, .URL, .string])
 
         scrollbar.frame = bounds
         scrollbar.autoresizingMask = [.width, .height]
@@ -555,6 +556,25 @@ final class TerminalSurfaceView: NSView {
         progressTimeout = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in
             self?.progressBar.report = nil
         }
+    }
+
+    // MARK: Dropping
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        .copy
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        insertDropped(from: sender.draggingPasteboard)
+    }
+
+    func insertDropped(from pasteboard: NSPasteboard) -> Bool {
+        guard let text = DropText.text(
+            url: pasteboard.string(forType: .URL),
+            fileURLs: pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [],
+            string: pasteboard.string(forType: .string)) else { return false }
+        insertText(text, replacementRange: NSRange(location: 0, length: 0))
+        return true
     }
 
     func setHoveredLink(_ url: String?) {

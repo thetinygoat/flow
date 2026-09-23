@@ -87,6 +87,7 @@ targets:
       - path: Sources/Ghostty/ConfigFile.swift
       - path: Sources/Ghostty/CommandFinish.swift
       - path: Sources/ServiceProvider.swift
+      - path: Sources/Ghostty/DropText.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

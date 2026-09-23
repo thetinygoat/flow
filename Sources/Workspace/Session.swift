@@ -1,9 +1,15 @@
 import Foundation
 
-/// What survives a relaunch: workspace names, their tabs' working directories
-/// and zoomed panes, and which of each is selected. Shell processes and screen
-/// contents do not.
+/// What survives a relaunch: each window's position and workspaces, the
+/// workspaces' names, their tabs' working directories and zoomed panes, and
+/// which of each is selected. Shell processes and screen contents do not.
 struct Session: Codable, Equatable {
+    struct Window: Codable, Equatable {
+        var workspaces: [Workspace]
+        var selectedWorkspace: Int
+        var frame: CGRect?
+    }
+
     struct Workspace: Codable, Equatable {
         var customName: String?
         var tabs: [Tab]
@@ -39,8 +45,7 @@ struct Session: Codable, Equatable {
         }
     }
 
-    var workspaces: [Workspace]
-    var selectedWorkspace: Int
+    var windows: [Window]
 
     static let fileURL: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -66,8 +71,8 @@ struct Session: Codable, Equatable {
 }
 
 extension WorkspaceStoreModel {
-    func session() -> Session {
-        Session(
+    func snapshot(frame: CGRect? = nil) -> Session.Window {
+        Session.Window(
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
                     customName: workspace.customName,
@@ -78,13 +83,14 @@ extension WorkspaceStoreModel {
                     },
                     selectedTab: workspace.tabs.firstIndex { $0 === workspace.selectedTab } ?? 0)
             },
-            selectedWorkspace: workspaces.firstIndex { $0 === selected } ?? 0)
+            selectedWorkspace: workspaces.firstIndex { $0 === selected } ?? 0,
+            frame: frame)
     }
 
-    /// Rebuilds workspaces from a session. `makeLeaf` creates a terminal for a
+    /// Rebuilds one window's workspaces. `makeLeaf` creates a terminal for a
     /// saved working directory. Workspaces whose tabs were all lost are skipped.
-    func restore(_ session: Session, makeLeaf: (String?) -> Leaf) {
-        for saved in session.workspaces {
+    func restore(_ window: Session.Window, makeLeaf: (String?) -> Leaf) {
+        for saved in window.workspaces {
             let workspace = addWorkspace(customName: saved.customName)
             for tab in saved.tabs {
                 let root = tab.layout.makeNode(makeLeaf)
@@ -102,8 +108,8 @@ extension WorkspaceStoreModel {
                 remove(workspace)
             }
         }
-        if session.selectedWorkspace < workspaces.count {
-            select(workspaces[session.selectedWorkspace])
+        if window.selectedWorkspace < workspaces.count {
+            select(workspaces[window.selectedWorkspace])
         }
     }
 }

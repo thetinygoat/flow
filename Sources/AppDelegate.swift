@@ -52,8 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.scheduleSave()
         }
 
-        if let session = Session.load(), !session.workspaces.isEmpty {
-            restore(session)
+        if let window = Session.load()?.windows.first, !window.workspaces.isEmpty {
+            restore(window)
         } else {
             newWorkspace()
         }
@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         pendingSave?.cancel()
-        store.session().save()
+        session().save()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -118,8 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Session
 
-    private func restore(_ session: Session) {
-        store.restore(session) { makeSurface(workingDirectory: $0) }
+    private func session() -> Session {
+        Session(windows: [store.snapshot(frame: windowController.window?.frame)])
+    }
+
+    private func restore(_ window: Session.Window) {
+        store.restore(window) { makeSurface(workingDirectory: $0) }
         if store.workspaces.isEmpty {
             newWorkspace()
         }
@@ -129,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// writes are coalesced.
     private func scheduleSave() {
         pendingSave?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.store.session().save() }
+        let work = DispatchWorkItem { [weak self] in self?.session().save() }
         pendingSave = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }

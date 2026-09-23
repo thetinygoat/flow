@@ -16,13 +16,13 @@ final class SessionTests: XCTestCase {
         second.add(TestTab(leaf: FakeLeaf(workingDirectory: "/e")))
         store.select(first)
 
-        let session = store.session()
+        let session = Session(windows: [store.snapshot()])
         let data = try! JSONEncoder().encode(session)
         let decoded = try! JSONDecoder().decode(Session.self, from: data)
         XCTAssertEqual(decoded, session)
 
         let restored = TestStore()
-        restored.restore(decoded) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(decoded.windows[0]) { FakeLeaf(workingDirectory: $0) }
 
         XCTAssertEqual(restored.workspaces.count, 2)
         XCTAssertTrue(restored.selected === restored.workspaces[0])
@@ -40,9 +40,16 @@ final class SessionTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .appendingPathComponent("session.json")
-        let session = Session(
-            workspaces: [.init(customName: nil, tabs: [.init(layout: .terminal(workingDirectory: "/x"), zoomedPane: nil)], selectedTab: 0)],
-            selectedWorkspace: 0)
+        let session = Session(windows: [
+            .init(
+                workspaces: [.init(customName: nil, tabs: [.init(layout: .terminal(workingDirectory: "/x"), zoomedPane: nil)], selectedTab: 0)],
+                selectedWorkspace: 0,
+                frame: CGRect(x: 10, y: 20, width: 800, height: 600)),
+            .init(
+                workspaces: [.init(customName: "second", tabs: [.init(layout: .terminal(workingDirectory: "/y"), zoomedPane: nil)], selectedTab: 0)],
+                selectedWorkspace: 0,
+                frame: nil),
+        ])
 
         session.save(to: url)
         XCTAssertEqual(Session.load(from: url), session)
@@ -59,11 +66,11 @@ final class SessionTests: XCTestCase {
         workspace.add(tab)
         workspace.add(TestTab(leaf: FakeLeaf(workingDirectory: "/d")))
 
-        let session = store.session()
-        XCTAssertEqual(session.workspaces[0].tabs.map(\.zoomedPane), [1, nil])
+        let window = store.snapshot()
+        XCTAssertEqual(window.workspaces[0].tabs.map(\.zoomedPane), [1, nil])
 
         let restored = TestStore()
-        restored.restore(session) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(window) { FakeLeaf(workingDirectory: $0) }
         let restoredTab = restored.workspaces[0].tabs[0]
         XCTAssertEqual(restoredTab.panes.zoomed?.workingDirectory, "/b")
         XCTAssertTrue(restoredTab.focusedLeaf === restoredTab.panes.zoomed, "the zoomed pane gets focus")
@@ -71,14 +78,23 @@ final class SessionTests: XCTestCase {
     }
 
     func testOutOfRangeZoomIsIgnored() {
-        let session = Session(
+        let window = Session.Window(
             workspaces: [.init(customName: nil, tabs: [.init(
                 layout: .split(axis: .horizontal, ratio: 0.5, first: .terminal(workingDirectory: "/a"), second: .terminal(workingDirectory: "/b")),
                 zoomedPane: 5)], selectedTab: 0)],
-            selectedWorkspace: 0)
+            selectedWorkspace: 0,
+            frame: nil)
         let restored = TestStore()
-        restored.restore(session) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(window) { FakeLeaf(workingDirectory: $0) }
         XCTAssertNil(restored.workspaces[0].tabs[0].panes.zoomed)
+    }
+
+    func testSnapshotCarriesFrame() {
+        let store = TestStore()
+        store.addWorkspace().add(TestTab(leaf: FakeLeaf(workingDirectory: "/a")))
+        let frame = CGRect(x: 100, y: 200, width: 900, height: 700)
+        XCTAssertEqual(store.snapshot(frame: frame).frame, frame)
+        XCTAssertNil(store.snapshot().frame)
     }
 
     func testMissingFileLoadsNil() {

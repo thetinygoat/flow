@@ -6,7 +6,6 @@ final class FakeLeaf: PaneLeaf {
     var workingDirectory: String?
     var needsConfirmQuit = false
     var needsAttention = false
-    var isBusy = false
     var frame = CGRect.zero
 
     init(_ title: String = "", workingDirectory: String? = nil) {

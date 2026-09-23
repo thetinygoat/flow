@@ -149,9 +149,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         cell.titleLabel.stringValue = workspace.name
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
         cell.gitStatus = gitStatus(forRow: row)
-        cell.indicator = workspace.needsAttention ? .attention
-            : workspace.isBusy && workspace !== store.selected ? .busy
-            : .none
+        cell.showsAttention = workspace.needsAttention
         cell.onClose = { [weak self] in
             guard let self, row < self.store.workspaces.count else { return }
             self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
@@ -181,7 +179,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let subtitleLabel = NSTextField(labelWithString: "")
     private let gitLabel = NSTextField(labelWithString: "")
     private let hint = ShortcutHintView()
-    private let indicatorDot = NSView()
+    private let attentionDot = NSView()
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
     private var trackingArea: NSTrackingArea?
     private var onRename: ((String) -> Void)?
@@ -209,11 +207,11 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         addSubview(stack)
         hint.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hint)
-        indicatorDot.wantsLayer = true
-        indicatorDot.layer?.cornerRadius = 3
-        indicatorDot.isHidden = true
-        indicatorDot.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(indicatorDot)
+        attentionDot.wantsLayer = true
+        attentionDot.layer?.cornerRadius = 3
+        attentionDot.isHidden = true
+        attentionDot.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(attentionDot)
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
         closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
@@ -228,10 +226,10 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            indicatorDot.widthAnchor.constraint(equalToConstant: 6),
-            indicatorDot.heightAnchor.constraint(equalToConstant: 6),
-            indicatorDot.centerXAnchor.constraint(equalTo: closeButton.centerXAnchor),
-            indicatorDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            attentionDot.widthAnchor.constraint(equalToConstant: 6),
+            attentionDot.heightAnchor.constraint(equalToConstant: 6),
+            attentionDot.centerXAnchor.constraint(equalTo: closeButton.centerXAnchor),
+            attentionDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
@@ -249,12 +247,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
 
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = hint.text != nil
-        updateIndicator()
+        updateAttentionDot()
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
-        updateIndicator()
+        updateAttentionDot()
     }
 
     @objc private func closeTapped() {
@@ -272,43 +270,20 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         }
     }
 
-    enum Indicator {
-        case none
-        /// Something happened here that the user has not seen.
-        case attention
-        /// A program in a workspace the user is not looking at is working.
-        case busy
-    }
-
-    var indicator = Indicator.none {
-        didSet { updateIndicator() }
+    var showsAttention = false {
+        didSet { updateAttentionDot() }
     }
 
     /// The dot shares its spot with the close button and the shortcut hint,
     /// and gives way to either.
-    private func updateIndicator() {
-        indicatorDot.isHidden = indicator == .none || !closeButton.isHidden || hint.text != nil
-        guard let layer = indicatorDot.layer else { return }
-        layer.backgroundColor = (indicator == .busy ? NSColor.flowLime : NSColor.systemBlue).cgColor
-        if indicator == .busy {
-            // Rows reload often, so a running pulse is left alone rather than restarted.
-            guard layer.animation(forKey: "pulse") == nil else { return }
-            let pulse = CABasicAnimation(keyPath: "opacity")
-            pulse.fromValue = 1
-            pulse.toValue = 0.2
-            pulse.duration = 0.8
-            pulse.autoreverses = true
-            pulse.repeatCount = .infinity
-            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            layer.add(pulse, forKey: "pulse")
-        } else {
-            layer.removeAnimation(forKey: "pulse")
-        }
+    private func updateAttentionDot() {
+        attentionDot.isHidden = !showsAttention || !closeButton.isHidden || hint.text != nil
+        attentionDot.layer?.backgroundColor = NSColor.systemBlue.cgColor
     }
 
     func showShortcutHint(_ text: String?) {
         hint.text = text
-        updateIndicator()
+        updateAttentionDot()
     }
 
     required init?(coder: NSCoder) {
@@ -372,9 +347,4 @@ final class ShortcutHintView: NSView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
-}
-
-extension NSColor {
-    /// The lime of Flow's icon.
-    static let flowLime = NSColor(srgbRed: 0xC6 / 255, green: 0xF3 / 255, blue: 0x6B / 255, alpha: 1)
 }

@@ -65,10 +65,6 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
         tabs.contains { $0.panes.leaves.contains(where: \.needsAttention) }
     }
 
-    var isBusy: Bool {
-        tabs.contains { $0.panes.leaves.contains(where: \.isBusy) }
-    }
-
     func add(_ tab: TabModel<Leaf>) {
         tabs.append(tab)
         selectedTab = tab

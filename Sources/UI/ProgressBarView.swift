@@ -9,11 +9,6 @@ struct ProgressReport: Equatable {
     let state: State
     /// Percent complete, when the program gave one.
     let percent: Int?
-
-    /// Errors and pauses mean the program has stopped making progress.
-    var isWorking: Bool {
-        state == .set || state == .indeterminate
-    }
 }
 
 /// A thin bar across the top of a terminal showing a program's progress:

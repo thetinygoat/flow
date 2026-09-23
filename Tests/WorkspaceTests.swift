@@ -44,24 +44,6 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertFalse(workspace.needsAttention)
     }
 
-    func testBusyWhenAnyPaneInAnyTabIs() {
-        let workspace = WorkspaceModel<FakeLeaf>()
-        let a = FakeLeaf(), b = FakeLeaf(), c = FakeLeaf()
-        let first = TestTab(leaf: a)
-        first.panes.split(a, direction: .down, with: b)
-        workspace.add(first)
-        workspace.add(TestTab(leaf: c))
-        XCTAssertFalse(workspace.isBusy)
-
-        b.isBusy = true
-        XCTAssertTrue(workspace.isBusy)
-        b.isBusy = false
-        c.isBusy = true
-        XCTAssertTrue(workspace.isBusy)
-        c.isBusy = false
-        XCTAssertFalse(workspace.isBusy)
-    }
-
     func testNameFollowsDirectoryUntilRenamed() {
         let workspace = WorkspaceModel<FakeLeaf>()
         XCTAssertEqual(workspace.name, "~")

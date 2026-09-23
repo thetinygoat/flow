@@ -6,8 +6,6 @@ protocol PaneLeaf: AnyObject {
     var title: String { get }
     var workingDirectory: String? { get }
     var needsConfirmQuit: Bool { get }
-    /// Set when the terminal alerted while the user was not looking at it.
-    var needsAttention: Bool { get }
 }
 
 enum SplitAxis: String, Codable {

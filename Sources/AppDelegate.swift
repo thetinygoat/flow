@@ -73,15 +73,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hintsSuppressed = false
             self?.windows.forEach { $0.controller.showShortcutHints(for: nil) }
         }
-        // Returning to Flow with the alerting terminal already focused never
-        // refocuses it, so its attention mark is cleared here.
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let window = self?.currentWindow, let surface = window.focusedSurface,
-                  window.window?.firstResponder === surface else { return }
-            surface.needsAttention = false
-        }
     }
 
     private func updateShortcutHints(for event: NSEvent) {
@@ -419,8 +410,7 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {
-        guard let window = window(containing: surface), !window.isInView(surface) else { return }
-        surface.needsAttention = true
+        guard let window = window(containing: surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name ?? ""
         notifications.post(title: title, body: body, subtitle: workspace, from: surface.id)
     }
@@ -429,11 +419,7 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         guard let window = window(containing: surface) else { return }
         let config = runtime.config
         let when = config.notifyOnCommandFinish
-        let inView = window.isInView(surface)
-        guard command.shouldAlert(when: when, inView: inView, minimumDuration: config.notifyOnCommandFinishAfter) else { return }
-        if !inView {
-            surface.needsAttention = true
-        }
+        guard command.shouldAlert(when: when, inView: window.isInView(surface), minimumDuration: config.notifyOnCommandFinishAfter) else { return }
         let actions = config.notifyOnCommandFinishAction
         if actions.contains(.bell) {
             NSSound.beep()
@@ -480,7 +466,6 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
 
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
         notifications.clear(for: surface.id)
-        surface.needsAttention = false
         window(containing: surface)?.surfaceDidFocus(surface)
     }
 }

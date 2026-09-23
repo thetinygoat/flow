@@ -26,24 +26,6 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(workspace.selectedTab === tabs[0])
     }
 
-    func testNeedsAttentionWhenAnyPaneInAnyTabDoes() {
-        let workspace = WorkspaceModel<FakeLeaf>()
-        let a = FakeLeaf(), b = FakeLeaf(), c = FakeLeaf()
-        let first = TestTab(leaf: a)
-        first.panes.split(a, direction: .right, with: b)
-        workspace.add(first)
-        workspace.add(TestTab(leaf: c))
-        XCTAssertFalse(workspace.needsAttention)
-
-        b.needsAttention = true
-        XCTAssertTrue(workspace.needsAttention, "a pane that is not focused")
-        b.needsAttention = false
-        c.needsAttention = true
-        XCTAssertTrue(workspace.needsAttention, "a tab that is not selected")
-        c.needsAttention = false
-        XCTAssertFalse(workspace.needsAttention)
-    }
-
     func testNameFollowsDirectoryUntilRenamed() {
         let workspace = WorkspaceModel<FakeLeaf>()
         XCTAssertEqual(workspace.name, "~")

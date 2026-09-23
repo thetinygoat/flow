@@ -54,6 +54,10 @@ final class TerminalSurfaceView: NSView {
     var workingDirectory: String? {
         pwd ?? initialWorkingDirectory
     }
+
+    var needsAttention = false {
+        didSet { if needsAttention != oldValue { delegate?.surfaceDidChange(self) } }
+    }
     private var titleTimer: Timer?
     var cellSizeInPixels = NSSize.zero {
         didSet { scrollbar.cellHeight = cellSize.height }

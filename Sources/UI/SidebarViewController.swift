@@ -149,6 +149,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         cell.titleLabel.stringValue = workspace.name
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
         cell.gitStatus = gitStatus(forRow: row)
+        cell.showsAttention = workspace.needsAttention
         cell.onClose = { [weak self] in
             guard let self, row < self.store.workspaces.count else { return }
             self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
@@ -178,6 +179,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let subtitleLabel = NSTextField(labelWithString: "")
     private let gitLabel = NSTextField(labelWithString: "")
     private let hint = ShortcutHintView()
+    private let attentionDot = NSView()
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
     private var trackingArea: NSTrackingArea?
     private var onRename: ((String) -> Void)?
@@ -205,6 +207,11 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         addSubview(stack)
         hint.translatesAutoresizingMaskIntoConstraints = false
         addSubview(hint)
+        attentionDot.wantsLayer = true
+        attentionDot.layer?.cornerRadius = 3
+        attentionDot.isHidden = true
+        attentionDot.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(attentionDot)
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
         closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
@@ -219,6 +226,10 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            attentionDot.widthAnchor.constraint(equalToConstant: 6),
+            attentionDot.heightAnchor.constraint(equalToConstant: 6),
+            attentionDot.centerXAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            attentionDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
@@ -254,6 +265,13 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             }
             gitLabel.isHidden = false
             gitLabel.stringValue = gitStatus.isDirty ? "\(gitStatus.branch)*" : gitStatus.branch
+        }
+    }
+
+    var showsAttention = false {
+        didSet {
+            attentionDot.isHidden = !showsAttention
+            attentionDot.layer?.backgroundColor = NSColor.systemBlue.cgColor
         }
     }
 

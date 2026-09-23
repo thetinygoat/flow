@@ -75,6 +75,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hintsSuppressed = false
             self?.windowController.showShortcutHints(for: nil)
         }
+        // Returning to Flow with the alerting terminal already focused never
+        // refocuses it, so its attention mark is cleared here.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, let surface = self.store.selected?.selectedTab?.focusedSurface,
+                  self.windowController.window?.firstResponder === surface else { return }
+            surface.needsAttention = false
+        }
     }
 
     private func updateShortcutHints(for event: NSEvent) {
@@ -499,6 +508,8 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {
+        guard !isInView(surface) else { return }
+        surface.needsAttention = true
         let workspace = store.workspace(containing: surface)?.0.name ?? ""
         notifications.post(title: title, body: body, subtitle: workspace, from: surface.id)
     }
@@ -507,6 +518,9 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         let config = runtime.config
         let when = config.notifyOnCommandFinish
         guard command.shouldAlert(when: when, inView: isInView(surface), minimumDuration: config.notifyOnCommandFinishAfter) else { return }
+        if !isInView(surface) {
+            surface.needsAttention = true
+        }
         let actions = config.notifyOnCommandFinishAction
         if actions.contains(.bell) {
             NSSound.beep()
@@ -567,6 +581,7 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
 
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
         notifications.clear(for: surface.id)
+        surface.needsAttention = false
         guard let (_, tab) = store.workspace(containing: surface), tab.focusedSurface !== surface else { return }
         tab.focus(surface)
         windowController.refresh()

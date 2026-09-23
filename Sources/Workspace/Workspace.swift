@@ -61,6 +61,10 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
         customName ?? selectedTab?.focusedLeaf.workingDirectory?.fishStylePath ?? "~"
     }
 
+    var needsAttention: Bool {
+        tabs.contains { $0.panes.leaves.contains(where: \.needsAttention) }
+    }
+
     func add(_ tab: TabModel<Leaf>) {
         tabs.append(tab)
         selectedTab = tab

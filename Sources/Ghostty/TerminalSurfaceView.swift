@@ -58,6 +58,10 @@ final class TerminalSurfaceView: NSView {
     var needsAttention = false {
         didSet { if needsAttention != oldValue { delegate?.surfaceDidChange(self) } }
     }
+
+    private(set) var isBusy = false {
+        didSet { if isBusy != oldValue { delegate?.surfaceDidChange(self) } }
+    }
     private var titleTimer: Timer?
     var cellSizeInPixels = NSSize.zero {
         didSet { scrollbar.cellHeight = cellSize.height }
@@ -550,10 +554,12 @@ final class TerminalSurfaceView: NSView {
     /// quiet for 15 seconds is dropped rather than left on screen forever.
     func setProgress(_ report: ProgressReport?) {
         progressBar.report = report
+        isBusy = report?.isWorking ?? false
         progressTimeout?.invalidate()
         guard report != nil else { return }
         progressTimeout = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in
             self?.progressBar.report = nil
+            self?.isBusy = false
         }
     }
 

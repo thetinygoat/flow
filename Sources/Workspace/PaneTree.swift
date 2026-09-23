@@ -8,6 +8,8 @@ protocol PaneLeaf: AnyObject {
     var needsConfirmQuit: Bool { get }
     /// Set when the terminal alerted while the user was not looking at it.
     var needsAttention: Bool { get }
+    /// Set while a program in the terminal reports that it is working.
+    var isBusy: Bool { get }
 }
 
 enum SplitAxis: String, Codable {

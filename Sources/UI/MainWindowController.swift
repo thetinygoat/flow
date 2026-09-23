@@ -13,7 +13,8 @@ final class MainWindowController: NSWindowController {
         target: nil,
         action: nil)
 
-    init(store: WorkspaceStore) {
+    /// Without a saved frame the window opens offset from the frontmost one.
+    init(store: WorkspaceStore, frame: CGRect?) {
         self.store = store
         self.sidebar = SidebarViewController(store: store)
 
@@ -35,10 +36,14 @@ final class MainWindowController: NSWindowController {
         window.contentViewController = split
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.minSize = NSSize(width: 600, height: 400)
-        if !window.setFrameUsingName("MainWindow") {
+        window.isReleasedWhenClosed = false
+        if let frame {
+            window.setFrame(frame, display: false)
+        } else if let front = NSApp.keyWindow ?? NSApp.mainWindow {
+            window.setFrame(front.frame.offsetBy(dx: 24, dy: -24), display: false)
+        } else {
             window.center()
         }
-        window.setFrameAutosaveName("MainWindow")
 
         super.init(window: window)
 

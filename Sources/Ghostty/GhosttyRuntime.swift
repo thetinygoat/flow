@@ -8,6 +8,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsNewTabFrom surface: TerminalSurfaceView?)
     func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: SplitDirection, from surface: TerminalSurfaceView) -> Bool
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsCloseWindowFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoTab target: ghostty_action_goto_tab_e)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsResizeSplit direction: ResizeDirection, amount: Int, from surface: TerminalSurfaceView)
@@ -129,9 +130,13 @@ final class GhosttyRuntime {
             guard let surface, let delegate else { return false }
             return delegate.runtime(self, wantsSplit: SplitDirection(action.action.new_split), from: surface)
 
-        case GHOSTTY_ACTION_CLOSE_TAB, GHOSTTY_ACTION_CLOSE_WINDOW:
+        case GHOSTTY_ACTION_CLOSE_TAB:
             guard let surface else { return false }
             delegate?.runtime(self, wantsClose: surface)
+
+        case GHOSTTY_ACTION_CLOSE_WINDOW:
+            guard let surface else { return false }
+            delegate?.runtime(self, wantsCloseWindowFrom: surface)
 
         case GHOSTTY_ACTION_GOTO_TAB:
             delegate?.runtime(self, wantsGotoTab: action.action.goto_tab)

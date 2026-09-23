@@ -195,6 +195,12 @@ final class GhosttyRuntime {
             guard let surface else { return false }
             surface.setProgress(ProgressReport(action.action.progress_report))
 
+        case GHOSTTY_ACTION_MOUSE_OVER_LINK:
+            guard let surface else { return false }
+            let link = action.action.mouse_over_link
+            let url = link.url.flatMap { String(data: Data(bytes: $0, count: Int(link.len)), encoding: .utf8) }
+            surface.setHoveredLink(url?.isEmpty == false ? url : nil)
+
         case GHOSTTY_ACTION_SCROLLBAR:
             guard let surface else { return false }
             let scrollbar = action.action.scrollbar

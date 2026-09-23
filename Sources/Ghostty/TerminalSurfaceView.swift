@@ -81,6 +81,7 @@ final class TerminalSurfaceView: NSView {
     private var windowObservers: [NSObjectProtocol] = []
     private var searchBar: SearchBarView?
     private let progressBar = ProgressBarView()
+    private let linkPreview = LinkPreviewView()
     private var progressTimeout: Timer?
     private var searchDebounce: Timer?
 
@@ -129,6 +130,7 @@ final class TerminalSurfaceView: NSView {
         progressBar.frame = NSRect(x: 0, y: bounds.height - ProgressBarView.height, width: bounds.width, height: ProgressBarView.height)
         progressBar.autoresizingMask = [.width, .minYMargin]
         addSubview(progressBar)
+        linkPreview.install(in: self)
 
         scrollbar.frame = bounds
         scrollbar.autoresizingMask = [.width, .height]
@@ -430,6 +432,7 @@ final class TerminalSurfaceView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         sendMousePosition(event)
+        linkPreview.avoid(convert(event.locationInWindow, from: nil))
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -552,6 +555,10 @@ final class TerminalSurfaceView: NSView {
         progressTimeout = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in
             self?.progressBar.report = nil
         }
+    }
+
+    func setHoveredLink(_ url: String?) {
+        linkPreview.url = url
     }
 
     func setScrollbar(total: Int, offset: Int, visibleRows: Int) {

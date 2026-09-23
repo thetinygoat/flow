@@ -228,7 +228,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             attentionDot.widthAnchor.constraint(equalToConstant: 6),
             attentionDot.heightAnchor.constraint(equalToConstant: 6),
-            attentionDot.centerXAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            attentionDot.centerXAnchor.constraint(equalTo: closeButton.centerXAnchor),
             attentionDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
@@ -247,10 +247,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
 
     override func mouseEntered(with event: NSEvent) {
         closeButton.isHidden = hint.text != nil
+        updateAttentionDot()
     }
 
     override func mouseExited(with event: NSEvent) {
         closeButton.isHidden = true
+        updateAttentionDot()
     }
 
     @objc private func closeTapped() {
@@ -269,14 +271,19 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     }
 
     var showsAttention = false {
-        didSet {
-            attentionDot.isHidden = !showsAttention
-            attentionDot.layer?.backgroundColor = NSColor.systemBlue.cgColor
-        }
+        didSet { updateAttentionDot() }
+    }
+
+    /// The dot shares its spot with the close button and the shortcut hint,
+    /// and gives way to either.
+    private func updateAttentionDot() {
+        attentionDot.isHidden = !showsAttention || !closeButton.isHidden || hint.text != nil
+        attentionDot.layer?.backgroundColor = NSColor.systemBlue.cgColor
     }
 
     func showShortcutHint(_ text: String?) {
         hint.text = text
+        updateAttentionDot()
     }
 
     required init?(coder: NSCoder) {

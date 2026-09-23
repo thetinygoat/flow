@@ -8,6 +8,10 @@ final class MainWindowController: NSWindowController {
     private let store: WorkspaceStore
     var onResetZoom: (() -> Void)?
     private let zoomAccessory = NSTitlebarAccessoryViewController()
+    private let resetZoomButton = NSButton(
+        image: NSImage(systemSymbolName: "arrow.down.right.and.arrow.up.left", accessibilityDescription: "Reset zoom")!,
+        target: nil,
+        action: nil)
 
     init(store: WorkspaceStore) {
         self.store = store
@@ -38,17 +42,14 @@ final class MainWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let resetZoom = NSButton(
-            image: NSImage(systemSymbolName: "arrow.down.right.and.arrow.up.left", accessibilityDescription: "Reset zoom")!,
-            target: self,
-            action: #selector(resetZoomTapped))
-        resetZoom.bezelStyle = .texturedRounded
-        resetZoom.isBordered = false
-        resetZoom.toolTip = "Show all panes"
-        resetZoom.frame.size = NSSize(width: 32, height: 28)
-        zoomAccessory.view = resetZoom
+        resetZoomButton.target = self
+        resetZoomButton.action = #selector(resetZoomTapped)
+        resetZoomButton.isBordered = false
+        resetZoomButton.toolTip = "Show all panes"
+        resetZoomButton.frame.size = NSSize(width: 32, height: 28)
+        resetZoomButton.isHidden = true
+        zoomAccessory.view = resetZoomButton
         zoomAccessory.layoutAttribute = .trailing
-        zoomAccessory.isHidden = true
         window.addTitlebarAccessoryViewController(zoomAccessory)
 
         if !split.splitView.isSubviewCollapsed(sidebar.view), sidebar.view.frame.width < 240 {
@@ -94,7 +95,9 @@ final class MainWindowController: NSWindowController {
         let workspace = store.selected?.name ?? "Flow"
         let tab = store.selected?.selectedTab?.title
         window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
-        zoomAccessory.isHidden = store.selected?.selectedTab?.panes.zoomed == nil
+        // The accessory controller's own isHidden is not honored in the
+        // unified titlebar, so the button itself is hidden.
+        resetZoomButton.isHidden = store.selected?.selectedTab?.panes.zoomed == nil
     }
 
     @objc private func resetZoomTapped() {

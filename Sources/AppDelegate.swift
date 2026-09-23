@@ -8,6 +8,8 @@ import GhosttyKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: GhosttyRuntime!
     private var windows: [TerminalWindow] = []
+    /// Folders macOS asked to open before launch finished.
+    private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
     private var modifierMonitor: Any?
     private var hintTimer: Timer?
@@ -62,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         windows.forEach { $0.show() }
         NSApp.activate()
+        pendingDirectories?.forEach { openWorkspace(in: $0, newWindow: false) }
+        pendingDirectories = nil
 
         // Holding command or control for a moment reveals the shortcut badges
         // for that modifier. Once a key is pressed the shortcut has been used,
@@ -107,6 +111,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
+    /// Folders dropped on the Dock icon or passed to `open -a Flow` each open
+    /// as a workspace.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let directories = urls.filter { url in
+            var isDirectory: ObjCBool = false
+            return url.isFileURL && FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }.map { $0.path(percentEncoded: false) }
+        if pendingDirectories != nil {
+            pendingDirectories?.append(contentsOf: directories)
+        } else {
+            directories.forEach { openWorkspace(in: $0, newWindow: false) }
+        }
     }
 
     /// Clicking the Dock icon with every window closed opens a new one.

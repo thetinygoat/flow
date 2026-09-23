@@ -38,6 +38,11 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Folders
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.directory]
         NSServices:
           - NSMenuItem:
               default: New Flow Workspace Here

@@ -54,6 +54,13 @@ final class GhosttyConfig {
         color(for: "unfocused-split-fill") ?? backgroundColor
     }
 
+    /// `scrollbar = never` hides the scroller; anything else shows it.
+    var showsScrollbar: Bool {
+        var value: UnsafePointer<CChar>?
+        guard read("scrollbar", into: &value), let value else { return true }
+        return String(cString: value) != "never"
+    }
+
     /// Turns on secure input while a terminal is at a password prompt.
     var autoSecureInput: Bool {
         value(for: "macos-auto-secure-input", default: true)

@@ -160,6 +160,11 @@ final class GhosttyRuntime {
                 width: Int(action.action.cell_size.width),
                 height: Int(action.action.cell_size.height))
 
+        case GHOSTTY_ACTION_SCROLLBAR:
+            guard let surface else { return false }
+            let scrollbar = action.action.scrollbar
+            surface.setScrollbar(total: Int(scrollbar.total), offset: Int(scrollbar.offset), visibleRows: Int(scrollbar.len))
+
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             guard let surface else { return false }
             surface.setMouseShape(action.action.mouse_shape)

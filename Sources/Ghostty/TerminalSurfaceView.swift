@@ -55,7 +55,9 @@ final class TerminalSurfaceView: NSView {
         pwd ?? initialWorkingDirectory
     }
     private var titleTimer: Timer?
-    var cellSizeInPixels = NSSize.zero
+    var cellSizeInPixels = NSSize.zero {
+        didSet { scrollbar.cellHeight = cellSize.height }
+    }
 
     /// Ghostty reports cells in pixels. Converting on read keeps the value right
     /// for surfaces that were sized before they had a window, and across moves
@@ -68,6 +70,7 @@ final class TerminalSurfaceView: NSView {
 
     private var cursor: NSCursor = .iBeam
     private let dimOverlay = PassthroughView()
+    private let scrollbar = TerminalScrollbar()
     private let secureInputBadge = NSImageView(image: NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Secure keyboard entry is on")!)
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
@@ -119,6 +122,12 @@ final class TerminalSurfaceView: NSView {
         dimOverlay.frame = bounds
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
+
+        scrollbar.frame = bounds
+        scrollbar.autoresizingMask = [.width, .height]
+        scrollbar.isHidden = !runtime.config.showsScrollbar
+        scrollbar.onScrollToRow = { [weak self] row in self?.perform(action: "scroll_to_row:\(row)") }
+        addSubview(scrollbar)
 
         secureInputBadge.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
         secureInputBadge.contentTintColor = .secondaryLabelColor
@@ -191,6 +200,7 @@ final class TerminalSurfaceView: NSView {
     }
 
     func updateConfig(_ config: GhosttyConfig) {
+        scrollbar.isHidden = !config.showsScrollbar
         guard let surface else { return }
         ghostty_surface_update_config(surface, config.cValue)
     }
@@ -229,6 +239,7 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
+        scrollbar.cellHeight = cellSize.height
         updateDisplay()
     }
 
@@ -518,6 +529,10 @@ final class TerminalSurfaceView: NSView {
         let barHadFocus = (window?.firstResponder as? NSView)?.isDescendant(of: bar) == true
         bar.removeFromSuperview()
         if barHadFocus { window?.makeFirstResponder(self) }
+    }
+
+    func setScrollbar(total: Int, offset: Int, visibleRows: Int) {
+        scrollbar.update(total: total, offset: offset, visibleRows: visibleRows)
     }
 
     func setSearchTotal(_ total: Int?) {

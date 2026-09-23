@@ -14,6 +14,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsEqualizeSplitsFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool)
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime)
+    func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView)
 }
 
 /// Owns the single `ghostty_app_t` and receives its callbacks. Every libghostty
@@ -159,6 +160,15 @@ final class GhosttyRuntime {
             surface.cellSizeInPixels = NSSize(
                 width: Int(action.action.cell_size.width),
                 height: Int(action.action.cell_size.height))
+
+        case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+            guard let surface else { return false }
+            let notification = action.action.desktop_notification
+            delegate?.runtime(
+                self,
+                wantsNotification: notification.title.map { String(cString: $0) } ?? "",
+                body: notification.body.map { String(cString: $0) } ?? "",
+                from: surface)
 
         case GHOSTTY_ACTION_SCROLLBAR:
             guard let surface else { return false }

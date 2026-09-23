@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hintTimer: Timer?
     private var hintsSuppressed = false
     private lazy var aboutWindow = AboutWindowController()
+    private let notifications = DesktopNotifications()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -25,6 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         runtime.delegate = self
+        notifications.isInView = { [weak self] id in
+            guard let self, NSApp.isActive, self.windowController.window?.isKeyWindow == true else { return false }
+            return self.surface(withID: id)?.focused ?? false
+        }
+        notifications.onOpen = { [weak self] id in
+            guard let self, let surface = self.surface(withID: id) else { return }
+            self.reveal(surface)
+        }
         SecureInput.shared.global = UserDefaults.standard.bool(forKey: Self.secureKeyboardEntryKey)
 
         NSApp.mainMenu = buildMainMenu()
@@ -171,6 +180,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let index = store.workspaces.firstIndex(where: { $0 === selected }) else { return }
         let count = store.workspaces.count
         selectWorkspace(at: ((index + offset) % count + count) % count)
+    }
+
+    private func surface(withID id: UUID) -> TerminalSurfaceView? {
+        store.workspaces.lazy.flatMap(\.tabs).flatMap(\.panes.surfaces).first { $0.id == id }
+    }
+
+    /// Switches to the workspace and tab holding the surface and focuses it.
+    private func reveal(_ surface: TerminalSurfaceView) {
+        guard let (workspace, tab) = store.workspace(containing: surface) else { return }
+        workspace.select(tab)
+        tab.focus(surface)
+        store.select(workspace)
+        windowController.showWindow(nil)
+        NSApp.activate()
+        windowController.terminalArea.focusSelectedSurface()
     }
 
     private func makeSurface(workingDirectory: String?) -> TerminalSurfaceView {
@@ -433,6 +457,11 @@ extension AppDelegate: GhosttyRuntimeDelegate {
         openConfig()
     }
 
+    func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {
+        let workspace = store.workspace(containing: surface)?.0.name ?? ""
+        notifications.post(title: title, body: body, subtitle: workspace, from: surface.id)
+    }
+
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView) {
         close(surface)
     }
@@ -482,6 +511,7 @@ extension AppDelegate: SidebarViewControllerDelegate, TerminalAreaViewController
     }
 
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
+        notifications.clear(for: surface.id)
         guard let (_, tab) = store.workspace(containing: surface), tab.focusedSurface !== surface else { return }
         tab.focus(surface)
         windowController.refresh()

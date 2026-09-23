@@ -122,6 +122,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "New Window", action: #selector(newWindow), keyEquivalent: "").target = self
+        return menu
+    }
+
     // MARK: Windows
 
     /// The window menu commands and keyboard shortcuts act on.

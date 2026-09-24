@@ -14,7 +14,6 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     private let store: WorkspaceStore
     private let tableView = NSTableView()
     private let git = GitStatusMonitor()
-    private var gitTimer: Timer?
     private var isReloading = false
 
     init(store: WorkspaceStore) {
@@ -39,12 +38,6 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.delegate = self
         tableView.allowsEmptySelection = false
         git.onUpdate = { [weak self] in self?.reload() }
-        gitTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            for row in 0..<self.store.workspaces.count {
-                _ = self.gitStatus(forRow: row)
-            }
-        }
 
         let menu = NSMenu()
         menu.addItem(withTitle: "Rename Workspace", action: #selector(renameClickedWorkspace), keyEquivalent: "")
@@ -81,6 +74,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     func reload() {
         isReloading = true
         defer { isReloading = false }
+        git.watch(store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory })
 
         if tableView.numberOfRows == store.workspaces.count {
             let rows = IndexSet(0..<store.workspaces.count)

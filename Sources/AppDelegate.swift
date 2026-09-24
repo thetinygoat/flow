@@ -108,7 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard runtime.needsConfirmQuit else { return .terminateNow }
+        // Without a runtime, libghostty never started and nothing is running.
+        guard runtime?.needsConfirmQuit == true else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Quit Flow?"
         alert.informativeText = "A terminal still has a running process."

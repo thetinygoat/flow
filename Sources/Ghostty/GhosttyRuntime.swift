@@ -100,7 +100,8 @@ final class GhosttyRuntime {
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
-        ghostty_app_free(app)
+        // Unset when ghostty_app_new failed and the initializer threw.
+        if let app { ghostty_app_free(app) }
     }
 
     var needsConfirmQuit: Bool {

@@ -113,3 +113,17 @@ extension WorkspaceStoreModel {
         }
     }
 }
+
+extension Session.Window {
+    /// A saved frame whose title bar would land on no connected screen, as
+    /// when the display it was on is unplugged, is fitted and centred on the
+    /// first screen instead. `screens` are visible frames, the menu bar
+    /// screen first.
+    static func placing(_ frame: CGRect, on screens: [CGRect]) -> CGRect {
+        let titleBar = CGRect(x: frame.minX, y: frame.maxY - 28, width: frame.width, height: 28)
+        guard let screen = screens.first,
+              !screens.contains(where: { $0.intersection(titleBar).width >= 80 }) else { return frame }
+        let size = CGSize(width: min(frame.width, screen.width), height: min(frame.height, screen.height))
+        return CGRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2, width: size.width, height: size.height)
+    }
+}

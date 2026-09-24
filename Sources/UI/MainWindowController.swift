@@ -38,7 +38,7 @@ final class MainWindowController: NSWindowController {
         window.minSize = NSSize(width: 600, height: 400)
         window.isReleasedWhenClosed = false
         if let frame {
-            window.setFrame(frame, display: false)
+            window.setFrame(Session.Window.placing(frame, on: NSScreen.screens.map(\.visibleFrame)), display: false)
         } else if let front = NSApp.keyWindow ?? NSApp.mainWindow {
             window.setFrame(front.frame.offsetBy(dx: 24, dy: -24), display: false)
         } else {

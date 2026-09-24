@@ -101,3 +101,40 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(Session.load(from: URL(fileURLWithPath: "/nonexistent/session.json")))
     }
 }
+
+final class WindowPlacementTests: XCTestCase {
+    let laptop = CGRect(x: 0, y: 0, width: 1512, height: 944)
+    let monitor = CGRect(x: 1512, y: 0, width: 2560, height: 1415)
+
+    func testKeepsFrameOnConnectedScreen() {
+        let frame = CGRect(x: 1700, y: 100, width: 1800, height: 1040)
+        XCTAssertEqual(Session.Window.placing(frame, on: [laptop, monitor]), frame)
+    }
+
+    func testKeepsFramePartlyOffScreenWhileTitleBarShows() {
+        let frame = CGRect(x: -400, y: -300, width: 1100, height: 700)
+        XCTAssertEqual(Session.Window.placing(frame, on: [laptop]), frame)
+    }
+
+    func testMovesFrameFromUnpluggedMonitorOntoLaptop() {
+        let frame = CGRect(x: 1700, y: 100, width: 1800, height: 1040)
+        let placed = Session.Window.placing(frame, on: [laptop])
+        XCTAssertEqual(placed.size, CGSize(width: 1512, height: 944))
+        XCTAssertTrue(laptop.contains(placed))
+    }
+
+    func testCentresSmallerFrame() {
+        let placed = Session.Window.placing(CGRect(x: 5000, y: 5000, width: 1100, height: 700), on: [laptop, monitor])
+        XCTAssertEqual(placed, CGRect(x: 206, y: 122, width: 1100, height: 700))
+    }
+
+    func testTitleBarBelowEveryScreenIsMoved() {
+        let frame = CGRect(x: 100, y: -800, width: 1100, height: 700)
+        XCTAssertNotEqual(Session.Window.placing(frame, on: [laptop]), frame)
+    }
+
+    func testNoScreensKeepsFrame() {
+        let frame = CGRect(x: 5000, y: 5000, width: 1100, height: 700)
+        XCTAssertEqual(Session.Window.placing(frame, on: []), frame)
+    }
+}

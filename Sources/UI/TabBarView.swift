@@ -37,25 +37,37 @@ final class TabBarView: NSView {
         bounds.fill()
     }
 
+    private var items: [TabItemView] {
+        stack.arrangedSubviews.compactMap { $0 as? TabItemView }
+    }
+
     func setShortcutHintsVisible(_ visible: Bool) {
-        for (index, item) in stack.arrangedSubviews.enumerated() {
-            (item as? TabItemView)?.showShortcutHint(visible && index < 9 ? "⌃\(index + 1)" : nil)
+        for (index, item) in items.enumerated() {
+            item.showShortcutHint(visible && index < 9 ? "⌃\(index + 1)" : nil)
         }
     }
 
+    /// Titles change with every shell prompt, so items are kept and updated;
+    /// views are only added or removed when the number of tabs changes.
     func reload(titles: [String], selectedIndex: Int?) {
-        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for (index, title) in titles.enumerated() {
-            let item = TabItemView(title: title, isSelected: index == selectedIndex)
-            item.onSelect = { [weak self] in
-                guard let self else { return }
+        while items.count > titles.count {
+            items.last?.removeFromSuperview()
+        }
+        while items.count < titles.count {
+            let item = TabItemView()
+            item.onSelect = { [weak self, weak item] in
+                guard let self, let item, let index = self.items.firstIndex(of: item) else { return }
                 self.delegate?.tabBar(self, didSelectTabAt: index)
             }
-            item.onClose = { [weak self] in
-                guard let self else { return }
+            item.onClose = { [weak self, weak item] in
+                guard let self, let item, let index = self.items.firstIndex(of: item) else { return }
                 self.delegate?.tabBar(self, didCloseTabAt: index)
             }
             stack.addArrangedSubview(item)
+        }
+        for (index, item) in items.enumerated() {
+            item.title = titles[index]
+            item.isSelected = index == selectedIndex
         }
     }
 }
@@ -63,33 +75,42 @@ final class TabBarView: NSView {
 private final class TabItemView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
-    private let isSelected: Bool
+    private let label = NSTextField(labelWithString: "")
     private let close: NSButton
     private let hint = ShortcutHintView()
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
         didSet {
-            close.isHidden = hint.text != nil || !(isSelected || isHovered)
+            updateClose()
             needsDisplay = true
         }
     }
 
-    init(title: String, isSelected: Bool) {
-        self.isSelected = isSelected
+    var title: String {
+        get { label.stringValue }
+        set { if newValue != label.stringValue { label.stringValue = newValue } }
+    }
+
+    var isSelected = false {
+        didSet {
+            guard isSelected != oldValue else { return }
+            updateStyle()
+            needsDisplay = true
+        }
+    }
+
+    init() {
         self.close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close tab")!,
                               target: nil, action: nil)
         super.init(frame: .zero)
 
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
-        label.textColor = isSelected ? .labelColor : .secondaryLabelColor
+        updateStyle()
         label.lineBreakMode = .byTruncatingTail
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         close.target = self
         close.action = #selector(closeTapped)
-        close.isHidden = !isSelected
         close.isBordered = false
         close.imagePosition = .imageOnly
         close.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
@@ -148,9 +169,19 @@ private final class TabItemView: NSView {
         isHovered = false
     }
 
+    private func updateStyle() {
+        label.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
+        label.textColor = isSelected ? .labelColor : .secondaryLabelColor
+        updateClose()
+    }
+
+    private func updateClose() {
+        close.isHidden = hint.text != nil || !(isSelected || isHovered)
+    }
+
     func showShortcutHint(_ text: String?) {
         hint.text = text
-        close.isHidden = text != nil || !(isSelected || isHovered)
+        updateClose()
     }
 
     override func mouseDown(with event: NSEvent) {

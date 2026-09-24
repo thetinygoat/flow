@@ -43,6 +43,14 @@ final class TabModel<Leaf: PaneLeaf> {
         guard panes.contains(leaf) else { return }
         focusedLeaf = leaf
     }
+
+    /// Removes a pane that is not the tab's last. Focus only moves when the
+    /// removed pane had it, so a pane closing in the background leaves the
+    /// user typing where they were.
+    func removePane(_ leaf: Leaf) {
+        guard let next = panes.remove(leaf), focusedLeaf === leaf else { return }
+        focusedLeaf = next
+    }
 }
 
 final class WorkspaceModel<Leaf: PaneLeaf> {

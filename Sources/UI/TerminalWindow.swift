@@ -237,9 +237,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
         guard tab.panes.surfaces.count > 1 else { return close(tab) }
         guard confirmClose([surface], what: "pane") else { return }
-        if let next = tab.panes.remove(surface) {
-            tab.focus(next)
-        }
+        tab.removePane(surface)
         store.notifyChanged()
         controller.terminalArea.focusSelectedSurface()
     }

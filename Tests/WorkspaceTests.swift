@@ -26,6 +26,31 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(workspace.selectedTab === tabs[0])
     }
 
+    func testRemovingBackgroundPaneKeepsFocus() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b"), c = FakeLeaf("c")
+        let tab = TestTab(leaf: a)
+        tab.panes.split(a, direction: .right, with: b)
+        tab.panes.split(b, direction: .down, with: c)
+        tab.focus(a)
+
+        tab.removePane(c)
+
+        XCTAssertTrue(tab.focusedLeaf === a)
+        XCTAssertEqual(tab.panes.leaves.map(\.title), ["a", "b"])
+    }
+
+    func testRemovingFocusedPaneFocusesItsNeighbor() {
+        let a = FakeLeaf("a"), b = FakeLeaf("b"), c = FakeLeaf("c")
+        let tab = TestTab(leaf: a)
+        tab.panes.split(a, direction: .right, with: b)
+        tab.panes.split(b, direction: .down, with: c)
+        tab.focus(c)
+
+        tab.removePane(c)
+
+        XCTAssertTrue(tab.focusedLeaf === b)
+    }
+
     func testNameFollowsDirectoryUntilRenamed() {
         let workspace = WorkspaceModel<FakeLeaf>()
         XCTAssertEqual(workspace.name, "~")

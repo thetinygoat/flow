@@ -135,7 +135,7 @@ final class GitStatusTests: XCTestCase {
         let found = try XCTUnwrap(GitRepository(containing: repo.appendingPathComponent("a/b").path))
         let root = realPath(repo)
         XCTAssertEqual(found, GitRepository(workTree: root, gitDir: root + "/.git", commonDir: root + "/.git"))
-        XCTAssertEqual(found.watchedPaths, [root])
+        XCTAssertEqual(found.watchedPaths(), [root])
         XCTAssertEqual(found.branch, "main")
     }
 
@@ -147,9 +147,15 @@ final class GitStatusTests: XCTestCase {
         XCTAssertEqual(worktree.workTree, realPath(root) + "/wt")
         XCTAssertEqual(worktree.gitDir, main + "/.git/worktrees/wt")
         XCTAssertEqual(worktree.commonDir, main + "/.git")
-        XCTAssertEqual(Set(worktree.watchedPaths), [main + "/.git", realPath(root) + "/wt"])
+        XCTAssertEqual(Set(worktree.watchedPaths()), [main + "/.git", realPath(root) + "/wt"])
         XCTAssertEqual(worktree.branch, "feature")
         XCTAssertEqual(GitRepository(containing: repo.path)?.branch, "main")
+    }
+
+    func testRepositoryAtHomeWatchesOnlyGitData() {
+        let dotfiles = GitRepository(workTree: "/Users/me", gitDir: "/Users/me/.git", commonDir: "/Users/me/.git")
+        XCTAssertEqual(dotfiles.watchedPaths(home: "/Users/me"), ["/Users/me/.git"])
+        XCTAssertEqual(dotfiles.watchedPaths(home: "/Users/other"), ["/Users/me"])
     }
 
     func testRelativeGitdirFile() throws {

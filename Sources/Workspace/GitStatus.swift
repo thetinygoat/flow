@@ -56,10 +56,13 @@ struct GitRepository: Hashable {
         return branch == ".invalid" ? nil : branch
     }
 
-    /// The directories to watch; FSEvents watches each one recursively.
-    var watchedPaths: [String] {
+    /// The directories to watch; FSEvents watches each one recursively. A
+    /// repository at the home directory, as dotfiles are often kept, would
+    /// mean watching everything under it, so only its git data is watched.
+    func watchedPaths(home: String? = Self.home) -> [String] {
         var paths: [String] = []
-        for path in [workTree, gitDir, commonDir].sorted(by: { $0.count < $1.count }) where !paths.contains(where: { path == $0 || path.hasPrefix($0 + "/") }) {
+        let candidates = workTree == home ? [gitDir, commonDir] : [workTree, gitDir, commonDir]
+        for path in candidates.sorted(by: { $0.count < $1.count }) where !paths.contains(where: { path == $0 || path.hasPrefix($0 + "/") }) {
             paths.append(path)
         }
         return paths
@@ -75,6 +78,8 @@ struct GitRepository: Hashable {
         }
         return path == workTree || path.hasPrefix(workTree + "/")
     }
+
+    private static let home = realPath(NSHomeDirectory())
 
     private static func linkedGitDir(_ file: String, relativeTo directory: String) -> String? {
         guard let line = contents(of: file), line.hasPrefix("gitdir: ") else { return nil }
@@ -139,9 +144,15 @@ final class GitStatusMonitor {
         }
         for repository in current where watched[repository] == nil {
             let state = Watched(repository: repository)
-            state.events = FileEvents(paths: repository.watchedPaths) { [weak self, weak state] paths in
-                guard let self, let state else { return }
-                self.handle(paths, in: state)
+            // Paths are filtered where they arrive, off the main thread; a build
+            // can report thousands at a time.
+            state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
+                let relevant = paths.filter(repository.isRelevant)
+                guard !relevant.isEmpty else { return }
+                DispatchQueue.main.async {
+                    guard let self, let state else { return }
+                    self.handle(relevant, in: state)
+                }
             }
             watched[repository] = state
             requestCheck(state)
@@ -154,9 +165,7 @@ final class GitStatusMonitor {
         return GitStatus(branch: branch, isDirty: state.isDirty ?? false)
     }
 
-    private func handle(_ paths: [String], in state: Watched) {
-        let relevant = paths.filter(state.repository.isRelevant)
-        guard !relevant.isEmpty else { return }
+    private func handle(_ relevant: [String], in state: Watched) {
         if relevant.contains(state.repository.gitDir + "/HEAD") {
             let branch = state.repository.branch
             if branch != state.branch {
@@ -298,8 +307,9 @@ final class GitStatusMonitor {
     }
 }
 
-/// A recursive FSEvents stream delivering changed file paths on the main queue.
+/// A recursive FSEvents stream delivering changed file paths on a background queue.
 private final class FileEvents {
+    private static let queue = DispatchQueue(label: "dev.thetinygoat.flow.file-events", qos: .utility)
     private var stream: FSEventStreamRef?
     private let handler: ([String]) -> Void
 
@@ -315,16 +325,20 @@ private final class FileEvents {
         guard let stream = FSEventStreamCreate(nil, callback, &context, paths as CFArray,
                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.3,
                                                FSEventStreamCreateFlags(flags)) else { return }
-        FSEventStreamSetDispatchQueue(stream, .main)
+        FSEventStreamSetDispatchQueue(stream, Self.queue)
         FSEventStreamStart(stream)
         self.stream = stream
     }
 
+    /// Torn down on the stream's own queue, so no callback is still running
+    /// when this object goes away.
     deinit {
         guard let stream else { return }
-        FSEventStreamStop(stream)
-        FSEventStreamInvalidate(stream)
-        FSEventStreamRelease(stream)
+        Self.queue.sync {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+        }
     }
 }
 

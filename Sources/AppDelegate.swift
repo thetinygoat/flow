@@ -217,6 +217,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.newTab()
     }
 
+    @objc private func closePane() {
+        currentWindow?.closeFocusedPane()
+    }
+
     @objc func closeTab() {
         currentWindow?.closeSelectedTab()
     }
@@ -323,7 +327,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: "New Workspace", action: #selector(newWorkspace), keyEquivalent: "n")
         fileMenu.addItem(withTitle: "New Tab", action: #selector(newTab), keyEquivalent: "t")
         fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: "Close Tab", action: #selector(closeTab), keyEquivalent: "w")
+        fileMenu.addItem(withTitle: "Close", action: #selector(closePane), keyEquivalent: "w")
+        let closeTabItem = fileMenu.addItem(withTitle: "Close Tab", action: #selector(closeTab), keyEquivalent: "w")
+        closeTabItem.keyEquivalentModifierMask = [.command, .option]
         let closeWindowItem = fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         closeWindowItem.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(.separator())
@@ -472,6 +478,10 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView) {
         window(containing: surface)?.close(surface)
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsCloseTabs mode: TabCloseMode, from surface: TerminalSurfaceView) {
+        window(containing: surface)?.closeTabs(mode, from: surface)
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsCloseWindowFrom surface: TerminalSurfaceView) {

@@ -51,6 +51,21 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(tab.focusedLeaf === b)
     }
 
+    func testTabsClosedByEachMode() {
+        let workspace = WorkspaceModel<FakeLeaf>()
+        let tabs = ["a", "b", "c", "d"].map { TestTab(leaf: FakeLeaf($0)) }
+        tabs.forEach(workspace.add)
+        func titles(_ mode: TabCloseMode, from index: Int) -> [String] {
+            workspace.tabs(closing: mode, from: tabs[index]).map(\.title)
+        }
+
+        XCTAssertEqual(titles(.this, from: 1), ["b"])
+        XCTAssertEqual(titles(.others, from: 1), ["a", "c", "d"])
+        XCTAssertEqual(titles(.right, from: 1), ["c", "d"])
+        XCTAssertEqual(titles(.right, from: 3), [], "nothing to the right of the last tab")
+        XCTAssertEqual(workspace.tabs(closing: .this, from: TestTab(leaf: FakeLeaf("elsewhere"))).count, 0)
+    }
+
     func testNameFollowsDirectoryUntilRenamed() {
         let workspace = WorkspaceModel<FakeLeaf>()
         XCTAssertEqual(workspace.name, "~")

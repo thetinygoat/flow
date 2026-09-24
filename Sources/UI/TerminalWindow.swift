@@ -86,9 +86,29 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         addTab(to: workspace)
     }
 
+    func closeFocusedPane() {
+        guard let surface = focusedSurface else { return }
+        close(surface)
+    }
+
     func closeSelectedTab() {
         guard let tab = store.selected?.selectedTab else { return }
         close(tab)
+    }
+
+    /// Ghostty's close_tab: the surface's own tab, every other tab in its
+    /// workspace, or the tabs to its right. One confirmation covers them all.
+    func closeTabs(_ mode: TabCloseMode, from surface: TerminalSurfaceView) {
+        guard let (workspace, tab) = store.workspace(containing: surface) else { return }
+        let closing = workspace.tabs(closing: mode, from: tab)
+        guard !closing.isEmpty, confirmClose(closing.flatMap(\.panes.surfaces), what: closing.count == 1 ? "tab" : "tabs") else { return }
+        closing.forEach(workspace.remove)
+        if workspace.tabs.isEmpty {
+            store.remove(workspace)
+        } else {
+            store.notifyChanged()
+        }
+        closeWindowIfEmpty()
     }
 
     func selectWorkspace(at index: Int) {

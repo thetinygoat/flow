@@ -9,6 +9,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsNewTabFrom surface: TerminalSurfaceView?)
     func runtime(_ runtime: GhosttyRuntime, wantsSplit direction: SplitDirection, from surface: TerminalSurfaceView) -> Bool
     func runtime(_ runtime: GhosttyRuntime, wantsClose surface: TerminalSurfaceView)
+    func runtime(_ runtime: GhosttyRuntime, wantsCloseTabs mode: TabCloseMode, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsCloseWindowFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoTab target: ghostty_action_goto_tab_e)
     func runtime(_ runtime: GhosttyRuntime, wantsGotoSplit direction: PaneNavigation, from surface: TerminalSurfaceView)
@@ -149,7 +150,12 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_CLOSE_TAB:
             guard let surface else { return false }
-            delegate?.runtime(self, wantsClose: surface)
+            let mode: TabCloseMode = switch action.action.close_tab_mode {
+            case GHOSTTY_ACTION_CLOSE_TAB_MODE_OTHER: .others
+            case GHOSTTY_ACTION_CLOSE_TAB_MODE_RIGHT: .right
+            default: .this
+            }
+            delegate?.runtime(self, wantsCloseTabs: mode, from: surface)
 
         case GHOSTTY_ACTION_CLOSE_WINDOW:
             guard let surface else { return false }

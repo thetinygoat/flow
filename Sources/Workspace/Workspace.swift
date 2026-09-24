@@ -53,6 +53,11 @@ final class TabModel<Leaf: PaneLeaf> {
     }
 }
 
+/// Which tabs a close-tab request closes, relative to the tab it came from.
+enum TabCloseMode {
+    case this, others, right
+}
+
 final class WorkspaceModel<Leaf: PaneLeaf> {
     let id = UUID()
     /// Set when the user renames the workspace. Otherwise the name follows
@@ -85,6 +90,15 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     func select(_ tab: TabModel<Leaf>) {
         guard tabs.contains(where: { $0 === tab }) else { return }
         selectedTab = tab
+    }
+
+    func tabs(closing mode: TabCloseMode, from tab: TabModel<Leaf>) -> [TabModel<Leaf>] {
+        guard let index = tabs.firstIndex(where: { $0 === tab }) else { return [] }
+        switch mode {
+        case .this: return [tab]
+        case .others: return tabs.filter { $0 !== tab }
+        case .right: return Array(tabs[(index + 1)...])
+        }
     }
 
     func tab(containing leaf: Leaf) -> TabModel<Leaf>? {

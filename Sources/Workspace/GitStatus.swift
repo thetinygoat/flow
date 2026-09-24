@@ -33,7 +33,7 @@ final class GitStatusMonitor {
         guard !inFlight.contains(directory) else { return }
         inFlight.insert(directory)
         queue.async {
-            let status = Self.run(in: directory)
+            let status = Self.read(directory)
             DispatchQueue.main.async {
                 self.inFlight.remove(directory)
                 let changed = self.cache[directory]?.status != status
@@ -43,10 +43,27 @@ final class GitStatusMonitor {
         }
     }
 
-    private static func run(in directory: String) -> GitStatus? {
+    /// Reads a directory's status without running anything the repository
+    /// configures. Flow runs this for any directory a terminal reports, and a
+    /// program's output can report any directory, so a repository is untrusted:
+    /// its config can name commands that plain `git status` would execute, an
+    /// fsmonitor hook and clean or process filters. Both are switched off, and
+    /// submodules, whose config is not checked, are not entered.
+    static func read(_ directory: String) -> GitStatus? {
+        var arguments = ["-C", directory, "--no-optional-locks", "-c", "core.fsmonitor=false"]
+        let filters = git(["-C", directory, "config", "--null", "--name-only", "--get-regexp", #"^filter\..*\.(clean|process)$"#])
+        for key in (filters ?? "").split(separator: "\0") {
+            arguments += ["-c", "\(key)="]
+        }
+        arguments += ["status", "--porcelain=v1", "--branch", "--ignore-submodules=all"]
+        return git(arguments).flatMap(GitStatus.init(porcelain:))
+    }
+
+    /// Standard output of a successful git run, or nil.
+    private static func git(_ arguments: [String]) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", directory, "--no-optional-locks", "status", "--porcelain=v1", "--branch", "--ignore-submodules=dirty"]
+        process.arguments = arguments
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
@@ -57,9 +74,8 @@ final class GitStatusMonitor {
         }
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard process.terminationStatus == 0,
-              let text = String(data: data, encoding: .utf8) else { return nil }
-        return GitStatus(porcelain: text)
+        guard process.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }
 

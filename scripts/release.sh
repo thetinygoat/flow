@@ -35,6 +35,20 @@ step() { echo; echo "==> $*"; }
 
 cd "$ROOT"
 
+# Only a repository with no releases at all starts a new feed. Once a release
+# exists its feed must download, or older versions, and the users on older
+# macOS they serve, would drop out of the feed.
+previous_feed() {
+    local out="$1" releases
+    releases="$(gh release list --repo "$REPO" --limit 1)" || fail "could not list releases on GitHub"
+    if [[ -z "$releases" ]]; then
+        echo "no releases yet; starting a new feed"
+        return
+    fi
+    gh release download --repo "$REPO" --pattern appcast.xml --output "$out" \
+        || fail "could not download the published appcast.xml"
+}
+
 publish() {
     step "Publishing $TAG"
     [[ -f "$DMG" && -f "$DIST/appcast.xml" ]] || fail "build the release first: scripts/release.sh $VERSION"
@@ -123,8 +137,7 @@ SIGN_UPDATE="$BUILD/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
 read -r SIGNATURE LENGTH < <("$SIGN_UPDATE" "$DMG" | sed -E 's/.*sparkle:edSignature="([^"]+)" length="([0-9]+)".*/\1 \2/')
 [[ -n "$SIGNATURE" && -n "$LENGTH" ]] || fail "sign_update produced no signature"
 rm -f "$DIST/appcast-previous.xml"
-gh release download --repo "$REPO" --pattern appcast.xml --output "$DIST/appcast-previous.xml" 2>/dev/null \
-    || echo "no published feed yet; starting a new one"
+previous_feed "$DIST/appcast-previous.xml"
 python3 "$ROOT/scripts/update_appcast.py" "$DIST/appcast-previous.xml" "$DIST/appcast.xml" \
     --version "$VERSION" \
     --build "$BUILD_NUMBER" \

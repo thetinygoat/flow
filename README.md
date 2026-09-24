@@ -9,9 +9,9 @@
 <p align="center">
   <a href="https://github.com/thetinygoat/flow/releases/latest">Download</a>
   ·
-  <a href="https://getflowterm.com/docs/getting-started/">Docs</a>
+  <a href="https://getflowterm.app/docs/getting-started/">Docs</a>
   ·
-  <a href="https://getflowterm.com/changelog/">Changelog</a>
+  <a href="https://getflowterm.app/changelog/">Changelog</a>
 </p>
 
 A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
@@ -45,7 +45,7 @@ Each project gets its own workspace in the sidebar, with its own tabs and split 
 | <kbd>⌘</kbd><kbd>D</kbd> | Split right |
 | <kbd>⌘</kbd><kbd>1</kbd>–<kbd>9</kbd> | Switch workspace |
 
-Hold <kbd>⌘</kbd> to see the shortcut for each workspace. The [docs](https://getflowterm.com/docs/keyboard-shortcuts/) list the rest.
+Hold <kbd>⌘</kbd> to see the shortcut for each workspace. The [docs](https://getflowterm.app/docs/keyboard-shortcuts/) list the rest.
 
 ## Configuration
 

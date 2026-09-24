@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import GhosttyKit
 
 /// The host-side decisions libghostty delegates to the app: anything that is
@@ -220,8 +221,13 @@ final class GhosttyRuntime {
             let openURL = action.action.open_url
             guard let bytes = openURL.url,
                   let string = String(data: Data(bytes: bytes, count: Int(openURL.len)), encoding: .utf8),
-                  let url = URL(string: string) else { return false }
-            NSWorkspace.shared.open(url)
+                  let url = LinkTarget.url(for: string, relativeTo: surface?.workingDirectory) else { return false }
+            if openURL.kind == GHOSTTY_ACTION_OPEN_URL_KIND_TEXT,
+               let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
+                NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+            } else {
+                NSWorkspace.shared.open(url)
+            }
 
         case GHOSTTY_ACTION_RELOAD_CONFIG:
             reloadConfig()

@@ -93,6 +93,12 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
                 tableView.noteHeightOfRows(withIndexesChanged: rows)
             }
         } else {
+            // A full reload replaces every cell, so a rename in progress is
+            // abandoned rather than saved half typed.
+            for row in 0..<tableView.numberOfRows {
+                (tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView)?.cancelRenaming()
+            }
+            renaming = nil
             tableView.reloadData()
         }
         if let selected = store.selected,
@@ -282,6 +288,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         titleLabel.textColor = .labelColor
         window?.makeFirstResponder(titleLabel)
         titleLabel.currentEditor()?.selectAll(nil)
+    }
+
+    func cancelRenaming() {
+        guard onRename != nil else { return }
+        onRename = nil
+        titleLabel.abortEditing()
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {

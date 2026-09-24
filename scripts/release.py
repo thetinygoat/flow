@@ -139,16 +139,13 @@ def update_appcast(feed, version, build, url, length, signature, notes_url, mini
         root = ET.fromstring(feed)
     channel = root.find("channel")
 
-    items = channel.findall("item")
-    newest = max((_build_number(item) for item in items), default=-1)
-    if build <= newest and not any(_build_number(item) == build for item in items):
-        raise ReleaseError(f"build {build} is not newer than the feed's newest build {newest}")
-
-    # Two entries with one build number make Sparkle check a download against
-    # the wrong signature, so a rebuilt release replaces its old entry.
-    for item in items:
-        if _build_number(item) == build:
-            channel.remove(item)
+    # The feed only holds published releases, so an entry with this build
+    # number is another version built from the same commit. Sparkle would
+    # never offer it to users of that version, whose build is not lower.
+    newest = max((_build_number(item) for item in channel.findall("item")), default=-1)
+    if build <= newest:
+        raise ReleaseError(f"build {build} is not newer than the feed's newest build {newest}; "
+                           "release from a newer commit")
 
     item = ET.SubElement(channel, "item")
     ET.SubElement(item, "title").text = f"Flow {version}"

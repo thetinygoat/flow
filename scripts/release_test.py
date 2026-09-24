@@ -99,11 +99,10 @@ class AppcastTests(unittest.TestCase):
         feed = add(add(None, 10), 20, now=START + timedelta(days=1))
         self.assertEqual(sorted(builds(feed)), [10, 20])
 
-    def test_rebuild_replaces_its_entry(self):
-        feed = add(add(None, 10, signature="old"), 10, signature="new")
-        items = ET.fromstring(feed).findall("channel/item")
-        self.assertEqual(len(items), 1)
-        self.assertEqual(items[0].find("enclosure").get(f"{{{SPARKLE_NS}}}edSignature"), "new")
+    def test_refuses_another_version_with_the_same_build(self):
+        feed = add(None, 10, version="0.1.0")
+        with self.assertRaisesRegex(ReleaseError, "not newer"):
+            add(feed, 10, version="0.1.1")
 
     def test_refuses_an_older_build(self):
         with self.assertRaisesRegex(ReleaseError, "not newer"):

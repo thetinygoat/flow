@@ -45,9 +45,10 @@ final class GhosttyConfig {
         color(for: "background") ?? .windowBackgroundColor
     }
 
-    /// How strongly unfocused panes are dimmed, 0 to 1.
-    var unfocusedSplitOpacity: Double {
-        value(for: "unfocused-split-opacity", default: 0.85)
+    /// How strongly unfocused panes are dimmed, 0 to 1. Ghostty's setting is
+    /// how opaque an unfocused pane stays, so 1 means no dimming.
+    var unfocusedSplitDimming: Double {
+        1 - value(for: "unfocused-split-opacity", default: 0.85)
     }
 
     var unfocusedSplitFill: NSColor {

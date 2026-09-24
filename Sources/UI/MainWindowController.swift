@@ -71,8 +71,8 @@ final class MainWindowController: NSWindowController {
     func applyAppearance(config: GhosttyConfig, app: ghostty_app_t) {
         guard let window else { return }
         terminalArea.backgroundColor = config.backgroundColor
-        let dim = config.unfocusedSplitOpacity
-        terminalArea.paneTreeView.unfocusedFill = dim > 0 ? config.unfocusedSplitFill.withAlphaComponent(dim) : nil
+        let dim = config.unfocusedSplitDimming
+        terminalArea.paneTreeView.unfocusedFill = dim > 0.001 ? config.unfocusedSplitFill.withAlphaComponent(dim) : nil
         terminalArea.show(store.selected)
         if config.backgroundOpacity < 1 {
             window.isOpaque = false

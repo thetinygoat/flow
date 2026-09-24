@@ -218,15 +218,31 @@ final class GitStatusMonitor {
     /// program's output can report any directory, so a repository is untrusted:
     /// its config can name commands that plain `git status` would execute, an
     /// fsmonitor hook and clean or process filters. Both are switched off, and
-    /// submodules, whose config is not checked, are not entered.
+    /// submodules, whose config is not checked, are not entered. Filters are
+    /// also marked optional, or a required one, as git-lfs sets, would fail
+    /// every status. When the config cannot be read, nothing is run.
     static func read(_ directory: String) -> GitStatus? {
-        var arguments = ["-C", directory, "--no-optional-locks", "-c", "core.fsmonitor=false"]
-        let filters = git(["-C", directory, "config", "--null", "--name-only", "--get-regexp", #"^filter\..*\.(clean|process)$"#])
-        for key in (filters ?? "").split(separator: "\0") {
-            arguments += ["-c", "\(key)="]
+        guard let keys = git(["-C", directory, "config", "--list", "--null", "--name-only"]) else { return nil }
+        let arguments = ["-C", directory, "--no-optional-locks", "-c", "core.fsmonitor=false",
+                         "status", "--porcelain=v1", "--branch", "--ignore-submodules=all"]
+        return git(arguments, config: filterOverrides(keys.split(separator: "\0").map(String.init)))
+            .flatMap(GitStatus.init(porcelain:))
+    }
+
+    /// Settings that switch off every filter named in `keys`. A filter name can
+    /// contain `=`, which `-c` would split on, so these are passed in the
+    /// environment, where git keeps keys and values apart.
+    static func filterOverrides(_ keys: [String]) -> [(key: String, value: String)] {
+        var names: [String] = []
+        for key in keys where key.hasPrefix("filter.") {
+            for suffix in [".clean", ".process"] where key.hasSuffix(suffix) {
+                let name = String(key.dropFirst("filter.".count).dropLast(suffix.count))
+                if !name.isEmpty, !names.contains(name) { names.append(name) }
+            }
         }
-        arguments += ["status", "--porcelain=v1", "--branch", "--ignore-submodules=all"]
-        return git(arguments).flatMap(GitStatus.init(porcelain:))
+        return names.flatMap { name in
+            [("filter.\(name).clean", ""), ("filter.\(name).process", ""), ("filter.\(name).required", "false")]
+        }
     }
 
     /// `/usr/bin/git` is only a stub until the command-line tools are
@@ -244,16 +260,23 @@ final class GitStatusMonitor {
         return ["/opt/homebrew/bin/git", "/usr/local/bin/git"].first(where: isExecutable)
     }
 
-    private static func git(_ arguments: [String]) -> String? {
-        executable.flatMap { output(of: $0, arguments) }
+    private static func git(_ arguments: [String], config: [(key: String, value: String)] = []) -> String? {
+        var environment = ProcessInfo.processInfo.environment
+        environment["GIT_CONFIG_COUNT"] = String(config.count)
+        for (index, setting) in config.enumerated() {
+            environment["GIT_CONFIG_KEY_\(index)"] = setting.key
+            environment["GIT_CONFIG_VALUE_\(index)"] = setting.value
+        }
+        return executable.flatMap { output(of: $0, arguments, environment: environment) }
     }
 
     /// Standard output of a successful run, or nil. A run that outlasts the
     /// timeout is stopped and counts as failed.
-    private static func output(of executable: String, _ arguments: [String]) -> String? {
+    private static func output(of executable: String, _ arguments: [String], environment: [String: String]? = nil) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        if let environment { process.environment = environment }
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

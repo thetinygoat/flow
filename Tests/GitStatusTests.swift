@@ -79,17 +79,52 @@ final class GitStatusTests: XCTestCase {
         }
     }
 
-    func testRequiredFilterFailsClosed() throws {
+    func testFilterOverrides() {
+        let overrides = GitStatusMonitor.filterOverrides([
+            "user.name", "filter.lfs.clean", "filter.lfs.smudge", "filter.lfs.process", "filter.lfs.required",
+            "filter.x=y.clean", "filter.a.b.process",
+        ])
+        XCTAssertEqual(overrides.map(\.key), [
+            "filter.lfs.clean", "filter.lfs.process", "filter.lfs.required",
+            "filter.x=y.clean", "filter.x=y.process", "filter.x=y.required",
+            "filter.a.b.clean", "filter.a.b.process", "filter.a.b.required",
+        ])
+        XCTAssertEqual(Set(overrides.map(\.value)), ["", "false"])
+    }
+
+    /// git splits `-c key=value` at the first `=`, so a filter whose name
+    /// contains one would escape an override passed that way.
+    func testFilterNameWithEqualsCannotRunCommands() throws {
         let (repo, sentinels) = try makeRepository()
         let clean = sentinels.appendingPathComponent("clean-ran").path
         try shell("""
-            git config filter.evil.clean 'touch \(clean); cat'
-            git config filter.evil.required true
-            echo '*.txt filter=evil' > .gitattributes && echo b > f.txt
+            git config 'filter.x=y.clean' 'touch \(clean); cat'
+            echo '* filter=x=y' > .gitattributes && echo b > f.txt
             """, in: repo)
 
-        XCTAssertNil(GitStatusMonitor.read(repo.path))
+        XCTAssertEqual(GitStatusMonitor.read(repo.path)?.isDirty, true)
         XCTAssertFalse(FileManager.default.fileExists(atPath: clean))
+    }
+
+    /// git-lfs marks its filter required, which would make every status fail
+    /// once the filter is switched off.
+    func testRequiredFilterIsSkippedNotRun() throws {
+        let (repo, sentinels) = try makeRepository()
+        let clean = sentinels.appendingPathComponent("clean-ran").path
+        try shell("""
+            git config filter.lfs.clean 'touch \(clean); cat'
+            git config filter.lfs.required true
+            echo '*.txt filter=lfs' > .gitattributes && echo b > f.txt
+            """, in: repo)
+
+        XCTAssertEqual(GitStatusMonitor.read(repo.path)?.isDirty, true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: clean))
+    }
+
+    func testUnreadableConfigSkipsStatus() throws {
+        let (repo, _) = try makeRepository()
+        try shell("printf '[broken' >> .git/config && echo b > f.txt", in: repo)
+        XCTAssertNil(GitStatusMonitor.read(repo.path))
     }
 
     // MARK: Finding the repository

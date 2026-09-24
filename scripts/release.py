@@ -177,7 +177,7 @@ class Release:
         self.tag = f"v{version}"
         self.dmg = DIST / f"Flow-{version}.dmg"
         self.appcast = DIST / "appcast.xml"
-        self.notes_url = f"https://getflowterm.app/releases/{version}"
+        self.notes_url = f"https://getflowterm.app/changelog/{version}/"
 
     def release_exists(self):
         return succeeds("gh", "release", "view", self.tag, "--repo", REPO)

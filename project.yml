@@ -12,6 +12,10 @@ settings:
     DEVELOPMENT_TEAM: ""
     OTHER_LDFLAGS: -lstdc++
     DEAD_CODE_STRIPPING: YES
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
 targets:
   flow:
     type: application
@@ -29,6 +33,7 @@ targets:
       - framework: Vendor/GhosttyKit.xcframework
         embed: false
       - sdk: Carbon.framework
+      - package: Sparkle
     info:
       path: Resources/Info.plist
       properties:
@@ -40,6 +45,8 @@ targets:
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
         LSApplicationCategoryType: public.app-category.developer-tools
+        SUFeedURL: https://github.com/thetinygoat/flow/releases/latest/download/appcast.xml
+        SUPublicEDKey: gnIDTAWHUnqS4UrhHqvKEcvSXQvgKEp1MBuzvlSeFsM=
         # Programs run inside Flow are attributed to Flow by macOS, so their
         # permission prompts show these.
         NSAppleEventsUsageDescription: A program running in Flow would like to use AppleScript.

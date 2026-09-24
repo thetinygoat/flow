@@ -110,5 +110,9 @@
 	<string>A program running in Flow would like to use speech recognition.</string>
 	<key>NSSystemAdministrationUsageDescription</key>
 	<string>A program running in Flow requires administrator privileges.</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/thetinygoat/flow/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>gnIDTAWHUnqS4UrhHqvKEcvSXQvgKEp1MBuzvlSeFsM=</string>
 </dict>
 </plist>

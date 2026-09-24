@@ -1,6 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 import GhosttyKit
+import Sparkle
 
 /// Wires libghostty, the windows, and the app-wide pieces (menus,
 /// notifications, secure input, saving) together. Each window manages its own
@@ -16,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hintsSuppressed = false
     private lazy var aboutWindow = AboutWindowController()
     private let notifications = DesktopNotifications()
+    /// Sparkle asks on the second launch whether to check for updates
+    /// automatically; nothing is checked before the user agrees.
+    private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private lazy var serviceProvider = ServiceProvider { [weak self] directory, newWindow in
         self?.openWorkspace(in: directory, newWindow: newWindow)
     }
@@ -292,6 +296,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Flow", action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings…", action: #selector(openConfig), keyEquivalent: ",")
         let reloadItem = appMenu.addItem(withTitle: "Reload Configuration", action: #selector(reloadConfig), keyEquivalent: ",")

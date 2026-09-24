@@ -4,7 +4,6 @@ import AppKit
 /// from and link out to the project.
 final class AboutWindowController: NSWindowController {
     private static let repository = URL(string: "https://github.com/thetinygoat/flow")!
-    private static let ghostty = URL(string: "https://ghostty.org")!
 
     private let info = Bundle.main.infoDictionary ?? [:]
 
@@ -47,7 +46,7 @@ final class AboutWindowController: NSWindowController {
 
         let links = NSStackView(views: [
             button("GitHub", action: #selector(openRepository)),
-            button("Ghostty", action: #selector(openGhostty)),
+            button("Licenses", action: #selector(showLicenses)),
         ])
         links.spacing = 10
 
@@ -125,7 +124,10 @@ final class AboutWindowController: NSWindowController {
         NSWorkspace.shared.open(Self.repository)
     }
 
-    @objc private func openGhostty() {
-        NSWorkspace.shared.open(Self.ghostty)
+    private lazy var licenses = LicensesWindowController()
+
+    @objc private func showLicenses() {
+        licenses.showWindow(nil)
+        licenses.window?.makeKeyAndOrderFront(nil)
     }
 }

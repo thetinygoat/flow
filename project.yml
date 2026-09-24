@@ -25,6 +25,10 @@ targets:
       - path: Resources/AppIcon.icon
         type: file
         buildPhase: resources
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_LICENSES.md
+        buildPhase: resources
       - path: Vendor/GhosttyResources/terminfo
         type: folder
       - path: Vendor/GhosttyResources/ghostty

@@ -39,6 +39,22 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
+        LSApplicationCategoryType: public.app-category.developer-tools
+        # Programs run inside Flow are attributed to Flow by macOS, so their
+        # permission prompts show these.
+        NSAppleEventsUsageDescription: A program running in Flow would like to use AppleScript.
+        NSBluetoothAlwaysUsageDescription: A program running in Flow would like to use Bluetooth.
+        NSCalendarsUsageDescription: A program running in Flow would like to access your calendars.
+        NSCameraUsageDescription: A program running in Flow would like to use the camera.
+        NSContactsUsageDescription: A program running in Flow would like to access your contacts.
+        NSLocalNetworkUsageDescription: A program running in Flow would like to access the local network.
+        NSLocationUsageDescription: A program running in Flow would like to access your location.
+        NSMicrophoneUsageDescription: A program running in Flow would like to use the microphone.
+        NSMotionUsageDescription: A program running in Flow would like to access motion data.
+        NSPhotoLibraryUsageDescription: A program running in Flow would like to access your photos.
+        NSRemindersUsageDescription: A program running in Flow would like to access your reminders.
+        NSSpeechRecognitionUsageDescription: A program running in Flow would like to use speech recognition.
+        NSSystemAdministrationUsageDescription: A program running in Flow requires administrator privileges.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Folders
             CFBundleTypeRole: Editor
@@ -66,8 +82,22 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ENABLE_HARDENED_RUNTIME: NO
-        CODE_SIGN_ENTITLEMENTS: ""
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Resources/Flow.entitlements
+      configs:
+        # Xcode leaves the hardened runtime off for ad-hoc signing, so Debug
+        # asks for it directly to match Release. The runtime refuses to load a
+        # separately signed debug dylib without a team, so Debug is linked into
+        # one binary.
+        Debug:
+          OTHER_CODE_SIGN_FLAGS: --options=runtime
+          ENABLE_DEBUG_DYLIB: NO
+        Release:
+          CODE_SIGN_IDENTITY: Developer ID Application
+          DEVELOPMENT_TEAM: DP5STKBRSS
+          OTHER_CODE_SIGN_FLAGS: --timestamp
+          # Notarization rejects the debugging entitlement Xcode adds by default.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
     postBuildScripts:
       - name: Stamp version
         script: '"$SRCROOT/scripts/stamp-version.sh"'

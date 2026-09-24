@@ -35,12 +35,36 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>A program running in Flow would like to use AppleScript.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>A program running in Flow would like to use Bluetooth.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>A program running in Flow would like to access your calendars.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>A program running in Flow would like to use the camera.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>A program running in Flow would like to access your contacts.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>A program running in Flow would like to access the local network.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>A program running in Flow would like to access your location.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A program running in Flow would like to use the microphone.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>A program running in Flow would like to access motion data.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>A program running in Flow would like to access your photos.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>A program running in Flow would like to access your reminders.</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
@@ -82,5 +106,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>A program running in Flow would like to use speech recognition.</string>
+	<key>NSSystemAdministrationUsageDescription</key>
+	<string>A program running in Flow requires administrator privileges.</string>
 </dict>
 </plist>

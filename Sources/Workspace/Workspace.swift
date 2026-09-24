@@ -4,7 +4,7 @@ extension String {
     /// "/Users/me/Code" becomes "~/Code".
     var abbreviatingHome: String {
         let home = NSHomeDirectory()
-        guard hasPrefix(home) else { return self }
+        guard self == home || hasPrefix(home + "/") else { return self }
         return "~" + dropFirst(home.count)
     }
 

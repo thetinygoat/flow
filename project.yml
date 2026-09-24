@@ -85,13 +85,11 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Resources/Flow.entitlements
       configs:
-        # Xcode leaves the hardened runtime off for ad-hoc signing, so Debug
-        # asks for it directly to match Release. The runtime refuses to load a
-        # separately signed debug dylib without a team, so Debug is linked into
-        # one binary.
+        # The hardened runtime only loads libraries signed by the app's own
+        # team, so Debug is signed with the team too rather than ad-hoc.
         Debug:
-          OTHER_CODE_SIGN_FLAGS: --options=runtime
-          ENABLE_DEBUG_DYLIB: NO
+          CODE_SIGN_IDENTITY: Apple Development
+          DEVELOPMENT_TEAM: DP5STKBRSS
         Release:
           CODE_SIGN_IDENTITY: Developer ID Application
           DEVELOPMENT_TEAM: DP5STKBRSS

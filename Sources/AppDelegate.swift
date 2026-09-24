@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
+    private var lastSaved: Session?
     private var modifierMonitor: Any?
     private var hintTimer: Timer?
     private var hintsSuppressed = false
@@ -107,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         pendingSave?.cancel()
-        session().save()
+        save()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -200,12 +201,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Changes arrive in bursts (every shell prompt updates the directory), so
-    /// writes are coalesced.
+    /// writes are coalesced. The delay runs from the first unsaved change, so
+    /// a steady stream of changes cannot put the save off indefinitely.
     private func scheduleSave() {
-        pendingSave?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.session().save() }
+        guard pendingSave == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSave = nil
+            self?.save()
+        }
         pendingSave = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+    }
+
+    private func save() {
+        let session = session()
+        guard session != lastSaved else { return }
+        session.save()
+        lastSaved = session
     }
 
     // MARK: Menu actions
@@ -515,7 +527,12 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
         scheduleSave()
     }
 
-    func surfaceDidChange(_ surface: TerminalSurfaceView) {
+    /// Titles are shown only in the tab strip and window title, and are not saved.
+    func surfaceTitleDidChange(_ surface: TerminalSurfaceView) {
+        window(containing: surface)?.controller.titleDidChange(of: surface)
+    }
+
+    func surfaceDirectoryDidChange(_ surface: TerminalSurfaceView) {
         window(containing: surface)?.controller.refresh()
         scheduleSave()
     }

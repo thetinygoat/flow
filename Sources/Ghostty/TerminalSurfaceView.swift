@@ -2,8 +2,8 @@ import AppKit
 import GhosttyKit
 
 protocol TerminalSurfaceViewDelegate: AnyObject {
-    /// Title or working directory changed.
-    func surfaceDidChange(_ surface: TerminalSurfaceView)
+    func surfaceTitleDidChange(_ surface: TerminalSurfaceView)
+    func surfaceDirectoryDidChange(_ surface: TerminalSurfaceView)
     func surfaceDidFocus(_ surface: TerminalSurfaceView)
 }
 
@@ -45,10 +45,10 @@ final class TerminalSurfaceView: NSView {
     let initialWorkingDirectory: String?
 
     private(set) var title = "" {
-        didSet { if title != oldValue { delegate?.surfaceDidChange(self) } }
+        didSet { if title != oldValue { delegate?.surfaceTitleDidChange(self) } }
     }
     var pwd: String? {
-        didSet { if pwd != oldValue { delegate?.surfaceDidChange(self) } }
+        didSet { if pwd != oldValue { delegate?.surfaceDirectoryDidChange(self) } }
     }
 
     var workingDirectory: String? {

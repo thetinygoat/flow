@@ -51,7 +51,7 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
         paneTreeView.updateDimming(focused: workspace?.selectedTab?.focusedSurface)
     }
 
-    private func reloadTabs() {
+    func reloadTabs() {
         let tabs = workspace?.tabs ?? []
         let selectedIndex = workspace?.selectedTab.flatMap { selected in tabs.firstIndex { $0 === selected } }
         tabBar.reload(titles: tabs.map(\.title), selectedIndex: selectedIndex)

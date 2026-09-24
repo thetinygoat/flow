@@ -96,12 +96,23 @@ final class MainWindowController: NSWindowController {
     func refresh() {
         sidebar.reload()
         terminalArea.show(store.selected)
-        let workspace = store.selected?.name ?? "Flow"
-        let tab = store.selected?.selectedTab?.title
-        window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
+        updateWindowTitle()
         // The accessory controller's own isHidden is not honored in the
         // unified titlebar, so the button itself is hidden.
         resetZoomButton.isHidden = store.selected?.selectedTab?.panes.zoomed == nil
+    }
+
+    func titleDidChange(of surface: TerminalSurfaceView) {
+        guard let workspace = store.selected,
+              workspace.tabs.contains(where: { $0.panes.surfaces.contains { $0 === surface } }) else { return }
+        terminalArea.reloadTabs()
+        updateWindowTitle()
+    }
+
+    private func updateWindowTitle() {
+        let workspace = store.selected?.name ?? "Flow"
+        let tab = store.selected?.selectedTab?.title
+        window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
     }
 
     @objc private func resetZoomTapped() {

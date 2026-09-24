@@ -6,3 +6,5 @@
 /DerivedData/
 xcuserdata/
 .DS_Store
+/Vendor/GhosttyKit.stamp
+__pycache__/

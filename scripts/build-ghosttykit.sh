@@ -38,4 +38,7 @@ cp -R "$GHOSTTY/zig-out/share/terminfo" "$GHOSTTY/zig-out/share/ghostty" "$ROOT/
 # symbol index is rebuilt.
 xcrun ranlib "$ROOT/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a"
 
+# Records what was built, so a release can refuse a stale libghostty.
+"$ROOT/scripts/ghosttykit-stamp.sh" > "$ROOT/Vendor/GhosttyKit.stamp"
+
 echo "GhosttyKit staged in $ROOT/Vendor"

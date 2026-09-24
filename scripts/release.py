@@ -8,6 +8,8 @@ Sparkle feed entry for it. Nothing leaves this Mac except the notarization
 upload to Apple, unless --publish is given.
 
   uv run scripts/release.py 0.1.0            build dist/Flow-0.1.0.dmg and dist/appcast.xml
+  uv run scripts/release.py 0.1.0 --no-wait  the same, but return while Apple is still
+                                             notarizing; rerun to check again
   uv run scripts/release.py 0.1.0 --publish  publish exactly those files: push the branch
                                              and tag, and create the GitHub release
 
@@ -301,10 +303,11 @@ class Release:
         (DIST / f"Flow {self.version}.dmg").rename(self.dmg)
         print(self.dmg)
 
-    def notarize(self):
+    def notarize(self, wait):
         """The submission id is saved before waiting, so a wait cut short by
         sleep or a lost connection resumes on the next run; Apple carries on
-        with the submission either way."""
+        with the submission either way. Without waiting, Apple is asked once
+        and False means it is still working."""
         step("Notarizing (usually minutes, but a new account's first uploads can take hours)")
         submission = (self.state() or {}).get("submission")
         if submission:
@@ -317,12 +320,15 @@ class Release:
                 raise ReleaseError("notarytool did not accept the upload")
             self.save_state(submission=submission)
             print(f"submitted {submission}")
-        print(f"waiting for Apple; if this stops, rerun: uv run scripts/release.py {self.version}")
-        waited = run("xcrun", "notarytool", "wait", submission, "--keychain-profile", NOTARY_PROFILE,
-                     "--output-format", "json", capture=True, check=False)
+        if wait:
+            print(f"waiting for Apple; if this stops, rerun: uv run scripts/release.py {self.version}")
+        answer = run("xcrun", "notarytool", "wait" if wait else "info", submission,
+                     "--keychain-profile", NOTARY_PROFILE, "--output-format", "json", capture=True, check=False)
         report = DIST / "notarization.json"
-        report.write_text(waited.stdout)
-        status = notarization_result(waited.stdout)[0]
+        report.write_text(answer.stdout)
+        status = notarization_result(answer.stdout)[0]
+        if status == "In Progress" and not wait:
+            return False
         if status == "unknown":
             raise ReleaseError(f"lost track of submission {submission} while waiting; "
                                f"rerun uv run scripts/release.py {self.version} to keep waiting")
@@ -334,6 +340,7 @@ class Release:
         run("xcrun", "stapler", "staple", self.dmg)
         run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature", self.dmg)
         print("notarized and stapled")
+        return True
 
     def write_feed(self, build_number):
         step("Updating the Sparkle feed")
@@ -351,7 +358,7 @@ class Release:
         ))
         print(self.appcast)
 
-    def make(self):
+    def make(self, wait=True):
         state = self.state()
         if can_resume(state, self.version, self.tag_commit()) and self.dmg.exists():
             if self.release_exists():
@@ -364,7 +371,9 @@ class Release:
             self.sign(identity)
             self.package(identity)
             self.save_state(version=self.version, commit=self.tag_commit(), build=build_number)
-        self.notarize()
+        if not self.notarize(wait):
+            step(f"Apple is still notarizing. Check again with: uv run scripts/release.py {self.version} --no-wait")
+            return
         self.write_feed(build_number)
         step(f"Done. Review dist/, then run: uv run scripts/release.py {self.version} --publish")
 
@@ -394,14 +403,16 @@ def main():
     parser = argparse.ArgumentParser(description="Build, or publish, a Flow release.")
     parser.add_argument("version", help="X.Y.Z")
     parser.add_argument("--publish", action="store_true", help="publish the release already built in dist/")
+    parser.add_argument("--no-wait", action="store_true", help="return while Apple is still notarizing")
     args = parser.parse_args()
     if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
         parser.error("version must be X.Y.Z")
 
     os.environ.setdefault("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer")
+    sys.stdout.reconfigure(line_buffering=True)
     release = Release(args.version)
     try:
-        release.publish() if args.publish else release.make()
+        release.publish() if args.publish else release.make(wait=not args.no_wait)
     except ReleaseError as error:
         sys.exit(f"error: {error}")
 

@@ -13,6 +13,7 @@ from release import (
     FEED_KEEP,
     SPARKLE_NS,
     ReleaseError,
+    can_resume,
     developer_id,
     notarization_result,
     parse_sign_update,
@@ -54,6 +55,19 @@ class TagTests(unittest.TestCase):
     def test_never_moves_a_pushed_tag(self):
         with self.assertRaisesRegex(ReleaseError, "v0.1.0 is already pushed"):
             tag_action("v0.1.0", "old", "abc", pushed=True)
+
+
+class ResumeTests(unittest.TestCase):
+    STATE = {"version": "0.1.0", "commit": "abc", "build": 42, "submission": "id"}
+
+    def test_resumes_the_build_of_the_tagged_commit(self):
+        self.assertTrue(can_resume(self.STATE, "0.1.0", "abc"))
+
+    def test_rebuilds_when_anything_differs(self):
+        self.assertFalse(can_resume(None, "0.1.0", "abc"))
+        self.assertFalse(can_resume(self.STATE, "0.1.1", "abc"))
+        self.assertFalse(can_resume(self.STATE, "0.1.0", "moved"))
+        self.assertFalse(can_resume(self.STATE, "0.1.0", None))
 
 
 class NotarizationTests(unittest.TestCase):

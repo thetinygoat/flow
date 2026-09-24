@@ -95,6 +95,13 @@ def notarization_result(text):
         return "unknown", None
 
 
+def can_resume(state, version, tag_commit):
+    """A build in dist/ is picked up again only if it is this version, built
+    from the commit the tag still points at."""
+    return bool(state) and state.get("version") == version and tag_commit is not None \
+        and state.get("commit") == tag_commit
+
+
 def parse_sign_update(text):
     match = re.search(r'sparkle:edSignature="([^"]+)"\s+length="(\d+)"', text)
     if not match:
@@ -177,7 +184,17 @@ class Release:
         self.tag = f"v{version}"
         self.dmg = DIST / f"Flow-{version}.dmg"
         self.appcast = DIST / "appcast.xml"
+        self.state_file = DIST / "release.json"
         self.notes_url = f"https://getflowterm.app/changelog/{version}/"
+
+    def state(self):
+        try:
+            return json.loads(self.state_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def save_state(self, **fields):
+        self.state_file.write_text(json.dumps({**(self.state() or {}), **fields}, indent=2) + "\n")
 
     def release_exists(self):
         return succeeds("gh", "release", "view", self.tag, "--repo", REPO)
@@ -285,16 +302,34 @@ class Release:
         print(self.dmg)
 
     def notarize(self):
-        step("Notarizing (this can take a few minutes)")
-        submitted = run("xcrun", "notarytool", "submit", self.dmg, "--keychain-profile", NOTARY_PROFILE,
-                        "--wait", "--output-format", "json", capture=True, check=False)
+        """The submission id is saved before waiting, so a wait cut short by
+        sleep or a lost connection resumes on the next run; Apple carries on
+        with the submission either way."""
+        step("Notarizing (usually minutes, but a new account's first uploads can take hours)")
+        submission = (self.state() or {}).get("submission")
+        if submission:
+            print(f"resuming submission {submission}")
+        else:
+            submitted = run("xcrun", "notarytool", "submit", self.dmg, "--keychain-profile", NOTARY_PROFILE,
+                            "--output-format", "json", capture=True, check=False)
+            submission = notarization_result(submitted.stdout)[1]
+            if not submission:
+                raise ReleaseError("notarytool did not accept the upload")
+            self.save_state(submission=submission)
+            print(f"submitted {submission}")
+        print(f"waiting for Apple; if this stops, rerun: uv run scripts/release.py {self.version}")
+        waited = run("xcrun", "notarytool", "wait", submission, "--keychain-profile", NOTARY_PROFILE,
+                     "--output-format", "json", capture=True, check=False)
         report = DIST / "notarization.json"
-        report.write_text(submitted.stdout)
-        status, submission = notarization_result(submitted.stdout)
+        report.write_text(waited.stdout)
+        status = notarization_result(waited.stdout)[0]
+        if status == "unknown":
+            raise ReleaseError(f"lost track of submission {submission} while waiting; "
+                               f"rerun uv run scripts/release.py {self.version} to keep waiting")
         if status != "Accepted":
             log = DIST / "notarization-log.json"
-            if submission:
-                run("xcrun", "notarytool", "log", submission, "--keychain-profile", NOTARY_PROFILE, log, check=False)
+            run("xcrun", "notarytool", "log", submission, "--keychain-profile", NOTARY_PROFILE, log, check=False)
+            self.state_file.unlink(missing_ok=True)
             raise ReleaseError(f"notarization {status}; see {report} and {log}")
         run("xcrun", "stapler", "staple", self.dmg)
         run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature", self.dmg)
@@ -317,10 +352,18 @@ class Release:
         print(self.appcast)
 
     def make(self):
-        identity = self.check()
-        build_number = self.build()
-        self.sign(identity)
-        self.package(identity)
+        state = self.state()
+        if can_resume(state, self.version, self.tag_commit()) and self.dmg.exists():
+            if self.release_exists():
+                raise ReleaseError(f"release {self.tag} already exists on GitHub")
+            step(f"Resuming the {self.version} build from {state['commit'][:10]}")
+            build_number = state["build"]
+        else:
+            identity = self.check()
+            build_number = self.build()
+            self.sign(identity)
+            self.package(identity)
+            self.save_state(version=self.version, commit=self.tag_commit(), build=build_number)
         self.notarize()
         self.write_feed(build_number)
         step(f"Done. Review dist/, then run: uv run scripts/release.py {self.version} --publish")
@@ -331,8 +374,11 @@ class Release:
             raise ReleaseError(f"build the release first: uv run scripts/release.py {self.version}")
         if self.release_exists():
             raise ReleaseError(f"release {self.tag} already exists on GitHub")
-        if self.tag_commit() != self.head():
-            raise ReleaseError(f"tag {self.tag} is not at HEAD")
+        tag_commit = self.tag_commit()
+        if not can_resume(self.state(), self.version, tag_commit):
+            raise ReleaseError(f"dist/ was not built from {self.tag}; build the release again")
+        if not succeeds("git", "merge-base", "--is-ancestor", tag_commit, "HEAD"):
+            raise ReleaseError(f"{self.tag} is not on the current branch")
         if not succeeds("xcrun", "stapler", "validate", self.dmg):
             raise ReleaseError(f"{self.dmg} is not notarized")
         branch = output("git", "branch", "--show-current")

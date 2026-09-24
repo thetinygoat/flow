@@ -68,9 +68,12 @@ final class PaneTreeView: NSView {
     }
 }
 
-private final class PaneSplitView: NSSplitView, NSSplitViewDelegate {
+private final class PaneSplitView: NSSplitView {
     private let pane: Pane
     private var appliedRatio = false
+    /// A split view that is its own delegate sends AppKit into endless
+    /// recursion when it checks the responder chain for toggleSidebar.
+    private lazy var events = Events(owner: self)
     var backgroundColor: NSColor = .black {
         didSet { needsDisplay = true }
     }
@@ -80,7 +83,7 @@ private final class PaneSplitView: NSSplitView, NSSplitViewDelegate {
         super.init(frame: .zero)
         isVertical = pane.axis == .horizontal
         dividerStyle = .thin
-        delegate = self
+        delegate = events
     }
 
     required init?(coder: NSCoder) {
@@ -110,16 +113,24 @@ private final class PaneSplitView: NSSplitView, NSSplitViewDelegate {
         appliedRatio = true
     }
 
-    func splitViewDidResizeSubviews(_ notification: Notification) {
-        guard appliedRatio, length > 0 else { return }
-        pane.ratio = dividerPosition / length
-    }
+    private final class Events: NSObject, NSSplitViewDelegate {
+        unowned let owner: PaneSplitView
 
-    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-        80
-    }
+        init(owner: PaneSplitView) {
+            self.owner = owner
+        }
 
-    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-        length - 80
+        func splitViewDidResizeSubviews(_ notification: Notification) {
+            guard owner.appliedRatio, owner.length > 0 else { return }
+            owner.pane.ratio = owner.dividerPosition / owner.length
+        }
+
+        func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+            80
+        }
+
+        func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+            owner.length - 80
+        }
     }
 }

@@ -17,9 +17,16 @@ enum DropText {
 
     private static let specialCharacters = "\\ ()[]{}<>\"'`!#$&;|*?\t"
 
+    /// A backslash before a newline joins the lines instead of keeping it,
+    /// so control characters are single-quoted, each on its own, which
+    /// bash, zsh and fish all read the same way.
     static func escape(_ string: String) -> String {
         var result = ""
         for character in string {
+            if character.unicodeScalars.contains(where: { $0.properties.generalCategory == .control && $0 != "\t" }) {
+                result += "'\(character)'"
+                continue
+            }
             if specialCharacters.contains(character) {
                 result.append("\\")
             }

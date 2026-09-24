@@ -117,6 +117,7 @@ final class TerminalSurfaceView: NSView {
         }
         if let surface {
             ghostty_surface_set_focus(surface, false)
+            ghostty_surface_set_color_scheme(surface, runtime.colorScheme)
         }
         runtime.register(self)
         updateTrackingAreas()
@@ -575,6 +576,11 @@ final class TerminalSurfaceView: NSView {
             string: pasteboard.string(forType: .string)) else { return false }
         insertText(text, replacementRange: NSRange(location: 0, length: 0))
         return true
+    }
+
+    func setColorScheme(_ scheme: ghostty_color_scheme_e) {
+        guard let surface else { return }
+        ghostty_surface_set_color_scheme(surface, scheme)
     }
 
     func setHoveredLink(_ url: String?) {

@@ -27,6 +27,12 @@ final class GhosttyConfig {
         }
     }
 
+    /// Takes a copy of a config libghostty owns, such as the one it sends when
+    /// the light or dark theme takes effect.
+    init(copying config: ghostty_config_t) {
+        cValue = ghostty_config_clone(config)
+    }
+
     deinit {
         ghostty_config_free(cValue)
     }

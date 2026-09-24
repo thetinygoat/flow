@@ -31,6 +31,8 @@ final class GhosttyRuntime {
     private(set) var app: ghostty_app_t!
     private let surfaces = NSHashTable<TerminalSurfaceView>.weakObjects()
     private var observers: [NSObjectProtocol] = []
+    private var appearanceObserver: NSKeyValueObservation?
+    private(set) var colorScheme = GHOSTTY_COLOR_SCHEME_LIGHT
 
     init() throws {
         config = try GhosttyConfig()
@@ -81,6 +83,19 @@ final class GhosttyRuntime {
                 ghostty_app_set_focus(self.app, false)
             },
         ]
+        // libghostty resolves `theme = light:…,dark:…` from the scheme it is told.
+        appearanceObserver = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) { [weak self] app, _ in
+            self?.setColorScheme(app.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT)
+        }
+    }
+
+    private func setColorScheme(_ scheme: ghostty_color_scheme_e) {
+        colorScheme = scheme
+        ghostty_app_set_color_scheme(app, scheme)
+        for surface in surfaces.allObjects {
+            surface.setColorScheme(scheme)
+        }
     }
 
     deinit {
@@ -272,6 +287,12 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_TOGGLE_MAXIMIZE:
             guard let window = surface?.window else { return false }
             window.zoom(nil)
+
+        // A new app config arrives when the light or dark theme takes effect;
+        // Flow's own window colors follow it.
+        case GHOSTTY_ACTION_CONFIG_CHANGE where surface == nil:
+            config = GhosttyConfig(copying: action.action.config_change.config)
+            onConfigChange?()
 
         case GHOSTTY_ACTION_CONFIG_CHANGE, GHOSTTY_ACTION_RENDERER_HEALTH, GHOSTTY_ACTION_COLOR_CHANGE:
             break

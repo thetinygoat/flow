@@ -77,9 +77,8 @@ final class MainWindowController: NSWindowController {
         if config.backgroundOpacity < 1 {
             window.isOpaque = false
             window.backgroundColor = .white.withAlphaComponent(0.001)
-            if config.backgroundBlur > 0 {
-                ghostty_set_window_background_blur(app, Unmanaged.passUnretained(window).toOpaque())
-            }
+            // Applies the configured radius, so a reload with blur off clears it.
+            ghostty_set_window_background_blur(app, Unmanaged.passUnretained(window).toOpaque())
         } else {
             window.isOpaque = true
             window.backgroundColor = config.backgroundColor

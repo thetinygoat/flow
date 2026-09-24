@@ -367,8 +367,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(submenu: viewMenu, title: "View")
 
         let workspaceMenu = NSMenu(title: "Workspace")
-        workspaceMenu.addItem(withTitle: "Previous Workspace", action: #selector(previousWorkspace), keyEquivalent: "[")
-        workspaceMenu.addItem(withTitle: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
+        // Ghostty's previous/next tab bindings switch workspaces; plain ⌘[ and ⌘]
+        // belong to split navigation.
+        let previousWorkspaceItem = workspaceMenu.addItem(withTitle: "Previous Workspace", action: #selector(previousWorkspace), keyEquivalent: "[")
+        previousWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
+        let nextWorkspaceItem = workspaceMenu.addItem(withTitle: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
+        nextWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
         workspaceMenu.addItem(.separator())
         for number in 1...9 {
             let item = workspaceMenu.addItem(withTitle: "Workspace \(number)", action: #selector(selectWorkspace(_:)), keyEquivalent: "\(number)")

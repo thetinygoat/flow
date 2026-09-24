@@ -15,6 +15,9 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     private let tableView = NSTableView()
     private let git = GitStatusMonitor()
     private var isReloading = false
+    /// Its row is left alone by reloads, which would otherwise replace the
+    /// cell and discard the name being typed.
+    private var renaming: Workspace?
 
     init(store: WorkspaceStore) {
         self.store = store
@@ -77,7 +80,10 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         git.watch(store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory })
 
         if tableView.numberOfRows == store.workspaces.count {
-            let rows = IndexSet(0..<store.workspaces.count)
+            var rows = IndexSet(0..<store.workspaces.count)
+            if let renaming, let row = store.workspaces.firstIndex(where: { $0 === renaming }) {
+                rows.remove(row)
+            }
             tableView.reloadData(forRowIndexes: rows, columnIndexes: [0])
             // Reloads arrive with every shell prompt. Animated height changes
             // overlap and leave cells taller than their rows, which then snap
@@ -97,10 +103,18 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     @objc private func renameClickedWorkspace() {
         let row = tableView.clickedRow
-        guard row >= 0, let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
+        guard row >= 0, row < store.workspaces.count,
+              let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
+        let workspace = store.workspaces[row]
+        renaming = workspace
         cell.beginRenaming { [weak self] name in
-            guard let self, row < self.store.workspaces.count else { return }
-            self.delegate?.sidebar(self, didRename: self.store.workspaces[row], to: name)
+            guard let self else { return }
+            self.renaming = nil
+            if name.isEmpty || !self.store.workspaces.contains(where: { $0 === workspace }) {
+                self.reload()
+            } else {
+                self.delegate?.sidebar(self, didRename: workspace, to: name)
+            }
         }
     }
 
@@ -277,7 +291,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         let name = titleLabel.stringValue.trimmingCharacters(in: .whitespaces)
         let completion = onRename
         onRename = nil
-        if !name.isEmpty { completion?(name) }
+        completion?(name)
     }
 }
 

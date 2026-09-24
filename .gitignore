@@ -2,6 +2,7 @@
 /Vendor/GhosttyResources/
 /flow.xcodeproj/
 /build/
+/dist/
 /DerivedData/
 xcuserdata/
 .DS_Store

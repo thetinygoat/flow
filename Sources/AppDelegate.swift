@@ -46,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let (window, surface) = self.surface(withID: id) else { return false }
             return window.isInView(surface)
         }
+        notifications.isOpen = { [weak self] id in
+            self?.surface(withID: id) != nil
+        }
         notifications.onOpen = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return }
             window.reveal(surface)

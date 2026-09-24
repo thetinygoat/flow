@@ -10,6 +10,8 @@ final class DesktopNotifications: NSObject, UNUserNotificationCenterDelegate {
     /// True when the terminal is already in front of the user, in which case
     /// its notifications are dropped.
     var isInView: ((UUID) -> Bool)?
+    /// False once the terminal has closed.
+    var isOpen: ((UUID) -> Bool)?
 
     private let center = UNUserNotificationCenter.current()
     private var delivered: [UUID: Set<String>] = [:]
@@ -21,6 +23,11 @@ final class DesktopNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func post(title: String, body: String, subtitle: String, from terminal: UUID, evenIfInView: Bool = false) {
         guard evenIfInView || isInView?(terminal) != true else { return }
+        // Closed terminals are forgotten here rather than on every close path;
+        // their notifications could no longer bring anything to the front.
+        for closed in delivered.keys where isOpen?(closed) == false {
+            clear(for: closed)
+        }
         center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
             if let error { logger.warning("notification permission failed: \(error)") }
             guard granted, let self else { return }

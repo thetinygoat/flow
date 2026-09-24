@@ -229,11 +229,30 @@ final class GitStatusMonitor {
         return git(arguments).flatMap(GitStatus.init(porcelain:))
     }
 
-    /// Standard output of a successful git run, or nil. A run that outlasts
-    /// the timeout is stopped and counts as failed.
+    /// `/usr/bin/git` is only a stub until the command-line tools are
+    /// installed, and running it asks the user to install them. It is used
+    /// only when the selected developer directory has git, otherwise
+    /// Homebrew's git; with neither, only the branch is shown.
+    static let executable: String? = findGit(
+        developerDirectory: output(of: "/usr/bin/xcode-select", ["-p"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+        isExecutable: FileManager.default.isExecutableFile(atPath:))
+
+    static func findGit(developerDirectory: String?, isExecutable: (String) -> Bool) -> String? {
+        if let developerDirectory, isExecutable(developerDirectory + "/usr/bin/git") {
+            return "/usr/bin/git"
+        }
+        return ["/opt/homebrew/bin/git", "/usr/local/bin/git"].first(where: isExecutable)
+    }
+
     private static func git(_ arguments: [String]) -> String? {
+        executable.flatMap { output(of: $0, arguments) }
+    }
+
+    /// Standard output of a successful run, or nil. A run that outlasts the
+    /// timeout is stopped and counts as failed.
+    private static func output(of executable: String, _ arguments: [String]) -> String? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         let output = Pipe()
         process.standardOutput = output

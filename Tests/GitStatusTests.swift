@@ -226,6 +226,26 @@ final class GitStatusTests: XCTestCase {
         return String(cString: resolved)
     }
 
+    // MARK: Finding git
+
+    func testUsesSystemGitWhenDeveloperToolsHaveIt() {
+        let present: Set = ["/Library/Developer/CommandLineTools/usr/bin/git", "/opt/homebrew/bin/git"]
+        XCTAssertEqual(GitStatusMonitor.findGit(developerDirectory: "/Library/Developer/CommandLineTools", isExecutable: present.contains), "/usr/bin/git")
+    }
+
+    func testAvoidsTheInstallPromptWithoutDeveloperTools() {
+        let homebrew: Set = ["/opt/homebrew/bin/git"]
+        XCTAssertEqual(GitStatusMonitor.findGit(developerDirectory: nil, isExecutable: homebrew.contains), "/opt/homebrew/bin/git")
+        XCTAssertEqual(GitStatusMonitor.findGit(developerDirectory: "/Applications/Xcode.app/Contents/Developer", isExecutable: homebrew.contains),
+                       "/opt/homebrew/bin/git", "a selected directory that was deleted")
+        XCTAssertEqual(GitStatusMonitor.findGit(developerDirectory: nil, isExecutable: ["/usr/local/bin/git"].contains), "/usr/local/bin/git")
+        XCTAssertNil(GitStatusMonitor.findGit(developerDirectory: nil, isExecutable: { _ in false }))
+    }
+
+    func testFindsGitOnThisMac() {
+        XCTAssertNotNil(GitStatusMonitor.executable)
+    }
+
     func testNotARepository() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

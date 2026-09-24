@@ -67,7 +67,12 @@ final class TerminalSurfaceView: NSView {
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
         return NSSize(width: cellSizeInPixels.width / scale, height: cellSizeInPixels.height / scale)
     }
+    /// Whether keystrokes go to this terminal: it is its window's first
+    /// responder and that window is the key window. A terminal in a window in
+    /// the background is not focused, so its cursor, focus reports and secure
+    /// input behave as they would in any other background window.
     private(set) var focused = false
+    private var isFirstResponder = false
 
     private var cursor: NSCursor = .iBeam
     private let dimOverlay = PassthroughView()
@@ -102,6 +107,14 @@ final class TerminalSurfaceView: NSView {
             center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] notification in
                 guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
                 self.updateDisplay()
+            },
+            center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, notification.object as? NSWindow === self.window else { return }
+                self.updateFocus()
+            },
+            center.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let self, notification.object as? NSWindow === self.window else { return }
+                self.updateFocus()
             },
             center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] notification in
                 guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
@@ -231,7 +244,8 @@ final class TerminalSurfaceView: NSView {
         updateOcclusion()
         // Being detached while first responder loses focus without a
         // resignFirstResponder call, so the state is re-derived here.
-        focusDidChange(window?.firstResponder === self)
+        isFirstResponder = window?.firstResponder === self
+        updateFocus()
         guard window != nil else { return }
         updateDisplay()
     }
@@ -275,17 +289,24 @@ final class TerminalSurfaceView: NSView {
 
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
-        if accepted { focusDidChange(true) }
+        if accepted {
+            isFirstResponder = true
+            updateFocus()
+        }
         return accepted
     }
 
     override func resignFirstResponder() -> Bool {
         let accepted = super.resignFirstResponder()
-        if accepted { focusDidChange(false) }
+        if accepted {
+            isFirstResponder = false
+            updateFocus()
+        }
         return accepted
     }
 
-    private func focusDidChange(_ focused: Bool) {
+    private func updateFocus() {
+        let focused = isFirstResponder && window?.isKeyWindow == true
         guard let surface, self.focused != focused else { return }
         self.focused = focused
         ghostty_surface_set_focus(surface, focused)

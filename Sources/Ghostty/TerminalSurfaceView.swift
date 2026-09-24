@@ -837,11 +837,10 @@ final class TerminalSurfaceView: NSView {
     func confirmReadClipboard(_ text: UnsafePointer<CChar>?, state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e) {
         guard let surface, let text else { return }
         let string = String(cString: text)
-        let message = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ
-            ? "An application in the terminal is trying to read the clipboard."
-            : "The text contains characters that could run commands when pasted."
-        let confirmed = Self.confirm(title: "Potentially Unsafe Paste", message: message, preview: string, button: "Paste", in: window)
-        (confirmed ? string : "").withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+        let kind: ClipboardConfirmation.Request = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ ? .read : .paste
+        ClipboardConfirmation.ask(kind, contents: string, in: window) { allowed in
+            (allowed ? string : "").withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+        }
     }
 
     func writeClipboard(_ location: ghostty_clipboard_e, content: UnsafePointer<ghostty_clipboard_content_s>?, count: Int, confirm: Bool) {
@@ -854,37 +853,17 @@ final class TerminalSurfaceView: NSView {
         }
         guard !items.isEmpty else { return }
 
-        if confirm {
-            guard let text = items.first(where: { $0.0 == .string })?.1,
-                  Self.confirm(
-                    title: "Application Wants to Write to the Clipboard",
-                    message: "An application in the terminal is trying to write to the clipboard.",
-                    preview: text, button: "Allow", in: window) else { return }
+        let write = {
+            pasteboard.declareTypes(items.map(\.0), owner: nil)
+            for (type, data) in items {
+                pasteboard.setString(data, forType: type)
+            }
         }
-
-        pasteboard.declareTypes(items.map(\.0), owner: nil)
-        for (type, data) in items {
-            pasteboard.setString(data, forType: type)
+        guard confirm else { return write() }
+        guard let text = items.first(where: { $0.0 == .string })?.1 else { return }
+        ClipboardConfirmation.ask(.write, contents: text, in: window) { allowed in
+            if allowed { write() }
         }
-    }
-
-    private static func confirm(title: String, message: String, preview: String, button: String, in window: NSWindow?) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: button)
-        alert.addButton(withTitle: "Cancel")
-
-        let scroll = NSTextView.scrollableTextView()
-        scroll.frame = NSRect(x: 0, y: 0, width: 400, height: 120)
-        if let textView = scroll.documentView as? NSTextView {
-            textView.string = preview
-            textView.isEditable = false
-            textView.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
-        }
-        alert.accessoryView = scroll
-        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 

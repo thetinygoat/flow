@@ -10,6 +10,8 @@ upload to Apple, unless --publish is given.
   uv run scripts/release.py 0.1.0            build dist/Flow-0.1.0.dmg and dist/appcast.xml
   uv run scripts/release.py 0.1.0 --no-wait  the same, but return while Apple is still
                                              notarizing; rerun to check again
+  uv run scripts/release.py 0.1.1-rc.1       a release candidate: a GitHub pre-release with
+                                             only the DMG, never offered as an update
   uv run scripts/release.py 0.1.0 --publish  publish exactly those files: push the branch
                                              and tag, and create the GitHub release
 
@@ -95,6 +97,13 @@ def notarization_result(text):
         return data.get("status", "unknown"), data.get("id")
     except (json.JSONDecodeError, AttributeError):
         return "unknown", None
+
+
+VERSION = re.compile(r"\d+\.\d+\.\d+(-rc\.\d+)?")
+
+
+def is_prerelease(version):
+    return "-" in version
 
 
 def can_resume(state, version, tag_commit):
@@ -188,6 +197,10 @@ class Release:
         self.appcast = DIST / "appcast.xml"
         self.state_file = DIST / "release.json"
         self.notes_url = f"https://getflowterm.app/changelog/{version}/"
+        # Updates are read from the latest release's feed, and GitHub never
+        # counts a pre-release as latest, so a candidate reaches only the
+        # people who download it.
+        self.prerelease = is_prerelease(version)
 
     def state(self):
         try:
@@ -374,12 +387,13 @@ class Release:
         if not self.notarize(wait):
             step(f"Apple is still notarizing. Check again with: uv run scripts/release.py {self.version} --no-wait")
             return
-        self.write_feed(build_number)
+        if not self.prerelease:
+            self.write_feed(build_number)
         step(f"Done. Review dist/, then run: uv run scripts/release.py {self.version} --publish")
 
     def publish(self):
         step(f"Publishing {self.tag}")
-        if not (self.dmg.exists() and self.appcast.exists()):
+        if not (self.dmg.exists() and (self.prerelease or self.appcast.exists())):
             raise ReleaseError(f"build the release first: uv run scripts/release.py {self.version}")
         if self.release_exists():
             raise ReleaseError(f"release {self.tag} already exists on GitHub")
@@ -394,19 +408,23 @@ class Release:
         if not branch:
             raise ReleaseError("check out the branch being released")
         run("git", "push", "origin", branch, self.tag)
-        run("gh", "release", "create", self.tag, self.dmg, self.appcast,
-            "--repo", REPO, "--title", f"Flow {self.version}", "--notes", f"Release notes: {self.notes_url}")
+        if self.prerelease:
+            run("gh", "release", "create", self.tag, self.dmg, "--prerelease", "--repo", REPO,
+                "--title", f"Flow {self.version}", "--notes", "A release candidate for testing. It is not offered as an update.")
+        else:
+            run("gh", "release", "create", self.tag, self.dmg, self.appcast, "--repo", REPO,
+                "--title", f"Flow {self.version}", "--notes", f"Release notes: {self.notes_url}")
         print(f"published https://github.com/{REPO}/releases/tag/{self.tag}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Build, or publish, a Flow release.")
-    parser.add_argument("version", help="X.Y.Z")
+    parser.add_argument("version", help="X.Y.Z, or X.Y.Z-rc.N for a release candidate")
     parser.add_argument("--publish", action="store_true", help="publish the release already built in dist/")
     parser.add_argument("--no-wait", action="store_true", help="return while Apple is still notarizing")
     args = parser.parse_args()
-    if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
-        parser.error("version must be X.Y.Z")
+    if not VERSION.fullmatch(args.version):
+        parser.error("version must be X.Y.Z or X.Y.Z-rc.N")
 
     os.environ.setdefault("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer")
     sys.stdout.reconfigure(line_buffering=True)

@@ -12,7 +12,9 @@ from datetime import datetime, timedelta, timezone
 from release import (
     FEED_KEEP,
     SPARKLE_NS,
+    VERSION,
     ReleaseError,
+    is_prerelease,
     can_resume,
     developer_id,
     notarization_result,
@@ -55,6 +57,18 @@ class TagTests(unittest.TestCase):
     def test_never_moves_a_pushed_tag(self):
         with self.assertRaisesRegex(ReleaseError, "v0.1.0 is already pushed"):
             tag_action("v0.1.0", "old", "abc", pushed=True)
+
+
+class VersionTests(unittest.TestCase):
+    def test_accepts_releases_and_candidates(self):
+        for version in ["0.1.0", "10.2.33", "0.1.1-rc.1", "1.0.0-rc.12"]:
+            self.assertTrue(VERSION.fullmatch(version), version)
+        for version in ["0.1", "v0.1.0", "0.1.1-rc", "0.1.1-beta.1", "0.1.1-rc.1x"]:
+            self.assertFalse(VERSION.fullmatch(version), version)
+
+    def test_candidates_are_prereleases(self):
+        self.assertTrue(is_prerelease("0.1.1-rc.1"))
+        self.assertFalse(is_prerelease("0.1.1"))
 
 
 class ResumeTests(unittest.TestCase):

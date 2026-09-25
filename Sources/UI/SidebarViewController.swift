@@ -12,7 +12,8 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     weak var delegate: SidebarViewControllerDelegate?
 
     private let store: WorkspaceStore
-    private let tableView = NSTableView()
+    private let tableView = WorkspaceTableView()
+    private var hoveredRow = -1
     private let git = GitStatusMonitor()
     private var isReloading = false
     /// Its row is left alone by reloads, which would otherwise replace the
@@ -53,6 +54,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         scrollView.drawsBackground = false
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        // Scrolling moves rows under a still pointer, so the hovered row is
+        // worked out again from where the pointer is.
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(updateHoveredRow), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        tableView.onPointerMove = { [weak self] in self?.updateHoveredRow() }
 
         let container = NSVisualEffectView()
         container.material = .sidebar
@@ -130,6 +136,16 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         delegate?.sidebar(self, wantsClose: store.workspaces[row])
     }
 
+    /// One row at most shows its close button: the row under the pointer.
+    @objc private func updateHoveredRow() {
+        let row = tableView.hoveredRow
+        guard row != hoveredRow else { return }
+        hoveredRow = row
+        for visible in 0..<tableView.numberOfRows {
+            (tableView.view(atColumn: 0, row: visible, makeIfNecessary: false) as? WorkspaceCellView)?.isHovered = visible == row
+        }
+    }
+
     // MARK: NSTableViewDataSource
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -163,6 +179,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         cell.titleLabel.stringValue = workspace.name
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
         cell.gitStatus = gitStatus(forRow: row)
+        cell.isHovered = row == hoveredRow
         cell.onClose = { [weak self] in
             guard let self, row < self.store.workspaces.count else { return }
             self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
@@ -180,6 +197,41 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 }
 
+/// Tracks the pointer over the whole list rather than row by row, so the
+/// hovered row stays right while rows scroll or are reused.
+private final class WorkspaceTableView: NSTableView {
+    var onPointerMove: (() -> Void)?
+    private var pointer: NSPoint?
+    private var pointerArea: NSTrackingArea?
+
+    var hoveredRow: Int {
+        pointer.map { row(at: convert($0, from: nil)) } ?? -1
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerArea { removeTrackingArea(pointerArea) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        pointerArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        pointer = event.locationInWindow
+        onPointerMove?()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        pointer = event.locationInWindow
+        onPointerMove?()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        pointer = nil
+        onPointerMove?()
+    }
+}
+
 private final class WorkspaceRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         NSColor.labelColor.withAlphaComponent(0.1).setFill()
@@ -193,7 +245,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     private let gitLabel = NSTextField(labelWithString: "")
     private let hint = ShortcutHintView()
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
-    private var trackingArea: NSTrackingArea?
     private var onRename: ((String) -> Void)?
     private var nameBeforeRenaming = ""
     private var clickMonitor: Any?
@@ -242,20 +293,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         ])
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea { removeTrackingArea(trackingArea) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
-        addTrackingArea(area)
-        trackingArea = area
+    var isHovered = false {
+        didSet { updateCloseButton() }
     }
 
-    override func mouseEntered(with event: NSEvent) {
-        closeButton.isHidden = hint.text != nil
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        closeButton.isHidden = true
+    private func updateCloseButton() {
+        closeButton.isHidden = !isHovered || hint.text != nil
     }
 
     @objc private func closeTapped() {
@@ -275,6 +318,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
 
     func showShortcutHint(_ text: String?) {
         hint.text = text
+        updateCloseButton()
     }
 
     required init?(coder: NSCoder) {

@@ -375,7 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let zoomItem = viewMenu.addItem(withTitle: "Zoom Split", action: #selector(TerminalSurfaceView.toggleSplitZoom(_:)), keyEquivalent: "\r")
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
-        viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "b")
+        viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")

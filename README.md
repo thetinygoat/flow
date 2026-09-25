@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon.svg" width="96" height="96" alt="Flow icon">
+  <img src="assets/icon.svg" width="96" height="96" alt="Flow icon">
 </p>
 
 <h1 align="center">Flow</h1>
@@ -16,7 +16,7 @@
 
 A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
 
-![Flow with Claude Code, Codex and shells side by side in split panes, and workspaces with their git branches in the sidebar](docs/screenshot.png)
+![Flow with Claude Code, Codex and shells side by side in split panes, and workspaces with their git branches in the sidebar](assets/screenshot.png)
 
 ## Why Flow?
 
@@ -40,11 +40,11 @@ Flow updates itself.
 
 Each project gets its own workspace in the sidebar, with its own tabs and split panes. Flow reopens everything as you left it.
 
-| Shortcut | Action |
-| --- | --- |
-| <kbd>⌘</kbd><kbd>N</kbd> | New workspace |
-| <kbd>⌘</kbd><kbd>T</kbd> | New tab |
-| <kbd>⌘</kbd><kbd>D</kbd> | Split right |
+| Shortcut                              | Action           |
+| ------------------------------------- | ---------------- |
+| <kbd>⌘</kbd><kbd>N</kbd>              | New workspace    |
+| <kbd>⌘</kbd><kbd>T</kbd>              | New tab          |
+| <kbd>⌘</kbd><kbd>D</kbd>              | Split right      |
 | <kbd>⌘</kbd><kbd>1</kbd>–<kbd>9</kbd> | Switch workspace |
 
 Hold <kbd>⌘</kbd> to see the shortcut for each workspace. The [docs](https://getflowterm.app/docs/keyboard-shortcuts/) list the rest.
@@ -80,12 +80,12 @@ The tests compile the model sources directly and don't launch the app.
 
 ### Layout
 
-| Directory | Contents |
-| --- | --- |
-| `Sources/Ghostty/` | The wrapper around libghostty's C API, with the runtime, config, input and terminal view |
+| Directory            | Contents                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `Sources/Ghostty/`   | The wrapper around libghostty's C API, with the runtime, config, input and terminal view         |
 | `Sources/Workspace/` | The workspace, tab and pane model. It's generic over `PaneLeaf`, so tests run without terminals. |
-| `Sources/UI/` | The AppKit window, with the sidebar on the left and terminals on the right |
-| `Tests/` | Unit tests for the model |
+| `Sources/UI/`        | The AppKit window, with the sidebar on the left and terminals on the right                       |
+| `Tests/`             | Unit tests for the model                                                                         |
 
 `Vendor/GhosttyKit.xcframework` and `Vendor/GhosttyResources` are build outputs and aren't committed.
 

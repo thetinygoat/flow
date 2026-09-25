@@ -6,7 +6,7 @@ final class MainWindowController: NSWindowController {
     let sidebar: SidebarViewController
     let terminalArea = TerminalAreaViewController()
     private let store: WorkspaceStore
-    private let sidebarItem: NSSplitViewItem
+    private let content: WindowContentViewController
     var onResetZoom: (() -> Void)?
     private let zoomAccessory = NSTitlebarAccessoryViewController()
     private let resetZoomButton = NSButton(
@@ -19,20 +19,7 @@ final class MainWindowController: NSWindowController {
         self.store = store
         self.sidebar = SidebarViewController(store: store)
 
-        let split = NSSplitViewController()
-        // A sidebar item is drawn by macOS 26 as a floating glass panel inset
-        // from the window, around the sidebar's own background; a plain item
-        // looks the same on every version. It keeps its width as the window
-        // resizes, the way a sidebar does.
-        let sidebarItem = NSSplitViewItem(viewController: sidebar)
-        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(NSLayoutConstraint.Priority.defaultLow.rawValue + 10)
-        sidebarItem.minimumThickness = 200
-        sidebarItem.maximumThickness = 400
-        sidebarItem.canCollapse = true
-        split.addSplitViewItem(sidebarItem)
-        split.addSplitViewItem(NSSplitViewItem(viewController: terminalArea))
-        split.splitView.autosaveName = "MainSplit"
-        self.sidebarItem = sidebarItem
+        self.content = WindowContentViewController(sidebar: sidebar, content: terminalArea)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 700),
@@ -40,7 +27,7 @@ final class MainWindowController: NSWindowController {
             backing: .buffered,
             defer: false)
         window.toolbarStyle = .unified
-        window.contentViewController = split
+        window.contentViewController = content
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.minSize = NSSize(width: 600, height: 400)
         window.isReleasedWhenClosed = false
@@ -63,10 +50,6 @@ final class MainWindowController: NSWindowController {
         zoomAccessory.view = resetZoomButton
         zoomAccessory.layoutAttribute = .trailing
         window.addTitlebarAccessoryViewController(zoomAccessory)
-
-        if !split.splitView.isSubviewCollapsed(sidebar.view), sidebar.view.frame.width < 240 {
-            split.splitView.setPosition(240, ofDividerAt: 0)
-        }
     }
 
     required init?(coder: NSCoder) {
@@ -122,10 +105,8 @@ final class MainWindowController: NSWindowController {
         window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
     }
 
-    /// NSSplitViewController's own toggleSidebar(_:) only acts on sidebar
-    /// items, and it would claim the menu item before this controller.
     @objc func toggleWorkspaceSidebar(_ sender: Any?) {
-        sidebarItem.isCollapsed.toggle()
+        content.toggleSidebar()
     }
 
     @objc private func resetZoomTapped() {

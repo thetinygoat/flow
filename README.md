@@ -16,6 +16,8 @@
 
 A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
 
+![Flow with Claude Code, Codex and shells side by side in split panes, and workspaces with their git branches in the sidebar](docs/screenshot.png)
+
 ## Why Flow?
 
 **Native and fast.** Flow is a Swift and AppKit app powered by libghostty. There is no Electron and no web view.

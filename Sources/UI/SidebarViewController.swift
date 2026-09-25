@@ -195,6 +195,8 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
     private var trackingArea: NSTrackingArea?
     private var onRename: ((String) -> Void)?
+    private var nameBeforeRenaming = ""
+    private var clickMonitor: Any?
     var onClose: (() -> Void)?
 
     init() {
@@ -279,8 +281,12 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         fatalError("init(coder:) is not supported")
     }
 
+    /// Return or a click anywhere outside the field keeps the new name and
+    /// Escape restores the old one, as renaming works in Finder. The completion
+    /// gets the new name, or an empty one when the rename was abandoned.
     func beginRenaming(_ completion: @escaping (String) -> Void) {
         onRename = completion
+        nameBeforeRenaming = titleLabel.stringValue
         titleLabel.isEditable = true
         titleLabel.isBezeled = true
         titleLabel.bezelStyle = .roundedBezel
@@ -288,22 +294,54 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         titleLabel.textColor = .labelColor
         window?.makeFirstResponder(titleLabel)
         titleLabel.currentEditor()?.selectAll(nil)
+        // Clicks on the title bar, the tab strip or empty sidebar space do not
+        // take keyboard focus, so on their own they would leave the field open.
+        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self else { return event }
+            let inField = event.window === window
+                && titleLabel.bounds.contains(titleLabel.convert(event.locationInWindow, from: nil))
+            if !inField { window?.makeFirstResponder(nil) }
+            return event
+        }
     }
 
+    /// Abandons a rename without telling the sidebar, which is reloading.
     func cancelRenaming() {
-        guard onRename != nil else { return }
         onRename = nil
-        titleLabel.abortEditing()
+        endRenaming(keepingName: false)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        guard commandSelector == #selector(NSResponder.cancelOperation(_:)) else { return false }
+        let completion = onRename
+        onRename = nil
+        endRenaming(keepingName: false)
+        completion?("")
+        return true
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
+        let completion = onRename
+        onRename = nil
+        let name = titleLabel.stringValue.trimmingCharacters(in: .whitespaces)
+        endRenaming(keepingName: true)
+        completion?(name)
+    }
+
+    private func endRenaming(keepingName: Bool) {
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+            self.clickMonitor = nil
+        }
+        if titleLabel.currentEditor() != nil {
+            titleLabel.abortEditing()
+        }
+        if !keepingName {
+            titleLabel.stringValue = nameBeforeRenaming
+        }
         titleLabel.isEditable = false
         titleLabel.isBezeled = false
         titleLabel.drawsBackground = false
-        let name = titleLabel.stringValue.trimmingCharacters(in: .whitespaces)
-        let completion = onRename
-        onRename = nil
-        completion?(name)
     }
 }
 

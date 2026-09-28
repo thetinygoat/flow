@@ -33,6 +33,8 @@ targets:
         type: folder
       - path: Vendor/GhosttyResources/ghostty
         type: folder
+      - path: Resources/shell-integration
+        type: folder
     dependencies:
       - target: flw
         embed: true

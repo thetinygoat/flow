@@ -4,6 +4,10 @@ import Foundation
 /// environment alone so it can be tested without running the tool.
 enum FlwCommand: Equatable {
     case event(AgentEvent, socket: String)
+    case hook(adapter: String, socket: String)
+    case launch(adapter: String, arguments: [String])
+    case shims(directory: String)
+    case refreshAgents(script: String)
     case ping(socket: String)
     case usage
 
@@ -14,6 +18,10 @@ enum FlwCommand: Equatable {
     static let usageText = """
         usage: flw event <kind> [--agent NAME] [--session ID] [--detail TEXT]
                                 [--cwd PATH] [--surface UUID] [--workspace UUID]
+               flw hook <agent>              (reads the agent's hook JSON on stdin)
+               flw launch <agent> [args...]
+               flw shims <dir>
+               flw agents refresh
                flw ping
 
         kinds: sessionStarted turnStarted working needsInput turnEnded sessionEnded attention
@@ -21,14 +29,35 @@ enum FlwCommand: Equatable {
 
     static func parse(_ arguments: [String], environment: [String: String], currentDirectory: String, now: Date) throws -> FlwCommand {
         let socket = environment[AgentEnvironment.socketKey].flatMap { $0.isEmpty ? nil : $0 } ?? AgentEnvironment.socketURL.path
-        switch arguments.first {
-        case "event":
+        switch (arguments.first, arguments.dropFirst().first) {
+        case ("event", _):
             return .event(try event(Array(arguments.dropFirst()), environment: environment, currentDirectory: currentDirectory, now: now), socket: socket)
-        case "ping":
+        case let ("hook", adapter?):
+            return .hook(adapter: adapter, socket: socket)
+        case let ("launch", adapter?):
+            return .launch(adapter: adapter, arguments: Array(arguments.dropFirst(2)))
+        case let ("shims", directory?):
+            return .shims(directory: directory)
+        case ("agents", "refresh"):
+            return .refreshAgents(script: refreshScript(environment: environment))
+        case ("ping", _):
             return .ping(socket: socket)
         default:
             return .usage
         }
+    }
+
+    /// What the shell integration runs at the first prompt, for the user to
+    /// run again after installing an agent, written for their shell.
+    static func refreshScript(environment: [String: String]) -> String {
+        let posix = #""$FLOW_FLW" shims "$dir" && PATH="$dir:$PATH""#
+        guard environment["SHELL"].map({ ($0 as NSString).lastPathComponent }) == "fish" else {
+            return #"dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID""# + "\n" + posix
+        }
+        return """
+            set dir (set -q TMPDIR; and echo $TMPDIR; or echo /tmp)/flow-shims/$FLOW_SURFACE_ID
+            "$FLOW_FLW" shims $dir; and set -gx --prepend PATH $dir
+            """
     }
 
     private static func event(_ arguments: [String], environment: [String: String], currentDirectory: String, now: Date) throws -> AgentEvent {

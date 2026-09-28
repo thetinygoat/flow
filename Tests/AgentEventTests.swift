@@ -82,6 +82,28 @@ final class FlwCommandTests: XCTestCase {
         XCTAssertThrowsError(try parse(["event", "working", "--surface", "not-a-uuid"]))
     }
 
+    func testAgentSubcommands() throws {
+        XCTAssertEqual(try parse(["hook", "claude"]), .hook(adapter: "claude", socket: "/tmp/flow.sock"))
+        XCTAssertEqual(try parse(["launch", "claude", "-p", "hi", "--"]), .launch(adapter: "claude", arguments: ["-p", "hi", "--"]))
+        XCTAssertEqual(try parse(["shims", "/tmp/shims"]), .shims(directory: "/tmp/shims"))
+        XCTAssertEqual(try parse(["hook"]), .usage)
+        XCTAssertEqual(try parse(["launch"]), .usage)
+        XCTAssertEqual(try parse(["shims"]), .usage)
+        XCTAssertEqual(try parse(["agents"]), .usage)
+    }
+
+    func testRefreshPrintsTheSnippetForTheUsersShell() throws {
+        guard case let .refreshAgents(posix) = try parse(["agents", "refresh"], environment: ["SHELL": "/bin/zsh"]),
+              case let .refreshAgents(fish) = try parse(["agents", "refresh"], environment: ["SHELL": "/opt/homebrew/bin/fish"]) else {
+            return XCTFail()
+        }
+        XCTAssertEqual(posix, #"""
+            dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID"
+            "$FLOW_FLW" shims "$dir" && PATH="$dir:$PATH"
+            """#)
+        XCTAssertTrue(fish.contains(#""$FLOW_FLW" shims $dir; and set -gx --prepend PATH $dir"#))
+    }
+
     func testAnythingElseShowsUsage() throws {
         XCTAssertEqual(try parse([]), .usage)
         XCTAssertEqual(try parse(["help"]), .usage)

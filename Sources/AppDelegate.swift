@@ -28,6 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let resources = Bundle.main.resourcePath {
+            let directory = (resources as NSString).appendingPathComponent("shell-integration")
+            for (key, value) in ShellIntegration.environment(directory: directory, current: ProcessInfo.processInfo.environment) {
+                setenv(key, value, 1)
+            }
+        }
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -83,6 +89,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if windows.isEmpty {
             newWindow()
+        }
+        AgentShims.removeStale(temporaryDirectory: NSTemporaryDirectory()) { [weak self] id in
+            self?.surface(withID: id) != nil
         }
         windows.forEach { $0.show() }
         NSApp.activate()
@@ -282,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
-        configuration.environment = AgentEnvironment.variables(surface: id, workspace: workspace)
+        configuration.environment = AgentEnvironment.variables(surface: id, workspace: workspace, flw: Self.flwPath)
         let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration)
         surface.delegate = self
         return surface
@@ -291,6 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: App
 
     private static let secureKeyboardEntryKey = "SecureKeyboardEntry"
+    private static let flwPath = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/flw").path
 
     @objc private func toggleSecureKeyboardEntry() {
         setSecureKeyboardEntry(!SecureInput.shared.global)

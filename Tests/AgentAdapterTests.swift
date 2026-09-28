@@ -21,7 +21,9 @@ enum ClaudeHookFixtures {
 
 final class AgentAdapterTests: XCTestCase {
     func testNamesAreUniqueAndEveryAdapterHasABinary() {
+        XCTAssertEqual(AgentAdapter.all.map(\.name), ["claude", "opencode"])
         XCTAssertEqual(Set(AgentAdapter.all.map(\.name)).count, AgentAdapter.all.count)
+        XCTAssertEqual(Set(AgentAdapter.all.map(\.binary)).count, AgentAdapter.all.count)
         for adapter in AgentAdapter.all {
             XCTAssertFalse(adapter.binary.isEmpty, adapter.name)
             XCTAssertFalse(adapter.binary.contains("/"), adapter.name)
@@ -154,6 +156,55 @@ final class ClaudeCodeTests: XCTestCase {
     }
 }
 
+final class OpenCodeTests: XCTestCase {
+    let flw = "/Applications/Flow Beta.app/Contents/Helpers/flw"
+    let plugin = "/Applications/Flow Beta.app/Contents/Resources/agents/opencode/flow.js"
+
+    func config(_ environment: [String: String]) throws -> [String: Any]? {
+        let variables = OpenCode.environment(environment, flw: flw)
+        guard let content = variables["OPENCODE_CONFIG_CONTENT"] else { return nil }
+        XCTAssertEqual(variables.count, 1)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(content.utf8)) as? [String: Any])
+    }
+
+    func testPluginIsBundledNextToFlw() {
+        XCTAssertEqual(OpenCode.plugin(flw: flw), plugin)
+    }
+
+    func testNamesOnlyTheFlowPlugin() throws {
+        XCTAssertEqual(OpenCode.environment(["HOME": "/Users/me"], flw: flw), [
+            "OPENCODE_CONFIG_CONTENT": #"{"plugin":["\#(plugin)"]}"#,
+        ])
+        XCTAssertEqual(try config(["OPENCODE_CONFIG_CONTENT": " "])?["plugin"] as? [String], [plugin])
+    }
+
+    func testKeepsTheUsersInlineConfig() throws {
+        let user = #"{"model":"anthropic/claude","plugin":["opencode-wakatime",["my-plugin",{"a":1}]]}"#
+        let config = try XCTUnwrap(try config(["OPENCODE_CONFIG_CONTENT": user]))
+        XCTAssertEqual(config["model"] as? String, "anthropic/claude")
+        let plugins = try XCTUnwrap(config["plugin"] as? [Any])
+        XCTAssertEqual(plugins.count, 3)
+        XCTAssertEqual(plugins.first as? String, "opencode-wakatime")
+        XCTAssertEqual(plugins.last as? String, plugin)
+    }
+
+    func testLeavesUnreadableInlineConfigAlone() throws {
+        XCTAssertNil(try config(["OPENCODE_CONFIG_CONTENT": "{ // mine\n }"]))
+    }
+
+    func testLaunchSetsTheConfig() throws {
+        let bin = FileManager.default.temporaryDirectory.appendingPathComponent("flow-opencode-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: bin) }
+        FileManager.default.createFile(atPath: bin.appendingPathComponent("opencode").path, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755])
+
+        let launcher = try XCTUnwrap(AgentLauncher(.openCode, arguments: ["run", "hi"], environment: ["PATH": bin.path], flw: flw))
+
+        XCTAssertEqual(launcher.arguments, ["opencode", "run", "hi"])
+        XCTAssertEqual(launcher.environment["OPENCODE_CONFIG_CONTENT"], #"{"plugin":["\#(plugin)"]}"#)
+    }
+}
+
 final class AgentLauncherTests: XCTestCase {
     var root: URL!
 
@@ -209,11 +260,15 @@ final class AgentLauncherTests: XCTestCase {
     func testOtherLaunchKinds() throws {
         let real = try makeExecutable("bin", "agent")
         let translate: (HookPayload) -> AgentEvent? = { _ in nil }
-        let byEnvironment = AgentAdapter(name: "agent", binary: "agent", launch: .environment(["AGENT_HOOKS": "on"]), translate: translate)
+        let byEnvironment = AgentAdapter(name: "agent", binary: "agent", launch: .environment { environment, flw in
+            ["AGENT_HOOKS": "\(environment["AGENT_HOOKS"] ?? "on") \(flw)"]
+        }, translate: translate)
         let untouched = AgentAdapter(name: "agent", binary: "agent", launch: .none, translate: translate)
 
         XCTAssertEqual(AgentLauncher(byEnvironment, arguments: ["x"], environment: ["PATH": path("bin")], flw: "/flw"),
-                       AgentLauncher(untouched, arguments: ["x"], environment: ["PATH": path("bin"), "AGENT_HOOKS": "on"], flw: "/flw"))
+                       AgentLauncher(untouched, arguments: ["x"], environment: ["PATH": path("bin"), "AGENT_HOOKS": "on /flw"], flw: "/flw"))
+        XCTAssertEqual(AgentLauncher(byEnvironment, arguments: [], environment: ["PATH": path("bin"), "AGENT_HOOKS": "off"], flw: "/flw")?.environment["AGENT_HOOKS"],
+                       "off /flw")
         XCTAssertEqual(AgentLauncher(untouched, arguments: ["x"], environment: ["PATH": path("bin")], flw: "/flw")?.arguments, ["agent", "x"])
         XCTAssertEqual(AgentLauncher(untouched, arguments: [], environment: ["PATH": path("bin")], flw: "/flw")?.executable, real)
     }

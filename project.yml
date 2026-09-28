@@ -35,6 +35,8 @@ targets:
         type: folder
       - path: Resources/shell-integration
         type: folder
+      - path: Resources/agents
+        type: folder
     dependencies:
       - target: flw
         embed: true

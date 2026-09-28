@@ -21,7 +21,7 @@ struct AgentLauncher: Equatable {
             case let .flags(rewrite):
                 arguments = rewrite(arguments, flw)
             case let .environment(variables):
-                environment.merge(variables) { $1 }
+                environment.merge(variables(environment, flw)) { $1 }
             case .none:
                 break
             }

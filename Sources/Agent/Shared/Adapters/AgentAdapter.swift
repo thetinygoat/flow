@@ -9,7 +9,8 @@ struct AgentAdapter {
         /// Rewrites the arguments the user typed. `flw` is the path of the
         /// running helper, for hooks to call back into.
         case flags((_ arguments: [String], _ flw: String) -> [String])
-        case environment([String: String])
+        /// Returns variables to set over the environment the user's shell passed.
+        case environment((_ environment: [String: String], _ flw: String) -> [String: String])
         case none
     }
 
@@ -21,7 +22,7 @@ struct AgentAdapter {
     /// Returns nil for hook calls Flow has no use for.
     let translate: (HookPayload) -> AgentEvent?
 
-    static let all: [AgentAdapter] = [.claudeCode]
+    static let all: [AgentAdapter] = [.claudeCode, .openCode]
 
     static func named(_ name: String) -> AgentAdapter? {
         all.first { $0.name == name }

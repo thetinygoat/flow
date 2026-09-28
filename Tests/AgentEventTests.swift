@@ -13,6 +13,20 @@ final class AgentEventTests: XCTestCase {
         XCTAssertEqual(try AgentEvent(line: line), event)
     }
 
+    func testTimesTravelToTheMillisecond() throws {
+        let event = AgentEvent(agent: "test", kind: .working, surfaceID: nil, workspaceID: nil, cwd: "/",
+                               at: Date(timeIntervalSince1970: 1_790_000_000.125))
+        let line = String(decoding: try event.line(), as: UTF8.self)
+
+        XCTAssertTrue(line.contains(#""at":"2026-09-21T14:13:20.125Z""#), line)
+        XCTAssertEqual(try AgentEvent(line: Data(line.utf8)).at.timeIntervalSince1970, 1_790_000_000.125, accuracy: 0.0005)
+    }
+
+    func testReadsWholeSecondTimes() throws {
+        let event = try AgentEvent(line: Data(#"{"kind":"working","at":"2026-09-21T14:13:20Z"}"#.utf8))
+        XCTAssertEqual(event.at, Date(timeIntervalSince1970: 1_790_000_000))
+    }
+
     func testIgnoresUnknownFieldsAndFillsMissingOnes() throws {
         let surface = UUID()
         let json = #"{"v":1,"kind":"turnEnded","surfaceID":"\#(surface.uuidString)","at":"2026-09-28T10:00:00Z","extra":{"nested":true}}"#

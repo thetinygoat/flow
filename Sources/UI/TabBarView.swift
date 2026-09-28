@@ -49,7 +49,7 @@ final class TabBarView: NSView {
 
     /// Titles change with every shell prompt, so items are kept and updated;
     /// views are only added or removed when the number of tabs changes.
-    func reload(titles: [String], selectedIndex: Int?) {
+    func reload(titles: [String], indicators: [AgentIndicator?], selectedIndex: Int?) {
         while items.count > titles.count {
             items.last?.removeFromSuperview()
         }
@@ -67,6 +67,7 @@ final class TabBarView: NSView {
         }
         for (index, item) in items.enumerated() {
             item.title = titles[index]
+            item.agentIndicator = indicators[index]
             item.isSelected = index == selectedIndex
         }
     }
@@ -78,6 +79,7 @@ private final class TabItemView: NSView {
     private let label = NSTextField(labelWithString: "")
     private let close: NSButton
     private let hint = ShortcutHintView()
+    private let agentDot = AgentDotView()
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
         didSet {
@@ -89,6 +91,14 @@ private final class TabItemView: NSView {
     var title: String {
         get { label.stringValue }
         set { if newValue != label.stringValue { label.stringValue = newValue } }
+    }
+
+    var agentIndicator: AgentIndicator? {
+        get { agentDot.indicator }
+        set {
+            agentDot.indicator = newValue
+            agentDot.isHidden = newValue == nil
+        }
     }
 
     var isSelected = false {
@@ -116,7 +126,8 @@ private final class TabItemView: NSView {
         close.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
         close.contentTintColor = .secondaryLabelColor
 
-        let stack = NSStackView(views: [label, hint, close])
+        agentDot.isHidden = true
+        let stack = NSStackView(views: [agentDot, label, hint, close])
         stack.orientation = .horizontal
         stack.distribution = .fill
         stack.spacing = 8

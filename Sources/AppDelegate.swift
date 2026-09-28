@@ -62,8 +62,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let (window, surface) = self.surface(withID: id) else { return }
             window.reveal(surface)
         }
-        agentSessions = AgentSessionStore { [weak self] id in
-            self?.surface(withID: id) != nil
+        agentSessions = AgentSessionStore(
+            isLive: { [weak self] id in self?.surface(withID: id) != nil },
+            isVisible: { [weak self] id in self?.isInView(id) == true })
+        agentSessions.onChange = { [weak self] in
+            self?.windows.forEach { $0.controller.agentsDidChange() }
+        }
+        agentSessions.onUpdate = { [weak self] update in
+            self?.surface(withID: update.surface)?.1.agentIsWorking = update.session.state == .ended ? nil : update.session.state == .working
+            self?.notify(update)
         }
         let listener = AgentSocketListener { [weak self] event in
             self?.agentSessions.apply(event)
@@ -103,7 +110,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // so the badges stay hidden until the modifier is released.
         modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
             self?.updateShortcutHints(for: event)
+            if event.type == .keyDown, let surface = event.window?.firstResponder as? TerminalSurfaceView {
+                self?.markSeenIfInView(surface)
+            }
             return event
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            windows.compactMap(\.focusedSurface).forEach(markSeenIfInView)
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
@@ -194,9 +210,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return nil
     }
 
+    private func isInView(_ id: UUID) -> Bool {
+        guard let (window, surface) = surface(withID: id) else { return false }
+        return window.isInView(surface)
+    }
+
     private func makeWindow(frame: CGRect?) -> TerminalWindow {
         let window = TerminalWindow(frame: frame) { [unowned self] in self.runtime.config }
         window.delegate = self
+        window.controller.sidebar.agentIndicator = { [unowned self] workspace in
+            agentSessions.indicator(for: workspace.surfaces.map(\.id))
+        }
+        window.controller.terminalArea.agentIndicator = { [unowned self] tab in
+            agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
+        }
         window.controller.applyAppearance(config: runtime.config, app: runtime.app)
         windows.append(window)
         return window
@@ -295,6 +322,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration)
         surface.delegate = self
         return surface
+    }
+
+    // MARK: Agents
+
+    /// A done dot and the notifications a terminal posted go once the user
+    /// looks at it. Waiting stays until the agent moves on.
+    private func markSeenIfInView(_ surface: TerminalSurfaceView) {
+        guard window(containing: surface)?.isInView(surface) == true else { return }
+        MainActor.assumeIsolated { agentSessions.markSeen(surface.id) }
+        notifications.clear(for: surface.id)
+    }
+
+    private func notify(_ update: AgentSessionStore.Update) {
+        guard let (window, surface) = surface(withID: update.surface) else { return }
+        let workspace = window.store.workspace(containing: surface)?.0.name
+        let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
+        guard let notification = AgentNotification.make(for: update, title: title, isVisible: window.isInView(surface)) else { return }
+        notifications.post(title: notification.title, body: notification.body, subtitle: "", from: surface.id, replacing: "agent")
+    }
+
+    /// Sessions of terminals that have closed would otherwise linger, and
+    /// their ids are never reused.
+    private func forgetClosedAgentSessions() {
+        MainActor.assumeIsolated {
+            for id in agentSessions.sessions.keys where surface(withID: id) == nil {
+                agentSessions.remove(id)
+                notifications.clear(for: id)
+            }
+        }
     }
 
     // MARK: App
@@ -545,11 +601,13 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {
+        forgetClosedAgentSessions()
         scheduleSave()
     }
 
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
+        forgetClosedAgentSessions()
         scheduleSave()
     }
 
@@ -566,5 +624,6 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
         notifications.clear(for: surface.id)
         window(containing: surface)?.surfaceDidFocus(surface)
+        markSeenIfInView(surface)
     }
 }

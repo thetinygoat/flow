@@ -7,9 +7,11 @@ protocol SidebarViewControllerDelegate: AnyObject {
 }
 
 /// The vertical list of workspaces on the left of the window. Each row shows
-/// the workspace name and the working directory of its selected tab.
+/// the workspace name, the working directory of its selected tab, and a dot
+/// for what the agents in its terminals are doing.
 final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     weak var delegate: SidebarViewControllerDelegate?
+    var agentIndicator: @MainActor (Workspace) -> AgentIndicator? = { _ in nil }
 
     private let store: WorkspaceStore
     private let tableView = WorkspaceTableView()
@@ -113,6 +115,15 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         }
     }
 
+    /// Agents change state far more often than rows need rebuilding, so only
+    /// the dots are updated.
+    func updateAgentIndicators() {
+        for row in 0..<min(tableView.numberOfRows, store.workspaces.count) {
+            guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
+            cell.agentIndicator = agentIndicator(store.workspaces[row])
+        }
+    }
+
     @objc private func renameClickedWorkspace() {
         let row = tableView.clickedRow
         guard row >= 0, row < store.workspaces.count,
@@ -180,6 +191,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
         cell.gitStatus = gitStatus(forRow: row)
         cell.isHovered = row == hoveredRow
+        cell.agentIndicator = agentIndicator(workspace)
         cell.onClose = { [weak self] in
             guard let self, row < self.store.workspaces.count else { return }
             self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
@@ -245,6 +257,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     private let gitLabel = NSTextField(labelWithString: "")
     private let hint = ShortcutHintView()
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
+    private let agentDot = AgentDotView()
     private var onRename: ((String) -> Void)?
     private var nameBeforeRenaming = ""
     private var clickMonitor: Any?
@@ -281,6 +294,7 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         closeButton.action = #selector(closeTapped)
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         addSubview(closeButton)
+        addSubview(agentDot)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
@@ -290,15 +304,29 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             closeButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            agentDot.centerXAnchor.constraint(equalTo: closeButton.centerXAnchor),
+            agentDot.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
         ])
+        updateCloseButton()
     }
 
     var isHovered = false {
         didSet { updateCloseButton() }
     }
 
+    var agentIndicator: AgentIndicator? {
+        get { agentDot.indicator }
+        set {
+            agentDot.indicator = newValue
+            updateCloseButton()
+        }
+    }
+
+    /// The dot, the close button and the shortcut hint share one spot at the
+    /// end of the name; the hint wins, then the close button under the pointer.
     private func updateCloseButton() {
         closeButton.isHidden = !isHovered || hint.text != nil
+        agentDot.isHidden = agentDot.indicator == nil || !closeButton.isHidden || hint.text != nil
     }
 
     @objc private func closeTapped() {

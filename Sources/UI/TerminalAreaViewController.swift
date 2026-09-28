@@ -9,6 +9,7 @@ protocol TerminalAreaViewControllerDelegate: AnyObject {
 /// selected tab's terminal surface below it.
 final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
     weak var delegate: TerminalAreaViewControllerDelegate?
+    var agentIndicator: @MainActor (TerminalTab) -> AgentIndicator? = { _ in nil }
 
     private let tabBar = TabBarView()
 
@@ -54,7 +55,7 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
     func reloadTabs() {
         let tabs = workspace?.tabs ?? []
         let selectedIndex = workspace?.selectedTab.flatMap { selected in tabs.firstIndex { $0 === selected } }
-        tabBar.reload(titles: tabs.map(\.title), selectedIndex: selectedIndex)
+        tabBar.reload(titles: tabs.map(\.title), indicators: tabs.map(agentIndicator), selectedIndex: selectedIndex)
         tabBar.isHidden = tabs.count < 2
     }
 

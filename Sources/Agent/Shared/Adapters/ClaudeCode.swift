@@ -14,9 +14,10 @@ extension AgentAdapter {
 enum ClaudeCode {
     static let hookEvents = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop", "SessionEnd"]
 
-    /// The notification types where Claude is blocked on the user. Others,
-    /// like `auth_success`, need nothing from them.
-    static let needsInputTypes: Set = ["permission_prompt", "idle_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"]
+    /// The notification types where Claude is blocked on the user. Others need
+    /// nothing from them: `idle_prompt` is only a reminder, sent a minute after
+    /// a turn has already ended.
+    static let needsInputTypes: Set = ["permission_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"]
 
     static let detailLimit = 200
 

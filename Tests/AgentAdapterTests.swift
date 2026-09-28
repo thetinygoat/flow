@@ -61,11 +61,12 @@ final class ClaudeCodeTests: XCTestCase {
 
     func testNotificationsThatWaitOnTheUserNeedInput() throws {
         XCTAssertEqual(try translate(ClaudeHookFixtures.permissionPrompt), expected(.needsInput, "permission_prompt"))
-        for type in ["idle_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"] {
+        for type in ["agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"] {
             let json = ClaudeHookFixtures.permissionPrompt.replacingOccurrences(of: "permission_prompt", with: type)
             XCTAssertEqual(try translate(json), expected(.needsInput, type))
         }
         XCTAssertNil(try translate(ClaudeHookFixtures.authSuccess))
+        XCTAssertNil(try translate(ClaudeHookFixtures.permissionPrompt.replacingOccurrences(of: "permission_prompt", with: "idle_prompt")))
     }
 
     func testPushNotificationAsksForAttention() throws {

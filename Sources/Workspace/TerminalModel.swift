@@ -12,6 +12,10 @@ extension TerminalTab {
     var focusedSurface: TerminalSurfaceView { focusedLeaf }
 }
 
+extension Workspace {
+    var surfaces: [TerminalSurfaceView] { tabs.flatMap(\.panes.surfaces) }
+}
+
 extension PaneTree {
     var surfaces: [TerminalSurfaceView] { leaves }
 }

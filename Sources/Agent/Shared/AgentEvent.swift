@@ -53,17 +53,32 @@ struct AgentEvent: Codable, Equatable {
         detail = try container.decodeIfPresent(String.self, forKey: .detail)
     }
 
+    /// Hooks race each other to the socket, so the store orders events by
+    /// `at`, which needs finer than whole seconds.
+    private static let preciseTime = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let wholeSecondTime = Date.ISO8601FormatStyle()
+
     /// One line of the wire format, newline included.
     func line() throws -> Data {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(date.formatted(Self.preciseTime))
+        }
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(self) + Data("\n".utf8)
     }
 
     init(line: Data) throws {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let text = try container.decode(String.self)
+            guard let date = (try? Self.preciseTime.parse(text)) ?? (try? Self.wholeSecondTime.parse(text)) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "not an ISO 8601 date: \(text)")
+            }
+            return date
+        }
         self = try decoder.decode(Self.self, from: line)
     }
 }

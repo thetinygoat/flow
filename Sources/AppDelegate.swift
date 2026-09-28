@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Sparkle asks on the second launch whether to check for updates
     /// automatically; nothing is checked before the user agrees.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    private var agentSessions: AgentSessionStore!
+    private var agentListener: AgentSocketListener?
     private lazy var serviceProvider = ServiceProvider { [weak self] directory, newWindow in
         self?.openWorkspace(in: directory, newWindow: newWindow)
     }
@@ -53,6 +55,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifications.onOpen = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return }
             window.reveal(surface)
+        }
+        agentSessions = AgentSessionStore { [weak self] id in
+            self?.surface(withID: id) != nil
+        }
+        let listener = AgentSocketListener { [weak self] event in
+            self?.agentSessions.apply(event)
+        }
+        do {
+            try listener.start()
+            agentListener = listener
+        } catch {
+            logger.error("agent socket unavailable at \(listener.url.path, privacy: .public): \(error, privacy: .public)")
         }
         SecureInput.shared.global = UserDefaults.standard.bool(forKey: Self.secureKeyboardEntryKey)
 
@@ -109,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         pendingSave?.cancel()
         save()
+        agentListener?.stop()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

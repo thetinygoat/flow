@@ -34,6 +34,12 @@ targets:
       - path: Vendor/GhosttyResources/ghostty
         type: folder
     dependencies:
+      - target: flw
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
       - framework: Vendor/GhosttyKit.xcframework
         embed: false
       - sdk: Carbon.framework
@@ -114,6 +120,28 @@ targets:
     scheme:
       testTargets:
         - flowTests
+  flw:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tools/flw
+      - path: Sources/Agent/Shared
+    settings:
+      base:
+        PRODUCT_NAME: flw
+        PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow.flw
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: Apple Development
+          DEVELOPMENT_TEAM: DP5STKBRSS
+        Release:
+          CODE_SIGN_IDENTITY: Developer ID Application
+          DEVELOPMENT_TEAM: DP5STKBRSS
+          OTHER_CODE_SIGN_FLAGS: --timestamp
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
   flowTests:
     type: bundle.unit-test
     platform: macOS
@@ -123,7 +151,7 @@ targets:
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift
-      - path: Sources/Workspace/AgentEnvironment.swift
+      - path: Sources/Agent
       - path: Sources/Workspace/GitStatus.swift
       - path: Sources/Ghostty/ConfigFile.swift
       - path: Sources/Ghostty/CommandFinish.swift

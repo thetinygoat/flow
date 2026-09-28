@@ -304,6 +304,7 @@ class Release:
         sign(sparkle / "Versions/B/Autoupdate")
         sign(sparkle / "Versions/B/Updater.app")
         sign(sparkle)
+        sign(APP / "Contents" / "Helpers" / "flw")
         sign("--entitlements", ROOT / "Resources" / "Flow.entitlements", APP)
         run("codesign", "--verify", "--deep", "--strict", APP)
         entitlements = run("codesign", "-d", "--entitlements", "-", APP, quiet=True).stdout

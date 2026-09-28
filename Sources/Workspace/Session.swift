@@ -1,8 +1,9 @@
 import Foundation
 
 /// What survives a relaunch: each window's position and workspaces, the
-/// workspaces' names, their tabs' working directories and zoomed panes, and
-/// which of each is selected. Shell processes and screen contents do not.
+/// workspaces' names, their tabs' working directories and zoomed panes, the
+/// ids of workspaces and terminals, and which of each is selected. Shell
+/// processes and screen contents do not.
 struct Session: Codable, Equatable {
     struct Window: Codable, Equatable {
         var workspaces: [Workspace]
@@ -11,6 +12,9 @@ struct Session: Codable, Equatable {
     }
 
     struct Workspace: Codable, Equatable {
+        /// Agents running in a terminal are told these ids, so they must stay
+        /// the same across relaunches.
+        var id: UUID
         var customName: String?
         var tabs: [Tab]
         var selectedTab: Int
@@ -23,22 +27,22 @@ struct Session: Codable, Equatable {
     }
 
     indirect enum Layout: Codable, Equatable {
-        case terminal(workingDirectory: String?)
+        case terminal(id: UUID, workingDirectory: String?)
         case split(axis: SplitAxis, ratio: Double, first: Layout, second: Layout)
 
         init<Leaf>(node: PaneNode<Leaf>) {
             if let leaf = node.leaf {
-                self = .terminal(workingDirectory: leaf.workingDirectory)
+                self = .terminal(id: leaf.id, workingDirectory: leaf.workingDirectory)
             } else {
                 self = .split(axis: node.axis ?? .horizontal, ratio: node.ratio,
                               first: Layout(node: node.first!), second: Layout(node: node.second!))
             }
         }
 
-        func makeNode<Leaf>(_ makeLeaf: (String?) -> Leaf) -> PaneNode<Leaf> {
+        func makeNode<Leaf>(_ makeLeaf: (UUID, String?) -> Leaf) -> PaneNode<Leaf> {
             switch self {
-            case .terminal(let workingDirectory):
-                return PaneNode(leaf: makeLeaf(workingDirectory))
+            case .terminal(let id, let workingDirectory):
+                return PaneNode(leaf: makeLeaf(id, workingDirectory))
             case .split(let axis, let ratio, let first, let second):
                 return PaneNode(axis: axis, first: first.makeNode(makeLeaf), second: second.makeNode(makeLeaf), ratio: ratio)
             }
@@ -75,6 +79,7 @@ extension WorkspaceStoreModel {
         Session.Window(
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
+                    id: workspace.id,
                     customName: workspace.customName,
                     tabs: workspace.tabs.map { tab in
                         Session.Tab(
@@ -87,13 +92,14 @@ extension WorkspaceStoreModel {
             frame: frame)
     }
 
-    /// Rebuilds one window's workspaces. `makeLeaf` creates a terminal for a
-    /// saved working directory. Workspaces whose tabs were all lost are skipped.
-    func restore(_ window: Session.Window, makeLeaf: (String?) -> Leaf) {
+    /// Rebuilds one window's workspaces. `makeLeaf` recreates a terminal from
+    /// its saved id and working directory, given the id of its workspace.
+    /// Workspaces whose tabs were all lost are skipped.
+    func restore(_ window: Session.Window, makeLeaf: (_ id: UUID, _ workingDirectory: String?, _ workspace: UUID) -> Leaf) {
         for saved in window.workspaces {
-            let workspace = addWorkspace(customName: saved.customName)
+            let workspace = addWorkspace(id: saved.id, customName: saved.customName)
             for tab in saved.tabs {
-                let root = tab.layout.makeNode(makeLeaf)
+                let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id) }
                 let leaves = root.leaves
                 guard let first = leaves.first else { continue }
                 let panes = PaneTreeModel(root: root)

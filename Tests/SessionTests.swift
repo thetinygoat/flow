@@ -22,7 +22,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(decoded, session)
 
         let restored = TestStore()
-        restored.restore(decoded.windows[0]) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(decoded.windows[0]) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
 
         XCTAssertEqual(restored.workspaces.count, 2)
         XCTAssertTrue(restored.selected === restored.workspaces[0])
@@ -42,11 +42,11 @@ final class SessionTests: XCTestCase {
             .appendingPathComponent("session.json")
         let session = Session(windows: [
             .init(
-                workspaces: [.init(customName: nil, tabs: [.init(layout: .terminal(workingDirectory: "/x"), zoomedPane: nil)], selectedTab: 0)],
+                workspaces: [.init(id: UUID(), customName: nil, tabs: [.init(layout: .terminal(id: UUID(), workingDirectory: "/x"), zoomedPane: nil)], selectedTab: 0)],
                 selectedWorkspace: 0,
                 frame: CGRect(x: 10, y: 20, width: 800, height: 600)),
             .init(
-                workspaces: [.init(customName: "second", tabs: [.init(layout: .terminal(workingDirectory: "/y"), zoomedPane: nil)], selectedTab: 0)],
+                workspaces: [.init(id: UUID(), customName: "second", tabs: [.init(layout: .terminal(id: UUID(), workingDirectory: "/y"), zoomedPane: nil)], selectedTab: 0)],
                 selectedWorkspace: 0,
                 frame: nil),
         ])
@@ -70,7 +70,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(window.workspaces[0].tabs.map(\.zoomedPane), [1, nil])
 
         let restored = TestStore()
-        restored.restore(window) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(window) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
         let restoredTab = restored.workspaces[0].tabs[0]
         XCTAssertEqual(restoredTab.panes.zoomed?.workingDirectory, "/b")
         XCTAssertTrue(restoredTab.focusedLeaf === restoredTab.panes.zoomed, "the zoomed pane gets focus")
@@ -79,13 +79,13 @@ final class SessionTests: XCTestCase {
 
     func testOutOfRangeZoomIsIgnored() {
         let window = Session.Window(
-            workspaces: [.init(customName: nil, tabs: [.init(
-                layout: .split(axis: .horizontal, ratio: 0.5, first: .terminal(workingDirectory: "/a"), second: .terminal(workingDirectory: "/b")),
+            workspaces: [.init(id: UUID(), customName: nil, tabs: [.init(
+                layout: .split(axis: .horizontal, ratio: 0.5, first: .terminal(id: UUID(), workingDirectory: "/a"), second: .terminal(id: UUID(), workingDirectory: "/b")),
                 zoomedPane: 5)], selectedTab: 0)],
             selectedWorkspace: 0,
             frame: nil)
         let restored = TestStore()
-        restored.restore(window) { FakeLeaf(workingDirectory: $0) }
+        restored.restore(window) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
         XCTAssertNil(restored.workspaces[0].tabs[0].panes.zoomed)
     }
 
@@ -95,6 +95,28 @@ final class SessionTests: XCTestCase {
         let frame = CGRect(x: 100, y: 200, width: 900, height: 700)
         XCTAssertEqual(store.snapshot(frame: frame).frame, frame)
         XCTAssertNil(store.snapshot().frame)
+    }
+
+    func testRoundTripPreservesIds() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let a = FakeLeaf(workingDirectory: "/a"), b = FakeLeaf(workingDirectory: "/b")
+        let tab = TestTab(leaf: a)
+        tab.panes.split(a, direction: .right, with: b)
+        workspace.add(tab)
+
+        let data = try! JSONEncoder().encode(Session(windows: [store.snapshot()]))
+        let decoded = try! JSONDecoder().decode(Session.self, from: data)
+        var leafWorkspaces: [UUID] = []
+        let restored = TestStore()
+        restored.restore(decoded.windows[0]) { id, directory, workspace in
+            leafWorkspaces.append(workspace)
+            return FakeLeaf(id: id, workingDirectory: directory)
+        }
+
+        XCTAssertEqual(restored.workspaces[0].id, workspace.id)
+        XCTAssertEqual(restored.workspaces[0].tabs[0].panes.leaves.map(\.id), [a.id, b.id])
+        XCTAssertEqual(leafWorkspaces, [workspace.id, workspace.id])
     }
 
     func testMissingFileLoadsNil() {

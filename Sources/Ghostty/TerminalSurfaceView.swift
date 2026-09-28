@@ -11,6 +11,7 @@ struct TerminalSurfaceConfiguration {
     var workingDirectory: String?
     var command: String?
     var fontSize: Float = 0
+    var environment: [String: String] = [:]
 
     func withCValue<T>(view: NSView, _ body: (inout ghostty_surface_config_s) -> T) -> T {
         var config = ghostty_surface_config_new()
@@ -21,11 +22,18 @@ struct TerminalSurfaceConfiguration {
         config.scale_factor = Double(view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2)
         config.font_size = fontSize
         config.context = GHOSTTY_SURFACE_CONTEXT_WINDOW
+        let strings = environment.map { (key: strdup($0.key), value: strdup($0.value)) }
+        defer { strings.forEach { free($0.key); free($0.value) } }
+        var envVars = strings.map { ghostty_env_var_s(key: $0.key, value: $0.value) }
         return workingDirectory.withCString { cwd in
             config.working_directory = cwd
             return command.withCString { cmd in
                 config.command = cmd
-                return body(&config)
+                return envVars.withUnsafeMutableBufferPointer { buffer in
+                    config.env_vars = buffer.baseAddress
+                    config.env_var_count = buffer.count
+                    return body(&config)
+                }
             }
         }
     }
@@ -37,7 +45,7 @@ struct TerminalSurfaceConfiguration {
 ///
 /// Input handling is adapted from Ghostty's SurfaceView_AppKit.swift.
 final class TerminalSurfaceView: NSView {
-    let id = UUID()
+    let id: UUID
     weak var delegate: TerminalSurfaceViewDelegate?
     private(set) weak var runtime: GhosttyRuntime?
     private(set) var surface: ghostty_surface_t?
@@ -92,7 +100,8 @@ final class TerminalSurfaceView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
-    init(runtime: GhosttyRuntime, configuration: TerminalSurfaceConfiguration = .init()) {
+    init(runtime: GhosttyRuntime, id: UUID = UUID(), configuration: TerminalSurfaceConfiguration = .init()) {
+        self.id = id
         self.runtime = runtime
         self.initialWorkingDirectory = configuration.workingDirectory
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))

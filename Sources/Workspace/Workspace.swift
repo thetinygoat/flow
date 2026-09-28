@@ -59,14 +59,15 @@ enum TabCloseMode {
 }
 
 final class WorkspaceModel<Leaf: PaneLeaf> {
-    let id = UUID()
+    let id: UUID
     /// Set when the user renames the workspace. Otherwise the name follows
     /// the focused pane's directory.
     var customName: String?
     private(set) var tabs: [TabModel<Leaf>] = []
     private(set) var selectedTab: TabModel<Leaf>?
 
-    init(customName: String? = nil) {
+    init(id: UUID = UUID(), customName: String? = nil) {
+        self.id = id
         self.customName = customName
     }
 
@@ -113,8 +114,8 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     var onChange: (() -> Void)?
 
     @discardableResult
-    func addWorkspace(customName: String? = nil) -> WorkspaceModel<Leaf> {
-        let workspace = WorkspaceModel<Leaf>(customName: customName)
+    func addWorkspace(id: UUID = UUID(), customName: String? = nil) -> WorkspaceModel<Leaf> {
+        let workspace = WorkspaceModel<Leaf>(id: id, customName: customName)
         workspaces.append(workspace)
         selected = workspace
         onChange?()

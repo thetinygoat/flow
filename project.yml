@@ -123,6 +123,7 @@ targets:
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift
+      - path: Sources/Workspace/AgentEnvironment.swift
       - path: Sources/Workspace/GitStatus.swift
       - path: Sources/Ghostty/ConfigFile.swift
       - path: Sources/Ghostty/CommandFinish.swift

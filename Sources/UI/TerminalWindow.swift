@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 
 protocol TerminalWindowDelegate: AnyObject {
-    func terminalWindow(_ window: TerminalWindow, makeSurfaceIn directory: String?) -> TerminalSurfaceView
+    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID) -> TerminalSurfaceView
     func terminalWindowDidChange(_ window: TerminalWindow)
     func terminalWindowWillClose(_ window: TerminalWindow)
 }
@@ -45,7 +45,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     }
 
     func restore(_ saved: Session.Window) {
-        store.restore(saved) { makeSurface(in: $0) }
+        store.restore(saved) { makeSurface(id: $0, in: $1, workspace: $2) }
     }
 
     // MARK: Lookup
@@ -72,7 +72,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// Without a directory the workspace starts where the shell's own default is.
     func newWorkspace(in directory: String? = nil) {
         let workspace = store.addWorkspace()
-        workspace.add(TerminalTab(leaf: makeSurface(in: directory)))
+        workspace.add(TerminalTab(leaf: makeSurface(in: directory, workspace: workspace.id)))
         store.notifyChanged()
         controller.terminalArea.focusSelectedSurface()
     }
@@ -154,12 +154,12 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.terminalArea.focusSelectedSurface()
     }
 
-    private func makeSurface(in directory: String?) -> TerminalSurfaceView {
-        delegate!.terminalWindow(self, makeSurfaceIn: directory)
+    private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID) -> TerminalSurfaceView {
+        delegate!.terminalWindow(self, makeSurface: id, in: directory, workspace: workspace)
     }
 
     private func addTab(to workspace: Workspace) {
-        let surface = makeSurface(in: workspace.selectedTab?.focusedSurface.workingDirectory)
+        let surface = makeSurface(in: workspace.selectedTab?.focusedSurface.workingDirectory, workspace: workspace.id)
         workspace.add(TerminalTab(leaf: surface))
         store.notifyChanged()
         controller.terminalArea.focusSelectedSurface()
@@ -168,8 +168,8 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     // MARK: Splits
 
     func split(_ surface: TerminalSurfaceView, direction: SplitDirection) {
-        guard let (_, tab) = store.workspace(containing: surface) else { return }
-        let added = makeSurface(in: surface.workingDirectory)
+        guard let (workspace, tab) = store.workspace(containing: surface) else { return }
+        let added = makeSurface(in: surface.workingDirectory, workspace: workspace.id)
         tab.panes.split(surface, direction: direction, with: added)
         tab.focus(added)
         store.notifyChanged()

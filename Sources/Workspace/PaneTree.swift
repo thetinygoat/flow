@@ -3,6 +3,7 @@ import Foundation
 /// What the layout model needs from a terminal. The app's surface view
 /// conforms; tests use a stand-in.
 protocol PaneLeaf: AnyObject {
+    var id: UUID { get }
     var title: String { get }
     var workingDirectory: String? { get }
     var needsConfirmQuit: Bool { get }

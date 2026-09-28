@@ -21,7 +21,7 @@ enum ClaudeHookFixtures {
 
 final class AgentAdapterTests: XCTestCase {
     func testNamesAreUniqueAndEveryAdapterHasABinary() {
-        XCTAssertEqual(AgentAdapter.all.map(\.name), ["claude", "opencode"])
+        XCTAssertEqual(AgentAdapter.all.map(\.name), ["claude", "opencode", "codex"])
         XCTAssertEqual(Set(AgentAdapter.all.map(\.name)).count, AgentAdapter.all.count)
         XCTAssertEqual(Set(AgentAdapter.all.map(\.binary)).count, AgentAdapter.all.count)
         for adapter in AgentAdapter.all {
@@ -86,7 +86,7 @@ final class ClaudeCodeTests: XCTestCase {
         let long = String(repeating: "word ", count: 100)
         let json = ClaudeHookFixtures.stop.replacingOccurrences(of: #""last_assistant_message":"ok""#, with: #""last_assistant_message":"Done.\n\n\#(long)""#)
         let detail = try XCTUnwrap(try translate(json)?.detail)
-        XCTAssertEqual(detail.count, ClaudeCode.detailLimit)
+        XCTAssertEqual(detail.count, HookPayload.detailLimit)
         XCTAssertTrue(detail.hasPrefix("Done. word word"))
         XCTAssertTrue(detail.hasSuffix("…"))
         XCTAssertFalse(detail.contains("\n"))
@@ -153,6 +153,117 @@ final class ClaudeCodeTests: XCTestCase {
         let arguments = ClaudeCode.arguments(["--", "--settings", "x"], flw: flw)
         XCTAssertEqual(Array(arguments.suffix(3)), ["--", "--settings", "x"])
         XCTAssertEqual(arguments.count, 5)
+    }
+}
+
+/// Hook input recorded from Codex 0.156.1: an interactive session, and a
+/// `codex exec` run that started a subagent, given the one session id.
+enum CodexHookFixtures {
+    static let sessionStart = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"SessionStart","model":"gpt-6-sol","permission_mode":"default","source":"startup"}"#
+    static let userPromptSubmit = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e974-a74b-7461-b482-a7cc53047f22","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"UserPromptSubmit","model":"gpt-6-sol","permission_mode":"default","prompt":"Create a file named made.txt containing hi, using the shell command: echo hi > made.txt"}"#
+    static let preToolUse = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e974-a74b-7461-b482-a7cc53047f22","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"PreToolUse","model":"gpt-6-sol","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"echo hi > made.txt"},"tool_use_id":"exec-61b6fa80-9fbb-4ff0-9bcc-380bbc1f7f39"}"#
+    static let postToolUse = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e974-a74b-7461-b482-a7cc53047f22","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"PostToolUse","model":"gpt-6-sol","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"echo hi > made.txt"},"tool_response":"zsh:1: operation not permitted: made.txt\n","tool_use_id":"exec-61b6fa80-9fbb-4ff0-9bcc-380bbc1f7f39"}"#
+    static let permissionRequest = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e974-a74b-7461-b482-a7cc53047f22","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"PermissionRequest","model":"gpt-6-sol","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"echo hi > made.txt","description":"May I run the requested shell command to create made.txt in this read-only workspace?"}}"#
+    static let interrupt = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e974-a74b-7461-b482-a7cc53047f22","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"Interrupt","model":"gpt-6-sol","permission_mode":"default"}"#
+    static let sessionEnd = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-42-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"SessionEnd","reason":"other"}"#
+    static let stop = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e973-c23e-7501-9e2d-856004adec92","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-47-52-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","cwd":"/Users/me/project","hook_event_name":"Stop","model":"gpt-6-sol","permission_mode":"bypassPermissions","stop_hook_active":false,"last_assistant_message":"ok"}"#
+    static let subagentStart = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e973-ebdd-7b32-8014-35e396e79b91","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-03-01a0e973-ebd2-7993-b9a3-1b1ffd4d0634.jsonl","cwd":"/Users/me/project","hook_event_name":"SubagentStart","model":"gpt-6-sol","permission_mode":"bypassPermissions","agent_id":"01a0e973-ebd2-7993-b9a3-1b1ffd4d0634","agent_type":"default"}"#
+    static let subagentPreToolUse = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e973-ebdd-7b32-8014-35e396e79b91","agent_id":"01a0e973-ebd2-7993-b9a3-1b1ffd4d0634","agent_type":"default","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-03-01a0e973-ebd2-7993-b9a3-1b1ffd4d0634.jsonl","cwd":"/Users/me/project","hook_event_name":"PreToolUse","model":"gpt-6-sol","permission_mode":"bypassPermissions","tool_name":"Bash","tool_input":{"command":"echo sub"},"tool_use_id":"exec-19b92c86-9faf-405c-b14d-dafe66874e66"}"#
+    static let subagentStop = #"{"session_id":"01a0e974-84c5-74f1-bbf6-676b95c1bea9","turn_id":"01a0e973-ebdd-7b32-8014-35e396e79b91","transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-47-52-01a0e974-84c5-74f1-bbf6-676b95c1bea9.jsonl","agent_transcript_path":"/Users/me/.codex/sessions/2026/09/29/rollout-2026-09-29T00-48-03-01a0e973-ebd2-7993-b9a3-1b1ffd4d0634.jsonl","cwd":"/Users/me/project","hook_event_name":"SubagentStop","model":"gpt-6-sol","permission_mode":"bypassPermissions","stop_hook_active":false,"agent_id":"01a0e973-ebd2-7993-b9a3-1b1ffd4d0634","agent_type":"default","last_assistant_message":"sub"}"#
+}
+
+final class CodexTests: XCTestCase {
+    let surface = UUID(), workspace = UUID()
+    let now = Date(timeIntervalSince1970: 1_790_000_000)
+    let session = "01a0e974-84c5-74f1-bbf6-676b95c1bea9"
+    let flw = "/Applications/Flow Beta.app/Contents/Helpers/flw"
+
+    func translate(_ json: String) throws -> AgentEvent? {
+        let payload = try XCTUnwrap(HookPayload(
+            json: Data(json.utf8), agent: "codex",
+            environment: ["FLOW_SURFACE_ID": surface.uuidString, "FLOW_WORKSPACE_ID": workspace.uuidString], now: now
+        ))
+        return Codex.translate(payload)
+    }
+
+    func expected(_ kind: AgentEvent.Kind, _ detail: String? = nil) -> AgentEvent {
+        AgentEvent(agent: "codex", kind: kind, sessionID: session, surfaceID: surface, workspaceID: workspace,
+                   cwd: "/Users/me/project", at: now, detail: detail)
+    }
+
+    func testTranslatesTheSessionLifecycle() throws {
+        XCTAssertEqual(try translate(CodexHookFixtures.sessionStart), expected(.sessionStarted))
+        XCTAssertEqual(try translate(CodexHookFixtures.userPromptSubmit), expected(.turnStarted))
+        XCTAssertEqual(try translate(CodexHookFixtures.preToolUse), expected(.working, "Bash"))
+        XCTAssertEqual(try translate(CodexHookFixtures.postToolUse), expected(.working, "Bash"))
+        XCTAssertEqual(try translate(CodexHookFixtures.permissionRequest), expected(.needsInput, "permission"))
+        XCTAssertEqual(try translate(CodexHookFixtures.stop), expected(.turnEnded, "ok"))
+        XCTAssertEqual(try translate(CodexHookFixtures.interrupt), expected(.turnEnded))
+        XCTAssertEqual(try translate(CodexHookFixtures.sessionEnd), expected(.sessionEnded))
+    }
+
+    func testDropsSubagentsAndEventsFlowDoesNotUse() throws {
+        XCTAssertNil(try translate(CodexHookFixtures.subagentStart))
+        XCTAssertNil(try translate(CodexHookFixtures.subagentPreToolUse))
+        XCTAssertNil(try translate(CodexHookFixtures.subagentStop))
+        XCTAssertNil(try translate(#"{"session_id":"s","hook_event_name":"PreCompact","trigger":"auto"}"#))
+        XCTAssertNil(try translate(#"{"session_id":"s"}"#))
+    }
+
+    func testTurnEndedDetailIsOneShortLine() throws {
+        let long = String(repeating: "word ", count: 100)
+        let json = CodexHookFixtures.stop.replacingOccurrences(of: #""last_assistant_message":"ok""#, with: #""last_assistant_message":"Done.\n\n\#(long)""#)
+        let detail = try XCTUnwrap(try translate(json)?.detail)
+        XCTAssertEqual(detail.count, HookPayload.detailLimit)
+        XCTAssertTrue(detail.hasPrefix("Done. word word"))
+        XCTAssertTrue(detail.hasSuffix("…"))
+    }
+
+    // MARK: Arguments
+
+    let hook = #"command="'/Applications/Flow Beta.app/Contents/Helpers/flw' hook codex""#
+
+    func overrides(_ arguments: [String]) -> [String: String] {
+        var overrides: [String: String] = [:]
+        for (index, argument) in arguments.enumerated() where argument == "-c" && index + 1 < arguments.count {
+            let parts = arguments[index + 1].split(separator: "=", maxSplits: 1).map(String.init)
+            overrides[parts[0], default: ""] += parts.count > 1 ? parts[1] : ""
+        }
+        return overrides
+    }
+
+    func testAddsFlowsHooksAheadOfTheUsersArguments() {
+        let arguments = Codex.arguments(["exec", "hi"], flw: flw)
+        XCTAssertEqual(Array(arguments.suffix(2)), ["exec", "hi"])
+        XCTAssertEqual(arguments.count, Codex.hookEvents.count * 2 + 2)
+        XCTAssertEqual(Set(overrides(arguments).keys), Set(Codex.hookEvents.map { "hooks.\($0)" }))
+        XCTAssertEqual(overrides(arguments)["hooks.Stop"], #"[{hooks=[{type="command",\#(hook),async=true}]}]"#)
+        XCTAssertEqual(overrides(arguments)["hooks.SessionEnd"], #"[{hooks=[{type="command",\#(hook)}]}]"#)
+    }
+
+    func testHooksAreTheSameEveryLaunch() {
+        XCTAssertEqual(Codex.arguments([], flw: flw), Array(Codex.arguments(["-m", "o3"], flw: flw).dropLast(2)))
+    }
+
+    func testQuotesTheCommandForToml() {
+        XCTAssertEqual(Codex.override(for: "Stop", flw: #"/a"b\c/flw"#),
+                       #"hooks.Stop=[{hooks=[{type="command",command="'/a\"b\\c/flw' hook codex",async=true}]}]"#)
+    }
+
+    func testLeavesEventsTheUserSetsHooksForToThem() {
+        let user = ["-c", "hooks.Stop=[]", "--config=hooks.PreToolUse=[]", #"-chooks."Interrupt"=[]"#, "--config", "hooks.SessionStart.0.matcher='x'", "-c", "model=\"o3\""]
+        let arguments = Codex.arguments(user, flw: flw)
+        XCTAssertEqual(Array(arguments.suffix(user.count)), user)
+        XCTAssertEqual(Set(overrides(Array(arguments.dropLast(user.count))).keys),
+                       ["hooks.UserPromptSubmit", "hooks.PostToolUse", "hooks.PermissionRequest", "hooks.SessionEnd"])
+        XCTAssertEqual(Codex.arguments(["-c", "hooks={}"], flw: flw), ["-c", "hooks={}"])
+    }
+
+    func testArgumentsAfterDoubleDashAreNotOptions() {
+        let user = ["exec", "--", "-c", "hooks.Stop=[]"]
+        let arguments = Codex.arguments(user, flw: flw)
+        XCTAssertEqual(Array(arguments.suffix(4)), user)
+        XCTAssertEqual(arguments.count, Codex.hookEvents.count * 2 + 4)
     }
 }
 
@@ -287,7 +398,7 @@ final class AgentLauncherTests: XCTestCase {
 
     func testShimsFollowTheBinariesOnPath() throws {
         let shims = root.appendingPathComponent("shims").path
-        let unrelated = try makeExecutable("shims", "codex")
+        let unrelated = try makeExecutable("shims", "notes")
         try makeExecutable("bin", "claude")
         let flw = "/Applications/Flow.app/Contents/Helpers/flw"
 

@@ -22,7 +22,7 @@ struct AgentAdapter {
     /// Returns nil for hook calls Flow has no use for.
     let translate: (HookPayload) -> AgentEvent?
 
-    static let all: [AgentAdapter] = [.claudeCode, .openCode]
+    static let all: [AgentAdapter] = [.claudeCode, .openCode, .codex]
 
     static func named(_ name: String) -> AgentAdapter? {
         all.first { $0.name == name }
@@ -32,6 +32,8 @@ struct AgentAdapter {
 /// The JSON object an agent hands its hook on stdin, together with the Flow
 /// terminal the hook runs in.
 struct HookPayload {
+    static let detailLimit = 200
+
     let fields: [String: Any]
     let agent: String
     let surfaceID: UUID?
@@ -49,6 +51,14 @@ struct HookPayload {
 
     func string(_ key: String) -> String? {
         fields[key] as? String
+    }
+
+    /// A message field as one line short enough to show beside a workspace.
+    func summary(_ key: String) -> String? {
+        string(key).map { message in
+            let line = message.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return line.count > Self.detailLimit ? line.prefix(Self.detailLimit - 1) + "…" : line
+        }
     }
 
     func object(_ key: String) -> [String: Any]? {

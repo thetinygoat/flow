@@ -19,8 +19,6 @@ enum ClaudeCode {
     /// a turn has already ended.
     static let needsInputTypes: Set = ["permission_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"]
 
-    static let detailLimit = 200
-
     static func settings(flw: String) -> [String: Any] {
         let hook: [String: Any] = ["type": "command", "command": "\(flw.shellQuoted) hook claude", "async": true]
         return [
@@ -96,16 +94,11 @@ enum ClaudeCode {
             guard let type = payload.string("notification_type"), needsInputTypes.contains(type) else { return nil }
             return event(.needsInput, type)
         case "Stop":
-            return event(.turnEnded, payload.string("last_assistant_message").map(summary))
+            return event(.turnEnded, payload.summary("last_assistant_message"))
         case "SessionEnd":
             return event(.sessionEnded, nil)
         default:
             return nil
         }
-    }
-
-    static func summary(_ message: String) -> String {
-        let line = message.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        return line.count > detailLimit ? line.prefix(detailLimit - 1) + "…" : line
     }
 }

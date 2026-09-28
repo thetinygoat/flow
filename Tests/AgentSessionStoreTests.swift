@@ -15,9 +15,9 @@ final class AgentSessionStoreTests: XCTestCase {
         store.onUpdate = { [unowned self] in self.updates.append($0) }
     }
 
-    func send(_ kind: AgentEvent.Kind, detail: String? = nil, session: String = "s1", to surface: UUID? = nil, at: Date = Date()) {
+    func send(_ kind: AgentEvent.Kind, detail: String? = nil, title: String? = nil, session: String = "s1", to surface: UUID? = nil, at: Date = Date()) {
         store.apply(AgentEvent(agent: "test", kind: kind, sessionID: session, surfaceID: surface ?? self.surface,
-                               workspaceID: nil, cwd: "/", at: at, detail: detail))
+                               workspaceID: nil, cwd: "/", at: at, detail: detail, title: title))
     }
 
     var session: AgentSessionStore.Session? { store.sessions[surface] }
@@ -166,5 +166,60 @@ final class AgentSessionStoreTests: XCTestCase {
         send(.sessionStarted, session: "new", at: early)
         XCTAssertEqual(session?.sessionID, "new")
         XCTAssertEqual(session?.state, .idle)
+    }
+
+    // MARK: Titles
+
+    func testATitleChangesOnlyTheTitle() {
+        send(.turnStarted)
+        send(.turnEnded, detail: "done")
+        let before = session, updatesBefore = updates.count, changesBefore = changes
+        send(.titleChanged, title: "Fix the login flow", at: Date(timeIntervalSince1970: 1))
+        XCTAssertEqual(session?.title, "Fix the login flow")
+        var expected = before
+        expected?.title = "Fix the login flow"
+        XCTAssertEqual(session, expected)
+        XCTAssertEqual(session?.finishedUnseen, true)
+        XCTAssertEqual(updates.count, updatesBefore)
+        XCTAssertEqual(changes, changesBefore + 1)
+    }
+
+    func testTheTitleIsKeptUntilTheSessionStartsAgain() {
+        send(.turnStarted)
+        send(.titleChanged, title: "Fix the login flow")
+        send(.working, detail: "Bash")
+        send(.turnEnded)
+        XCTAssertEqual(session?.title, "Fix the login flow")
+        send(.sessionStarted)
+        XCTAssertNil(session?.title)
+    }
+
+    func testATitleNamesOnlyALiveSessionItWasMadeFor() {
+        send(.titleChanged, title: "Nobody home")
+        XCTAssertNil(session)
+        send(.turnStarted)
+        send(.titleChanged, title: "Other session", session: "s2")
+        XCTAssertNil(session?.title)
+        send(.sessionEnded)
+        send(.titleChanged, title: "Too late")
+        XCTAssertNil(session?.title)
+    }
+
+    func testANewSessionIdDropsTheTitle() {
+        send(.turnStarted)
+        send(.titleChanged, title: "First")
+        send(.turnStarted, session: "s2")
+        XCTAssertNil(session?.title)
+    }
+
+    func testTitlesAreSanitised() {
+        send(.turnStarted)
+        send(.titleChanged, title: "Fix\u{7}  the\nlogin\u{1B}[31m flow")
+        XCTAssertEqual(session?.title, "Fix the login[31m flow")
+        send(.titleChanged, title: String(repeating: "a", count: 100))
+        XCTAssertEqual(session?.title?.count, AgentSessionStore.titleLimit)
+        XCTAssertEqual(session?.title?.last, "…")
+        send(.titleChanged, title: " \n\t")
+        XCTAssertEqual(session?.title?.count, AgentSessionStore.titleLimit)
     }
 }

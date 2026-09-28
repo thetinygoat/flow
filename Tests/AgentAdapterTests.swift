@@ -373,8 +373,8 @@ final class AgentLauncherTests: XCTestCase {
         let translate: (HookPayload) -> AgentEvent? = { _ in nil }
         let byEnvironment = AgentAdapter(name: "agent", binary: "agent", launch: .environment { environment, flw in
             ["AGENT_HOOKS": "\(environment["AGENT_HOOKS"] ?? "on") \(flw)"]
-        }, translate: translate)
-        let untouched = AgentAdapter(name: "agent", binary: "agent", launch: .none, translate: translate)
+        }, translate: translate, summarizer: Summarizer(arguments: []))
+        let untouched = AgentAdapter(name: "agent", binary: "agent", launch: .none, translate: translate, summarizer: Summarizer(arguments: []))
 
         XCTAssertEqual(AgentLauncher(byEnvironment, arguments: ["x"], environment: ["PATH": path("bin")], flw: "/flw"),
                        AgentLauncher(untouched, arguments: ["x"], environment: ["PATH": path("bin"), "AGENT_HOOKS": "on /flw"], flw: "/flw"))

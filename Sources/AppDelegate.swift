@@ -221,6 +221,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.controller.sidebar.agentIndicator = { [unowned self] workspace in
             agentSessions.indicator(for: workspace.surfaces.map(\.id))
         }
+        window.controller.sidebar.agentTitle = { [unowned self] workspace in
+            agentSessions.title(for: workspace.surfaces.map(\.id))
+        }
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
         }

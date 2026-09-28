@@ -61,8 +61,18 @@ struct AgentLauncher: Equatable {
 /// The per-terminal directory of scripts that stand in for agent binaries,
 /// so typing an agent's name runs it through `flw launch`.
 enum AgentShims {
+    static let rootName = "flow-shims"
+
     static func directory(surface: String, temporaryDirectory: String) -> String {
-        (temporaryDirectory as NSString).appendingPathComponent("flow-shims/\(surface)")
+        (temporaryDirectory as NSString).appendingPathComponent("\(rootName)/\(surface)")
+    }
+
+    /// `path` without the shim directories of any Flow terminal, so that what
+    /// runs from it reaches the real agents.
+    static func removingShims(from path: String) -> String {
+        path.split(separator: ":", omittingEmptySubsequences: false)
+            .filter { ((String($0) as NSString).deletingLastPathComponent as NSString).lastPathComponent != rootName }
+            .joined(separator: ":")
     }
 
     static func script(for adapter: AgentAdapter, directory: String, flw: String) -> String {
@@ -94,7 +104,7 @@ enum AgentShims {
 
     /// Removes the shim directories of terminals that no longer exist.
     static func removeStale(temporaryDirectory: String, isLive: (UUID) -> Bool) {
-        let root = (temporaryDirectory as NSString).appendingPathComponent("flow-shims")
+        let root = (temporaryDirectory as NSString).appendingPathComponent(rootName)
         for name in (try? FileManager.default.contentsOfDirectory(atPath: root)) ?? [] where !(UUID(uuidString: name).map(isLive) ?? false) {
             try? FileManager.default.removeItem(atPath: (root as NSString).appendingPathComponent(name))
         }

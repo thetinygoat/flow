@@ -21,6 +21,11 @@ struct AgentAdapter {
     let launch: Launch
     /// Returns nil for hook calls Flow has no use for.
     let translate: (HookPayload) -> AgentEvent?
+    /// What the user or the agent said, for naming the session. It stays in
+    /// `flw` and never reaches the app.
+    var excerpt: (HookPayload) -> Excerpt? = { _ in nil }
+    /// How to ask the agent's own model for a title.
+    let summarizer: Summarizer
 
     static let all: [AgentAdapter] = [.claudeCode, .openCode, .codex]
 
@@ -58,6 +63,23 @@ struct HookPayload {
         string(key).map { message in
             let line = message.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             return line.count > Self.detailLimit ? line.prefix(Self.detailLimit - 1) + "…" : line
+        }
+    }
+
+    /// A message field as said, for a title. Subagents' messages are not the
+    /// user's conversation.
+    func excerpt(_ role: Excerpt.Role, _ key: String) -> Excerpt? {
+        guard fields["agent_id"] == nil, let text = string(key) else { return nil }
+        return Excerpt(role: role, text: text)
+    }
+
+    /// The user's prompt as a turn starts and the agent's reply as it ends,
+    /// in the fields Claude Code and Codex share.
+    var promptOrReply: Excerpt? {
+        switch string("hook_event_name") {
+        case "UserPromptSubmit": return excerpt(.user, "prompt")
+        case "Stop": return excerpt(.assistant, "last_assistant_message")
+        default: return nil
         }
     }
 

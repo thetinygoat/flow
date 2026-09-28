@@ -5,16 +5,24 @@ extension AgentAdapter {
         name: "opencode",
         binary: "opencode",
         launch: .environment(OpenCode.environment),
-        translate: { _ in nil }
+        translate: { _ in nil },
+        summarizer: OpenCode.summarizer
     )
 }
 
 /// OpenCode runs no hooks but loads plugins, and adds the ones named in
 /// `OPENCODE_CONFIG_CONTENT` to those in the user's own configuration. Flow
 /// names its plugin there for each launch and never touches `~/.config/opencode`.
-/// The plugin sends its events with `flw event`, so there is nothing to translate.
+/// The plugin sends its events, and what was said, with `flw event`, so there
+/// is nothing to translate.
 enum OpenCode {
     static let contentKey = "OPENCODE_CONFIG_CONTENT"
+
+    /// The user's own model, without plugins, Flow's included.
+    static let summarizer = Summarizer(
+        arguments: ["run", "--pure", "--format", "default"],
+        variables: ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR"]
+    )
 
     /// Where the app bundles the plugin, found from the `flw` inside it.
     static func plugin(flw: String) -> String {

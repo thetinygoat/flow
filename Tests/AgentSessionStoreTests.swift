@@ -216,7 +216,7 @@ final class AgentSessionStoreTests: XCTestCase {
         send(.turnStarted)
         send(.titleChanged, title: "Fix\u{7}  the\nlogin\u{1B}[31m flow")
         XCTAssertEqual(session?.title, "Fix the login[31m flow")
-        send(.titleChanged, title: String(repeating: "a", count: 100))
+        send(.titleChanged, title: String(repeating: "a", count: 200))
         XCTAssertEqual(session?.title?.count, AgentSessionStore.titleLimit)
         XCTAssertEqual(session?.title?.last, "…")
         send(.titleChanged, title: " \n\t")

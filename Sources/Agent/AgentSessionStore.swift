@@ -44,7 +44,7 @@ final class AgentSessionStore {
         self.isVisible = isVisible
     }
 
-    static let titleLimit = 60
+    static let titleLimit = 160
 
     /// One line of at most `titleLimit` characters, or nil when nothing is left.
     static func sanitizedTitle(_ title: String?) -> String? {

@@ -167,10 +167,10 @@ final class TitleReplyTests: XCTestCase {
     }
 
     func testCutsLongTitlesAtAWord() throws {
-        let title = try XCTUnwrap(clean("Investigate the intermittent authentication failures in the staging login redirect"))
+        let title = try XCTUnwrap(clean("Investigating the intermittent authentication failures in the staging login redirect after the session cookie changes landed on Friday"))
         XCTAssertLessThanOrEqual(title.count, TitleReply.limit)
-        XCTAssertEqual(title, "Investigate the intermittent authentication")
-        XCTAssertEqual(clean(String(repeating: "x", count: 80))?.count, TitleReply.limit)
+        XCTAssertEqual(title, "Investigating the intermittent authentication failures in the staging login redirect after the session cookie changes")
+        XCTAssertEqual(clean(String(repeating: "x", count: 200))?.count, TitleReply.limit)
     }
 
     func testNothingNewIsNil() {

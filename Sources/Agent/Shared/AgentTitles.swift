@@ -132,14 +132,15 @@ struct TitleContext: Codable, Equatable {
             \(conversation)
             </conversation>
             \(current)
-            Reply with only a 2–5 word title for this conversation. If the current title still fits, reply with it exactly.
+            Reply with only one sentence of at most 15 words saying what this conversation is about. If the current title still fits, reply with it exactly.
             """
     }
 }
 
 /// Turns what a model replied into a title.
 enum TitleReply {
-    static let limit = 50
+    /// The sidebar trims titles to fit, so this only stops a runaway reply.
+    static let limit = 120
     private static let decoration = CharacterSet(charactersIn: "\"'`“”‘’*_#>-•").union(.whitespaces)
 
     /// Nil when the reply holds no title, or only the current one.

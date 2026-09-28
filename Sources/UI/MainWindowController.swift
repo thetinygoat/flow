@@ -8,6 +8,8 @@ final class MainWindowController: NSWindowController {
     private let store: WorkspaceStore
     private let content: WindowContentViewController
     var onResetZoom: (() -> Void)?
+    var onNewWorkspace: (() -> Void)?
+    private let sidebarAccessory = NSTitlebarAccessoryViewController()
     private let zoomAccessory = NSTitlebarAccessoryViewController()
     private let resetZoomButton = NSButton(
         image: NSImage(systemSymbolName: "arrow.down.right.and.arrow.up.left", accessibilityDescription: "Reset zoom")!,
@@ -50,6 +52,27 @@ final class MainWindowController: NSWindowController {
         zoomAccessory.view = resetZoomButton
         zoomAccessory.layoutAttribute = .trailing
         window.addTitlebarAccessoryViewController(zoomAccessory)
+
+        // In the title bar rather than the sidebar, so the toggle is still
+        // there to bring the sidebar back once it is collapsed.
+        let buttons = NSStackView(views: [
+            titlebarButton(symbol: "sidebar.left", description: "Toggle sidebar", action: #selector(toggleWorkspaceSidebar)),
+            titlebarButton(symbol: "plus", description: "New workspace", action: #selector(newWorkspaceTapped)),
+        ])
+        buttons.spacing = 0
+        buttons.frame.size = NSSize(width: 64, height: 28)
+        sidebarAccessory.view = buttons
+        sidebarAccessory.layoutAttribute = .leading
+        window.addTitlebarAccessoryViewController(sidebarAccessory)
+    }
+
+    private func titlebarButton(symbol: String, description: String, action: Selector) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: description)!, target: self, action: action)
+        button.isBordered = false
+        button.toolTip = description
+        button.contentTintColor = .secondaryLabelColor
+        button.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        return button
     }
 
     required init?(coder: NSCoder) {
@@ -107,6 +130,10 @@ final class MainWindowController: NSWindowController {
 
     @objc func toggleWorkspaceSidebar(_ sender: Any?) {
         content.toggleSidebar()
+    }
+
+    @objc private func newWorkspaceTapped() {
+        onNewWorkspace?()
     }
 
     @objc private func resetZoomTapped() {

@@ -23,6 +23,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.sidebar.delegate = self
         controller.terminalArea.delegate = self
         controller.onResetZoom = { [weak self] in self?.resetZoom() }
+        controller.onNewWorkspace = { [weak self] in self?.newWorkspace() }
         store.onChange = { [weak self] in
             guard let self else { return }
             self.controller.refresh()

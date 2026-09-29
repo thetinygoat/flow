@@ -216,6 +216,10 @@ private final class WorkspaceTableView: NSTableView {
     private var pointer: NSPoint?
     private var pointerArea: NSTrackingArea?
 
+    /// Clicking a row leaves the keyboard with the terminal, so typing and
+    /// arrow keys go on reaching the shell instead of switching workspaces.
+    override var acceptsFirstResponder: Bool { false }
+
     var hoveredRow: Int {
         pointer.map { row(at: convert($0, from: nil)) } ?? -1
     }

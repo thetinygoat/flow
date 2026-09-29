@@ -130,7 +130,7 @@ final class MainWindowController: NSWindowController {
     private func updateWindowTitle() {
         let workspace = store.selected?.name ?? "Flow"
         let tab = store.selected?.selectedTab?.title
-        window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
+        window?.title = tab.map { "\(workspace) · \($0)" } ?? workspace
     }
 
     /// A rename is typed into the workspace's row, so a hidden sidebar is

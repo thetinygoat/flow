@@ -133,6 +133,16 @@ final class MainWindowController: NSWindowController {
         window?.title = tab.map { "\(workspace) — \($0)" } ?? workspace
     }
 
+    /// A rename is typed into the workspace's row, so a hidden sidebar is
+    /// brought back for it.
+    func beginRename(of workspace: Workspace) {
+        if content.isSidebarHidden {
+            content.isSidebarHidden = false
+            window?.layoutIfNeeded()
+        }
+        sidebar.beginRename(of: workspace)
+    }
+
     @objc func toggleWorkspaceSidebar(_ sender: Any?) {
         content.toggleSidebar()
     }

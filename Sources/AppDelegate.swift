@@ -9,6 +9,7 @@ import Sparkle
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: GhosttyRuntime!
     private var windows: [TerminalWindow] = []
+    private var workspaceMenu: WorkspaceMenu!
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
@@ -199,6 +200,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? windows.last
     }
 
+    private var keyWindow: TerminalWindow? {
+        windows.first { $0.window === NSApp.keyWindow }
+    }
+
     private func window(containing surface: TerminalSurfaceView) -> TerminalWindow? {
         windows.first { $0.contains(surface) }
     }
@@ -300,7 +305,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func selectWorkspace(_ sender: NSMenuItem) {
-        currentWindow?.selectWorkspace(at: sender.tag)
+        keyWindow?.selectWorkspace(at: sender.tag)
+    }
+
+    @objc private func renameWorkspace() {
+        keyWindow?.renameSelectedWorkspace()
     }
 
     @objc private func previousWorkspace() {
@@ -312,7 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func selectTab(_ sender: NSMenuItem) {
-        currentWindow?.selectTab(at: sender.tag)
+        keyWindow?.selectTab(at: sender.tag)
     }
 
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID) -> TerminalSurfaceView {
@@ -462,25 +471,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")
 
-        let workspaceMenu = NSMenu(title: "Workspace")
         // Ghostty's previous/next tab bindings switch workspaces; plain ⌘[ and ⌘]
         // belong to split navigation.
-        let previousWorkspaceItem = workspaceMenu.addItem(withTitle: "Previous Workspace", action: #selector(previousWorkspace), keyEquivalent: "[")
+        let previousWorkspaceItem = NSMenuItem(title: "Previous Workspace", action: #selector(previousWorkspace), keyEquivalent: "[")
         previousWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
-        let nextWorkspaceItem = workspaceMenu.addItem(withTitle: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
+        let nextWorkspaceItem = NSMenuItem(title: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
         nextWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
-        workspaceMenu.addItem(.separator())
-        for number in 1...9 {
-            let item = workspaceMenu.addItem(withTitle: "Workspace \(number)", action: #selector(selectWorkspace(_:)), keyEquivalent: "\(number)")
-            item.tag = number - 1
+        let renameItem = NSMenuItem(title: "Rename Workspace", action: #selector(renameWorkspace), keyEquivalent: "r")
+        renameItem.keyEquivalentModifierMask = [.command, .shift]
+        workspaceMenu = WorkspaceMenu(
+            title: "Workspace",
+            fixedItems: [previousWorkspaceItem, nextWorkspaceItem, .separator(), renameItem],
+            target: self,
+            selectWorkspace: #selector(selectWorkspace(_:)),
+            selectTab: #selector(selectTab(_:)))
+        workspaceMenu.contents = { [weak self] in
+            guard let store = self?.keyWindow?.store else { return nil }
+            let tabs = store.selected?.tabs ?? []
+            return WorkspaceMenu.Contents(
+                workspaces: .init(names: store.workspaces.map(\.name), selected: store.workspaces.firstIndex { $0 === store.selected }),
+                tabs: .init(names: tabs.map(\.title), selected: tabs.firstIndex { $0 === store.selected?.selectedTab }))
         }
-        workspaceMenu.addItem(.separator())
-        for number in 1...9 {
-            let item = workspaceMenu.addItem(withTitle: "Tab \(number)", action: #selector(selectTab(_:)), keyEquivalent: "\(number)")
-            item.keyEquivalentModifierMask = .control
-            item.tag = number - 1
-        }
-        mainMenu.addItem(submenu: workspaceMenu, title: "Workspace")
+        mainMenu.addItem(submenu: workspaceMenu.menu, title: "Workspace")
 
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
@@ -498,6 +510,9 @@ extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleSecureKeyboardEntry) {
             menuItem.state = SecureInput.shared.global ? .on : .off
+        }
+        if menuItem.action == #selector(renameWorkspace) {
+            return keyWindow?.store.selected != nil
         }
         return true
     }

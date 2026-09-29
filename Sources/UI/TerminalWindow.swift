@@ -118,6 +118,11 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.terminalArea.focusSelectedSurface()
     }
 
+    func renameSelectedWorkspace() {
+        guard let workspace = store.selected else { return }
+        controller.beginRename(of: workspace)
+    }
+
     func cycleWorkspace(by offset: Int) {
         guard let selected = store.selected,
               let index = store.workspaces.firstIndex(where: { $0 === selected }) else { return }
@@ -308,9 +313,10 @@ extension TerminalWindow: SidebarViewControllerDelegate, TerminalAreaViewControl
         controller.terminalArea.focusSelectedSurface()
     }
 
-    func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String) {
-        workspace.customName = name
+    func sidebar(_ sidebar: SidebarViewController, didFinishRenaming workspace: Workspace, to name: String?) {
+        if let name { workspace.customName = name }
         store.notifyChanged()
+        controller.terminalArea.focusSelectedSurface()
     }
 
     func sidebar(_ sidebar: SidebarViewController, wantsClose workspace: Workspace) {

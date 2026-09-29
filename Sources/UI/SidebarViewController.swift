@@ -2,7 +2,8 @@ import AppKit
 
 protocol SidebarViewControllerDelegate: AnyObject {
     func sidebar(_ sidebar: SidebarViewController, didSelect workspace: Workspace)
-    func sidebar(_ sidebar: SidebarViewController, didRename workspace: Workspace, to name: String)
+    /// The name is nil when the rename was abandoned.
+    func sidebar(_ sidebar: SidebarViewController, didFinishRenaming workspace: Workspace, to name: String?)
     func sidebar(_ sidebar: SidebarViewController, wantsClose workspace: Workspace)
 }
 
@@ -126,18 +127,20 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     @objc private func renameClickedWorkspace() {
         let row = tableView.clickedRow
-        guard row >= 0, row < store.workspaces.count,
-              let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
-        let workspace = store.workspaces[row]
+        guard row >= 0, row < store.workspaces.count else { return }
+        beginRename(of: store.workspaces[row])
+    }
+
+    func beginRename(of workspace: Workspace) {
+        guard renaming == nil, let row = store.workspaces.firstIndex(where: { $0 === workspace }) else { return }
+        tableView.scrollRowToVisible(row)
+        guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: true) as? WorkspaceCellView else { return }
         renaming = workspace
         cell.beginRenaming { [weak self] name in
             guard let self else { return }
             self.renaming = nil
-            if name.isEmpty || !self.store.workspaces.contains(where: { $0 === workspace }) {
-                self.reload()
-            } else {
-                self.delegate?.sidebar(self, didRename: workspace, to: name)
-            }
+            let exists = self.store.workspaces.contains { $0 === workspace }
+            self.delegate?.sidebar(self, didFinishRenaming: workspace, to: name.isEmpty || !exists ? nil : name)
         }
     }
 

@@ -69,13 +69,13 @@ struct Summarizer: Equatable {
     }
 }
 
-/// What `flw` remembers of one session between hooks to name it: the start
-/// and the latest part of the conversation, and how naming it last went.
+/// What `flw` remembers of one session between hooks to name it once: the
+/// start and the latest part of the conversation until it is named, and
+/// afterwards only that it was.
 struct TitleContext: Codable, Equatable {
     static let firstUserMessages = 2
     static let recentMessages = 4
     static let messageLimit = 240
-    static let cooldown: TimeInterval = 180
     /// A naming run is given up on after a minute, so one marked longer ago than this has died.
     static let inFlightLimit: TimeInterval = 75
 
@@ -87,15 +87,17 @@ struct TitleContext: Codable, Equatable {
 
     var first: [Message] = []
     var recent: [Message] = []
-    var title: String?
-    var lastAttempt: Date?
     var messageCount = 0
-    var messageCountAtLastAttempt = 0
     var inFlightSince: Date?
+    /// Set once naming ran, whatever came of it: a session is named only once.
+    var named = false
+
+    /// What is left once the session is named.
+    static let finished = TitleContext(named: true)
 
     mutating func append(_ excerpt: Excerpt) {
         let text = String(excerpt.text.oneLine.prefix(Self.messageLimit))
-        guard !text.isEmpty else { return }
+        guard !named, !text.isEmpty else { return }
         messageCount += 1
         let message = Message(number: messageCount, role: excerpt.role, text: text)
         if excerpt.role == .user, first.count < Self.firstUserMessages {
@@ -111,28 +113,21 @@ struct TitleContext: Codable, Equatable {
     }
 
     func shouldName(now: Date) -> Bool {
-        guard messages.contains(where: { $0.role == .user }), messages.contains(where: { $0.role == .assistant }) else { return false }
-        if let inFlightSince, now.timeIntervalSince(inFlightSince) < Self.inFlightLimit { return false }
-        guard let lastAttempt else { return true }
-        return now.timeIntervalSince(lastAttempt) >= Self.cooldown && messageCount > messageCountAtLastAttempt
-    }
-
-    mutating func beginAttempt(now: Date) {
-        inFlightSince = now
-        messageCountAtLastAttempt = messageCount
+        guard !named, messages.contains(where: { $0.role == .user }), messages.contains(where: { $0.role == .assistant }) else { return false }
+        guard let inFlightSince else { return true }
+        return now.timeIntervalSince(inFlightSince) >= Self.inFlightLimit
     }
 
     var prompt: String {
         let conversation = messages.map { "\($0.role.rawValue): \($0.text)" }.joined(separator: "\n")
-        let current = title.map { "\nCurrent title: \($0)\n" } ?? ""
         return """
             Below are the start and the latest part of a conversation between a user and a coding agent.
 
             <conversation>
             \(conversation)
             </conversation>
-            \(current)
-            Reply with only one sentence of at most 15 words saying what this conversation is about. If the current title still fits, reply with it exactly.
+
+            Reply with only one sentence of at most 15 words saying what this conversation is about.
             """
     }
 }
@@ -143,8 +138,8 @@ enum TitleReply {
     static let limit = 120
     private static let decoration = CharacterSet(charactersIn: "\"'`“”‘’*_#>-•").union(.whitespaces)
 
-    /// Nil when the reply holds no title, or only the current one.
-    static func clean(_ reply: String, current: String?) -> String? {
+    /// Nil when the reply holds no title.
+    static func clean(_ reply: String) -> String? {
         guard let line = reply.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: decoration) }).first(where: { !$0.isEmpty }) else {
             return nil
         }
@@ -158,7 +153,7 @@ enum TitleReply {
             title = cut.lastIndex(of: " ").map { String(cut[..<$0]) } ?? String(title.prefix(limit))
             title = title.trimmingCharacters(in: decoration.union(.punctuationCharacters))
         }
-        guard !title.isEmpty, title != current else { return nil }
+        guard !title.isEmpty else { return nil }
         return title
     }
 }
@@ -188,20 +183,17 @@ struct TitleStore {
         case .sessionEnded:
             remove(agent: event.agent, session: event.sessionID)
             return false
-        // A resumed session starts without a title in Flow, so it is named
-        // again at the end of its next turn.
+        // A new conversation, or a resumed one that starts without a title
+        // in Flow, so it is named at the end of its next turn.
         case .sessionStarted:
-            update(agent: event.agent, session: event.sessionID, create: false) { context in
-                context.title = nil
-                context.lastAttempt = nil
-            }
+            remove(agent: event.agent, session: event.sessionID)
             return false
         default:
             guard !excerpts.isEmpty || event.kind == .turnEnded else { return false }
             return update(agent: event.agent, session: event.sessionID) { context in
                 excerpts.forEach { context.append($0) }
                 guard event.kind == .turnEnded, context.shouldName(now: now) else { return false }
-                context.beginAttempt(now: now)
+                context.inFlightSince = now
                 return true
             } ?? false
         }

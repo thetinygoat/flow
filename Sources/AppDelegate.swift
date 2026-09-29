@@ -222,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             agentSessions.indicator(for: workspace.surfaces.map(\.id))
         }
         window.controller.sidebar.agentTitle = { [unowned self] workspace in
-            agentSessions.title(for: workspace.surfaces.map(\.id))
+            workspace.focusedLeaf.flatMap { agentSessions.title(for: $0.id) }
         }
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))

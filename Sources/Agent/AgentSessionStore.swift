@@ -128,6 +128,11 @@ final class AgentSessionStore {
         onChange?()
     }
 
+    /// Ended sessions have none.
+    func title(for surface: UUID) -> String? {
+        sessions[surface].flatMap { $0.state == .ended ? nil : $0.title }
+    }
+
     func markSeen(_ surface: UUID) {
         guard var session = sessions[surface], session.finishedUnseen || session.attention != nil else { return }
         session.finishedUnseen = false

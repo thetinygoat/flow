@@ -36,32 +36,25 @@ final class TitleContextTests: XCTestCase {
         XCTAssertTrue(context([(.user, "hi"), (.assistant, "hello")]).shouldName(now: now))
     }
 
-    func testNamesAgainOnlyAfterTheCooldownAndNewMessages() {
-        var context = context([(.user, "hi"), (.assistant, "hello")])
-        context.beginAttempt(now: now)
-        context.inFlightSince = nil
-        context.lastAttempt = now
-        XCTAssertFalse(context.shouldName(now: now.addingTimeInterval(TitleContext.cooldown)))
-        context.append(Excerpt(role: .user, text: "more"))
-        XCTAssertFalse(context.shouldName(now: now.addingTimeInterval(TitleContext.cooldown - 1)))
-        XCTAssertTrue(context.shouldName(now: now.addingTimeInterval(TitleContext.cooldown)))
-    }
-
     func testARunInFlightHoldsOffOthersUntilItIsStale() {
         var context = context([(.user, "hi"), (.assistant, "hello")])
-        context.beginAttempt(now: now)
-        XCTAssertEqual(context.messageCountAtLastAttempt, 2)
+        context.inFlightSince = now
         XCTAssertFalse(context.shouldName(now: now.addingTimeInterval(TitleContext.inFlightLimit - 1)))
         XCTAssertTrue(context.shouldName(now: now.addingTimeInterval(TitleContext.inFlightLimit)))
     }
 
-    func testThePromptHoldsTheConversationAndTheCurrentTitle() {
-        var context = context([(.user, "Fix the login"), (.assistant, "Fixed it")])
+    func testANamedSessionKeepsNothingAndIsNeverNamedAgain() {
+        var context = TitleContext.finished
+        context.append(Excerpt(role: .user, text: "more"))
+        context.append(Excerpt(role: .assistant, text: "done"))
+        XCTAssertEqual(context, .finished)
+        XCTAssertFalse(context.shouldName(now: now))
+    }
+
+    func testThePromptHoldsTheConversation() {
+        let context = context([(.user, "Fix the login"), (.assistant, "Fixed it")])
         XCTAssertTrue(context.prompt.contains("user: Fix the login\nassistant: Fixed it"))
-        XCTAssertFalse(context.prompt.contains("Current title"))
-        context.title = "Login fix"
-        XCTAssertTrue(context.prompt.contains("Current title: Login fix"))
-        XCTAssertTrue(context.prompt.hasSuffix("If the current title still fits, reply with it exactly."))
+        XCTAssertTrue(context.prompt.hasSuffix("Reply with only one sentence of at most 15 words saying what this conversation is about."))
     }
 }
 
@@ -112,15 +105,39 @@ final class TitleStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(store.url(agent: "claude", session: "s1")).path))
     }
 
-    func testAStartedSessionIsNamedAgainAfterItsNextTurn() {
+    func finishNaming(_ session: String = "s1") {
+        store.update(agent: "claude", session: session, create: false) { $0 = .finished }
+    }
+
+    func testNamesOnceThenNeverAgain() {
         _ = store.record(event(.turnStarted), excerpts: [Excerpt(role: .user, text: "hi")], now: now)
-        store.update(agent: "claude", session: "s1") { context in
-            context.title = "Old"
-            context.lastAttempt = self.now
+        XCTAssertTrue(store.record(event(.turnEnded), excerpts: [Excerpt(role: .assistant, text: "hello")], now: now))
+        finishNaming()
+        for hour in 1...3 {
+            let later = now.addingTimeInterval(TimeInterval(hour * 3600))
+            XCTAssertFalse(store.record(event(.turnStarted), excerpts: [Excerpt(role: .user, text: "more \(hour)")], now: later))
+            XCTAssertFalse(store.record(event(.turnEnded), excerpts: [Excerpt(role: .assistant, text: "done \(hour)")], now: later))
         }
+        XCTAssertEqual(stored(), .finished)
+    }
+
+    func testAFailedAttemptIsFinal() {
+        _ = store.record(event(.turnStarted), excerpts: [Excerpt(role: .user, text: "hi")], now: now)
+        XCTAssertTrue(store.record(event(.turnEnded), excerpts: [Excerpt(role: .assistant, text: "hello")], now: now))
+        // A run finishes the same way whether or not the model gave a title.
+        finishNaming()
+        let later = now.addingTimeInterval(TitleContext.inFlightLimit + 1)
+        XCTAssertFalse(store.record(event(.turnEnded), excerpts: [Excerpt(role: .assistant, text: "again")], now: later))
+    }
+
+    func testAStartedSessionIsNamedAfresh() {
+        _ = store.record(event(.turnStarted), excerpts: [Excerpt(role: .user, text: "hi")], now: now)
+        finishNaming()
         _ = store.record(event(.sessionStarted), excerpts: [], now: now)
-        XCTAssertNil(stored()?.title)
+        XCTAssertNil(stored())
+        _ = store.record(event(.turnStarted), excerpts: [Excerpt(role: .user, text: "new")], now: now)
         XCTAssertTrue(store.record(event(.turnEnded), excerpts: [Excerpt(role: .assistant, text: "hello")], now: now.addingTimeInterval(1)))
+        XCTAssertEqual(stored()?.messages.map(\.text), ["new", "hello"])
     }
 
     func testANewSessionClearsOutContextsLeftForAWeek() throws {
@@ -149,8 +166,8 @@ final class TitleStoreTests: XCTestCase {
 }
 
 final class TitleReplyTests: XCTestCase {
-    func clean(_ reply: String, current: String? = nil) -> String? {
-        TitleReply.clean(reply, current: current)
+    func clean(_ reply: String) -> String? {
+        TitleReply.clean(reply)
     }
 
     func testStripsQuotesAndMarkdown() {
@@ -173,12 +190,9 @@ final class TitleReplyTests: XCTestCase {
         XCTAssertEqual(clean(String(repeating: "x", count: 200))?.count, TitleReply.limit)
     }
 
-    func testNothingNewIsNil() {
+    func testAnEmptyReplyIsNil() {
         XCTAssertNil(clean(""))
         XCTAssertNil(clean("  \n ** \n"))
-        XCTAssertNil(clean("Fix login redirect", current: "Fix login redirect"))
-        XCTAssertNil(clean(#""Fix login redirect""#, current: "Fix login redirect"))
-        XCTAssertEqual(clean("Fix login redirect", current: "Login"), "Fix login redirect")
     }
 }
 

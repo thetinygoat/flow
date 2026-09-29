@@ -19,23 +19,26 @@ enum Naming {
         }
     }
 
-    /// Asks the agent's model for a title and sends it to Flow if it is new.
+    /// Asks the agent's model for a title and sends it to Flow. Whatever comes
+    /// of it, the session is not named again, and what was said is forgotten.
     static func run(adapter: AgentAdapter, sessionID: String, surfaceID: UUID?, workspaceID: UUID?, environment: [String: String],
                     send: (AgentEvent) -> Void) {
         let store = TitleStore.standard
-        let prompt = store.update(agent: adapter.name, session: sessionID, create: false) { context -> String in
+        let prompt = store.update(agent: adapter.name, session: sessionID, create: false) { context -> String? in
+            guard !context.named else { return nil }
             context.inFlightSince = Date()
             return context.prompt
-        }
-        let reply = prompt.flatMap { ask(adapter, prompt: $0, environment: environment) }
-        let title = store.update(agent: adapter.name, session: sessionID, create: false) { context -> String? in
-            context.inFlightSince = nil
-            context.lastAttempt = Date()
-            guard let title = reply.flatMap({ TitleReply.clean($0, current: context.title) }) else { return nil }
-            context.title = title
-            return title
         } ?? nil
-        guard let title else { return }
+        guard let prompt else { return }
+        let title = ask(adapter, prompt: prompt, environment: environment).flatMap(TitleReply.clean)
+        // A session that ended or started over meanwhile is no longer the
+        // conversation this title is about.
+        let isSameConversation = store.update(agent: adapter.name, session: sessionID, create: false) { context -> Bool in
+            guard context.inFlightSince != nil else { return false }
+            context = .finished
+            return true
+        } ?? false
+        guard isSameConversation, let title else { return }
         send(AgentEvent(agent: adapter.name, kind: .titleChanged, sessionID: sessionID, surfaceID: surfaceID, workspaceID: workspaceID,
                         cwd: FileManager.default.currentDirectoryPath, at: Date(), title: title))
     }

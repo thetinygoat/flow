@@ -24,17 +24,4 @@ extension AgentSessionStore {
     func indicator(for surfaces: some Sequence<UUID>) -> AgentIndicator? {
         surfaces.compactMap { sessions[$0].flatMap(AgentIndicator.init) }.max()
     }
-
-    /// The title of the session that needs the user most, or when none does,
-    /// of the one that changed last. Ended sessions have none.
-    func title(for surfaces: some Sequence<UUID>) -> String? {
-        surfaces.compactMap { sessions[$0] }
-            .filter { $0.state != .ended && $0.title != nil }
-            .max { (urgency($0), $0.updatedAt) < (urgency($1), $1.updatedAt) }?
-            .title
-    }
-
-    private func urgency(_ session: Session) -> Int {
-        AgentIndicator(session).map { $0.rawValue + 1 } ?? 0
-    }
 }

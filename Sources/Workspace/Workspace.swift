@@ -71,13 +71,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
         self.customName = customName
     }
 
-    /// The pane the user types into when this workspace is shown.
-    var focusedLeaf: Leaf? {
-        selectedTab?.focusedLeaf
-    }
-
     var name: String {
-        customName ?? focusedLeaf?.workingDirectory?.fishStylePath ?? "~"
+        customName ?? selectedTab?.focusedLeaf.workingDirectory?.fishStylePath ?? "~"
     }
 
     func add(_ tab: TabModel<Leaf>) {

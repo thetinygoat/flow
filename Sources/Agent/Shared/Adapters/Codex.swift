@@ -5,9 +5,7 @@ extension AgentAdapter {
         name: "codex",
         binary: "codex",
         launch: .flags(Codex.arguments),
-        translate: Codex.translate,
-        excerpt: \.promptOrReply,
-        summarizer: Codex.summarizer
+        translate: Codex.translate
     )
 }
 
@@ -22,19 +20,6 @@ enum Codex {
     /// Codex waits on SessionEnd hooks whatever they ask, and warns when asked
     /// not to.
     static let synchronousEvents: Set = ["SessionEnd"]
-
-    /// The user's own model, with every tool, MCP server, rule and hook off,
-    /// unable to write or ask, and no session left behind.
-    static let summarizer = Summarizer(
-        arguments: [
-            "exec", "--ephemeral", "--skip-git-repo-check", "--ignore-rules", "--sandbox", "read-only",
-            "-c", #"approval_policy="never""#, "-c", #"web_search="disabled""#, "-c", "mcp_servers={}",
-        ] + ["shell_tool", "unified_exec", "apps", "plugins", "multi_agent", "image_generation", "browser_use", "computer_use", "hooks"]
-            .flatMap { ["--disable", $0] }
-            + ["--color", "never"],
-        output: .file(option: "--output-last-message"),
-        variables: ["CODEX_HOME", "OPENAI_API_KEY", "OPENAI_BASE_URL"]
-    )
 
     static func override(for event: String, flw: String) -> String {
         let command = "\(flw.shellQuoted) hook codex"

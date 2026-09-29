@@ -7,8 +7,6 @@ struct AgentEvent: Codable, Equatable {
 
     enum Kind: String, Codable {
         case sessionStarted, turnStarted, working, needsInput, turnEnded, sessionEnded, attention
-        /// Carries a new `title` for the session and changes nothing else.
-        case titleChanged
         /// A kind from a newer `flw` than this app, which it can safely skip.
         case unknown
 
@@ -29,10 +27,8 @@ struct AgentEvent: Codable, Equatable {
     /// The tool for `working`, the reason for `needsInput`, the last message
     /// for `turnEnded`, the message for `attention`.
     var detail: String?
-    /// A short name for the session, made from its conversation.
-    var title: String?
 
-    init(agent: String, kind: Kind, sessionID: String = "", surfaceID: UUID?, workspaceID: UUID?, cwd: String, at: Date, detail: String? = nil, title: String? = nil) {
+    init(agent: String, kind: Kind, sessionID: String = "", surfaceID: UUID?, workspaceID: UUID?, cwd: String, at: Date, detail: String? = nil) {
         self.agent = agent
         self.kind = kind
         self.sessionID = sessionID
@@ -41,7 +37,6 @@ struct AgentEvent: Codable, Equatable {
         self.cwd = cwd
         self.at = at
         self.detail = detail
-        self.title = title
     }
 
     /// Only `kind` is required, so hand-written events and older senders still get through.
@@ -56,7 +51,6 @@ struct AgentEvent: Codable, Equatable {
         cwd = try container.decodeIfPresent(String.self, forKey: .cwd) ?? ""
         at = try container.decodeIfPresent(Date.self, forKey: .at) ?? Date()
         detail = try container.decodeIfPresent(String.self, forKey: .detail)
-        title = try container.decodeIfPresent(String.self, forKey: .title)
     }
 
     /// Hooks race each other to the socket, so the store orders events by

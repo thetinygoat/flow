@@ -5,9 +5,7 @@ extension AgentAdapter {
         name: "claude",
         binary: "claude",
         launch: .flags(ClaudeCode.arguments),
-        translate: ClaudeCode.translate,
-        excerpt: \.promptOrReply,
-        summarizer: ClaudeCode.summarizer
+        translate: ClaudeCode.translate
     )
 }
 
@@ -20,17 +18,6 @@ enum ClaudeCode {
     /// nothing from them: `idle_prompt` is only a reminder, sent a minute after
     /// a turn has already ended.
     static let needsInputTypes: Set = ["permission_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"]
-
-    /// Claude's small, fast model with nothing else: no tools, MCP servers,
-    /// skills or hooks, and no session left behind.
-    static let summarizer = Summarizer(
-        arguments: [
-            "-p", "--model", "haiku", "--tools", "", "--strict-mcp-config", "--disable-slash-commands",
-            "--no-session-persistence", "--settings", #"{"disableAllHooks":true}"#,
-        ],
-        variables: ["CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"],
-        overrides: ["--model": "ANTHROPIC_SMALL_FAST_MODEL"]
-    )
 
     static func settings(flw: String) -> [String: Any] {
         let hook: [String: Any] = ["type": "command", "command": "\(flw.shellQuoted) hook claude", "async": true]

@@ -24,15 +24,6 @@ func send(_ event: AgentEvent, to socket: String) throws {
 /// that ran `flw` has changed directory.
 let flw = Bundle.main.executableURL?.resolvingSymlinksInPath().path ?? CommandLine.arguments[0]
 
-/// Sends `event`, then keeps what was said for naming the session, and
-/// starts naming it when it is due.
-func report(_ event: AgentEvent, excerpts: [Excerpt], to socket: String) throws {
-    try send(event, to: socket)
-    if TitleStore.standard.record(event, excerpts: excerpts, now: Date()) {
-        Naming.start(event, flw: flw)
-    }
-}
-
 do {
     let command = try FlwCommand.parse(
         Array(CommandLine.arguments.dropFirst()),
@@ -47,8 +38,8 @@ do {
         print(socket)
         guard let fd = UnixSocket.connect(to: socket) else { exit(1) }
         close(fd)
-    case let .event(event, excerpts, socket):
-        try report(event, excerpts: excerpts, to: socket)
+    case let .event(event, socket):
+        try send(event, to: socket)
     case let .hook(name, socket):
         guard let adapter = AgentAdapter.named(name) else {
             debug("no agent named \(name)")
@@ -60,12 +51,7 @@ do {
             exit(0)
         }
         if let event = adapter.translate(payload) {
-            try report(event, excerpts: adapter.excerpt(payload).map { [$0] } ?? [], to: socket)
-        }
-    case let .title(name, sessionID, surfaceID, workspaceID, socket):
-        guard let adapter = AgentAdapter.named(name) else { exit(0) }
-        Naming.run(adapter: adapter, sessionID: sessionID, surfaceID: surfaceID, workspaceID: workspaceID, environment: environment) { event in
-            try? send(event, to: socket)
+            try send(event, to: socket)
         }
     case let .launch(name, arguments):
         guard let adapter = AgentAdapter.named(name) else {

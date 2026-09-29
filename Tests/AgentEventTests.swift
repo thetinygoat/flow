@@ -13,17 +13,6 @@ final class AgentEventTests: XCTestCase {
         XCTAssertEqual(try AgentEvent(line: line), event)
     }
 
-    func testTitleRoundTripsAndIsLeftOutWhenAbsent() throws {
-        let titled = AgentEvent(agent: "test", kind: .titleChanged, sessionID: "abc", surfaceID: UUID(), workspaceID: nil,
-                                cwd: "/", at: Date(timeIntervalSince1970: 1_790_000_000), title: "Fix the login flow")
-        XCTAssertEqual(try AgentEvent(line: titled.line()), titled)
-        XCTAssertTrue(String(decoding: try titled.line(), as: UTF8.self).contains(#""kind":"titleChanged""#))
-
-        let untitled = AgentEvent(agent: "test", kind: .working, surfaceID: nil, workspaceID: nil, cwd: "/", at: Date())
-        XCTAssertFalse(String(decoding: try untitled.line(), as: UTF8.self).contains("title"))
-        XCTAssertNil(try AgentEvent(line: Data(#"{"kind":"turnEnded"}"#.utf8)).title)
-    }
-
     func testTimesTravelToTheMillisecond() throws {
         let event = AgentEvent(agent: "test", kind: .working, surfaceID: nil, workspaceID: nil, cwd: "/",
                                at: Date(timeIntervalSince1970: 1_790_000_000.125))
@@ -93,29 +82,9 @@ final class FlwCommandTests: XCTestCase {
 
     func testOutsideFlowUsesTheDefaultSocketAndNoTerminal() throws {
         XCTAssertEqual(try parse(["ping"], environment: [:]), .ping(socket: AgentEnvironment.socketURL.path))
-        guard case let .event(event, _, _) = try parse(["event", "attention"], environment: [:]) else { return XCTFail() }
+        guard case let .event(event, _) = try parse(["event", "attention"], environment: [:]) else { return XCTFail() }
         XCTAssertNil(event.surfaceID)
         XCTAssertNil(event.workspaceID)
-    }
-
-    func testEventCarriesATitleAndExcerpts() throws {
-        let command = try parse(["event", "turnEnded", "--agent", "opencode", "--session", "s1", "--title", "Hi there",
-                                 "--excerpt", "user: fix: the bug", "--excerpt", "assistant:done"])
-        XCTAssertEqual(command, .event(AgentEvent(
-            agent: "opencode", kind: .turnEnded, sessionID: "s1", surfaceID: surface, workspaceID: workspace, cwd: "/work", at: now, title: "Hi there"
-        ), excerpts: [Excerpt(role: .user, text: " fix: the bug"), Excerpt(role: .assistant, text: "done")], socket: "/tmp/flow.sock"))
-        XCTAssertThrowsError(try parse(["event", "turnEnded", "--excerpt", "system: hi"]))
-        XCTAssertThrowsError(try parse(["event", "turnEnded", "--excerpt", "no role"]))
-    }
-
-    func testTitleNamesASession() throws {
-        let other = UUID()
-        XCTAssertEqual(try parse(["title", "claude", "--session", "s1", "--surface", other.uuidString]), .title(
-            adapter: "claude", sessionID: "s1", surfaceID: other, workspaceID: workspace, socket: "/tmp/flow.sock"
-        ))
-        XCTAssertThrowsError(try parse(["title", "claude"]))
-        XCTAssertThrowsError(try parse(["title", "claude", "--session", "s1", "--detail", "x"]))
-        XCTAssertEqual(try parse(["title"]), .usage)
     }
 
     func testRejectsBadEventArguments() {

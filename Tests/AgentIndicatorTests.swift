@@ -33,43 +33,4 @@ final class AgentIndicatorTests: XCTestCase {
         send(.turnStarted, .turnEnded, .sessionEnded, to: surfaces[0])
         XCTAssertNil(store.indicator(for: surfaces))
     }
-
-    func title(_ title: String, for surface: UUID) {
-        store.apply(AgentEvent(agent: "test", kind: .titleChanged, surfaceID: surface, workspaceID: nil, cwd: "/", at: Date(), title: title))
-    }
-
-    func testATitleBelongsToItsOwnTerminal() {
-        XCTAssertNil(store.title(for: surfaces[0]))
-        send(.turnStarted, .turnEnded, to: surfaces[0])
-        title("First", for: surfaces[0])
-        send(.turnStarted, .needsInput, to: surfaces[1])
-        XCTAssertEqual(store.title(for: surfaces[0]), "First")
-        XCTAssertNil(store.title(for: surfaces[1]))
-        send(.sessionEnded, to: surfaces[0])
-        XCTAssertNil(store.title(for: surfaces[0]))
-    }
-
-    func testAWorkspaceShowsTheTitleOfItsFocusedPane() {
-        let leaves = surfaces.map { FakeLeaf(id: $0) }
-        let workspace = WorkspaceModel<FakeLeaf>()
-        let split = TestTab(leaf: leaves[0])
-        split.panes.split(leaves[0], direction: .right, with: leaves[1])
-        let other = TestTab(leaf: leaves[2])
-        workspace.add(split)
-        workspace.add(other)
-        for (index, surface) in surfaces.prefix(3).enumerated() {
-            send(.sessionStarted, to: surface)
-            title("Pane \(index)", for: surface)
-        }
-        func shown() -> String? { workspace.focusedLeaf.flatMap { store.title(for: $0.id) } }
-
-        XCTAssertEqual(shown(), "Pane 2")
-        workspace.select(split)
-        XCTAssertEqual(shown(), "Pane 0")
-        split.focus(leaves[1])
-        XCTAssertEqual(shown(), "Pane 1")
-        split.panes.split(leaves[1], direction: .down, with: leaves[3])
-        split.focus(leaves[3])
-        XCTAssertNil(shown())
-    }
 }

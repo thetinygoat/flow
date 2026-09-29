@@ -54,7 +54,7 @@ final class TitleContextTests: XCTestCase {
     func testThePromptHoldsTheConversation() {
         let context = context([(.user, "Fix the login"), (.assistant, "Fixed it")])
         XCTAssertTrue(context.prompt.contains("user: Fix the login\nassistant: Fixed it"))
-        XCTAssertTrue(context.prompt.hasSuffix("Reply with only one sentence of at most 15 words saying what this conversation is about."))
+        XCTAssertTrue(context.prompt.hasSuffix(#"Reply with only a title for this conversation, as a document heading of at most 8 words: a noun phrase, no leading "The conversation" or "Explaining", no trailing period, no quotes."#))
     }
 }
 
@@ -177,6 +177,8 @@ final class TitleReplyTests: XCTestCase {
         XCTAssertEqual(clean("# Fix login redirect"), "Fix login redirect")
         XCTAssertEqual(clean("- `Fix login redirect`."), "Fix login redirect")
         XCTAssertEqual(clean("Title: Fix login redirect"), "Fix login redirect")
+        XCTAssertEqual(clean("title: \"Fix login redirect.\""), "Fix login redirect")
+        XCTAssertEqual(clean("**Title:** Fix login redirect."), "Fix login redirect")
     }
 
     func testTakesTheFirstLineAndCollapsesSpace() {

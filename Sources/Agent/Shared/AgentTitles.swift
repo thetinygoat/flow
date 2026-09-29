@@ -127,7 +127,7 @@ struct TitleContext: Codable, Equatable {
             \(conversation)
             </conversation>
 
-            Reply with only one sentence of at most 15 words saying what this conversation is about.
+            Reply with only a title for this conversation, as a document heading of at most 8 words: a noun phrase, no leading "The conversation" or "Explaining", no trailing period, no quotes.
             """
     }
 }

@@ -20,8 +20,10 @@ export const Flow = async () => {
   const lastText = new Map()
   const busy = new Set()
   const live = new Set()
-  // The tool each open permission request holds up, by request id.
-  const asking = new Map()
+  // A session asks for several things at once when tools run in parallel, and
+  // waits until all are answered. By session, each open request's id and the
+  // tool it holds up.
+  const pending = new Map()
   // Flow orders events by when `flw` sends them, so each waits for the one before.
   let sent = Promise.resolve()
 
@@ -57,26 +59,31 @@ export const Flow = async () => {
           break
         case "session.idle":
           busy.delete(sessionID)
+          pending.delete(sessionID)
           send("turnEnded", sessionID, lastText.get(sessionID))
           lastText.delete(sessionID)
           break
         case "permission.asked":
-          asking.set(properties.id, properties.permission)
-          send("needsInput", sessionID, "permission")
+        case "question.asked": {
+          const permission = event.type === "permission.asked"
+          if (!pending.has(sessionID)) pending.set(sessionID, new Map())
+          pending.get(sessionID).set(properties.id, permission ? properties.permission : undefined)
+          send("needsInput", sessionID, permission ? "permission" : "question")
           break
-        case "question.asked":
-          send("needsInput", sessionID, "question")
-          break
+        }
         // The session stays busy while it waits, so no busy status follows
         // the answer. A rejection that ends the turn is followed by session.idle.
         case "permission.replied":
-          send("working", sessionID, asking.get(properties.requestID))
-          asking.delete(properties.requestID)
-          break
         case "question.replied":
-        case "question.rejected":
-          send("working", sessionID)
+        case "question.rejected": {
+          const requests = pending.get(sessionID)
+          const tool = requests?.get(properties.requestID)
+          requests?.delete(properties.requestID)
+          if (requests?.size) break
+          pending.delete(sessionID)
+          send("working", sessionID, tool)
           break
+        }
         case "session.error": {
           const error = properties.error
           send("attention", sessionID, summary(String(error?.data?.message ?? error?.name ?? "error")))
@@ -86,11 +93,12 @@ export const Flow = async () => {
           send("sessionEnded", sessionID)
           live.delete(sessionID)
           children.delete(sessionID)
+          pending.delete(sessionID)
           break
       }
     },
     "tool.execute.before": async ({ tool, sessionID }) => {
-      send("working", sessionID, tool)
+      if (!pending.has(sessionID)) send("working", sessionID, tool)
     },
     // Quitting OpenCode deletes no sessions, so the ones it had open end here.
     dispose: async () => {

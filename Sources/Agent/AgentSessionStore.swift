@@ -59,8 +59,9 @@ final class AgentSessionStore {
         }
         let previous = sessions[surface]
         // Each hook reaches the socket in its own process, so a later hook can
-        // overtake an earlier one.
-        if let previous, event.kind != .sessionStarted, event.at < previous.updatedAt {
+        // overtake an earlier one. A start of another session is never stale:
+        // the terminal has moved on to it.
+        if let previous, event.at < previous.updatedAt, event.kind != .sessionStarted || event.sessionID == previous.sessionID {
             logger.notice("agent event \(event.kind.rawValue, privacy: .public) ignored: older than the last one for terminal \(surface.uuidString, privacy: .public)")
             return
         }

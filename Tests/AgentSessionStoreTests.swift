@@ -160,6 +160,24 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertEqual(session?.state, .working)
     }
 
+    func testALateStartOfTheSameSessionIsIgnored() {
+        let early = Date(timeIntervalSince1970: 1), late = Date(timeIntervalSince1970: 2)
+        send(.turnStarted, at: late)
+        let before = changes
+        send(.sessionStarted, at: early)
+        XCTAssertEqual(session?.state, .working)
+        XCTAssertEqual(session?.updatedAt, late)
+        XCTAssertEqual(changes, before)
+    }
+
+    func testANewerStartOfTheSameSessionResetsIt() {
+        let early = Date(timeIntervalSince1970: 1), late = Date(timeIntervalSince1970: 2)
+        send(.turnStarted, at: early)
+        send(.attention, detail: "old news", at: early)
+        send(.sessionStarted, at: late)
+        XCTAssertEqual(session, AgentSessionStore.Session(agent: "test", sessionID: "s1", startedAt: late, updatedAt: late))
+    }
+
     func testAnOlderSessionStartStillStartsAFreshSession() {
         let early = Date(timeIntervalSince1970: 1), late = Date(timeIntervalSince1970: 2)
         send(.turnStarted, session: "old", at: late)

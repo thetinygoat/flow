@@ -61,13 +61,15 @@ final class AgentDotView: NSView {
         }
     }
 
-    override var wantsUpdateLayer: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let color else { return }
+        color.setFill()
+        NSBezierPath(ovalIn: bounds).fill()
+    }
 
-    /// Runs with the view's appearance current, so the system colours match
-    /// light or dark mode.
-    override func updateLayer() {
-        layer?.cornerRadius = Self.size / 2
-        layer?.backgroundColor = color?.cgColor
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 
     override func viewDidMoveToWindow() {

@@ -124,4 +124,65 @@ final class WorkspaceTests: XCTestCase {
         store.remove(workspace)
         XCTAssertEqual(changes, 4)
     }
+
+    func testMovingWorkspacesPreservesSelectionAndNotifies() {
+        let store = TestStore()
+        let workspaces = (0..<4).map { _ in store.addWorkspace() }
+        store.select(workspaces[1])
+        var changes = 0
+        store.onChange = { changes += 1 }
+
+        XCTAssertTrue(store.move(workspaces[1], toInsertionIndex: 4))
+        XCTAssertEqual(store.workspaces.map(\.id), [workspaces[0], workspaces[2], workspaces[3], workspaces[1]].map(\.id))
+        XCTAssertTrue(store.selected === workspaces[1])
+
+        XCTAssertTrue(store.move(workspaces[3], toInsertionIndex: 0))
+        XCTAssertEqual(store.workspaces.map(\.id), [workspaces[3], workspaces[0], workspaces[2], workspaces[1]].map(\.id))
+        XCTAssertTrue(store.selected === workspaces[1])
+
+        XCTAssertTrue(store.move(workspaces[0], toInsertionIndex: 3))
+        XCTAssertEqual(store.workspaces.map(\.id), [workspaces[3], workspaces[2], workspaces[0], workspaces[1]].map(\.id))
+        XCTAssertEqual(changes, 3)
+    }
+
+    func testInvalidAndUnchangedMovesDoNotNotify() {
+        let store = TestStore()
+        let first = store.addWorkspace()
+        let second = store.addWorkspace()
+        var changes = 0
+        store.onChange = { changes += 1 }
+
+        XCTAssertTrue(store.move(first, toInsertionIndex: 0))
+        XCTAssertTrue(store.move(first, toInsertionIndex: 1))
+        XCTAssertTrue(store.move(second, toInsertionIndex: 2))
+        XCTAssertFalse(store.move(first, toInsertionIndex: -1))
+        XCTAssertFalse(store.move(first, toInsertionIndex: 3))
+        XCTAssertFalse(store.move(WorkspaceModel<FakeLeaf>(), toInsertionIndex: 0))
+        XCTAssertEqual(store.workspaces.map(\.id), [first.id, second.id])
+        XCTAssertEqual(changes, 0)
+        store.remove(first)
+        changes = 0
+        XCTAssertFalse(store.move(first, toInsertionIndex: 0))
+        XCTAssertEqual(store.workspaces.map(\.id), [second.id])
+        XCTAssertTrue(store.selected === second)
+        XCTAssertEqual(changes, 0)
+    }
+
+    func testMoveObserversSeeFinalOrderAndPreservedSelection() {
+        let store = TestStore()
+        let workspaces = (0..<3).map { _ in store.addWorkspace() }
+        store.select(workspaces[1])
+        var observedOrders: [[UUID]] = []
+        store.onChange = {
+            observedOrders.append(store.workspaces.map(\.id))
+            XCTAssertTrue(store.selected === workspaces[1])
+        }
+
+        XCTAssertTrue(store.move(workspaces[1], toInsertionIndex: 3))
+        XCTAssertTrue(store.move(workspaces[2], toInsertionIndex: 0))
+        XCTAssertEqual(observedOrders, [
+            [workspaces[0].id, workspaces[2].id, workspaces[1].id],
+            [workspaces[2].id, workspaces[0].id, workspaces[1].id],
+        ])
+    }
 }

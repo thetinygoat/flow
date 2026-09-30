@@ -16,9 +16,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     private let store: WorkspaceStore
     private let tableView = WorkspaceTableView()
+    private static let workspacePasteboardType = NSPasteboard.PasteboardType("dev.thetinygoat.flow.workspace")
+    private var draggingWorkspace: Workspace?
+    private var isReloading = false
     private var hoveredRow = -1
     private let git = GitStatusMonitor()
-    private var isReloading = false
     /// Its row is left alone by reloads, which would otherwise replace the
     /// cell and discard the name being typed.
     private var renaming: Workspace?
@@ -44,6 +46,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.dataSource = self
         tableView.delegate = self
         tableView.allowsEmptySelection = false
+        tableView.target = self
+        tableView.action = #selector(selectClickedWorkspace)
+        tableView.registerForDraggedTypes([Self.workspacePasteboardType])
+        tableView.setDraggingSourceOperationMask(.move, forLocal: true)
+        tableView.setDraggingSourceOperationMask([], forLocal: false)
         git.onUpdate = { [weak self] in self?.reload() }
 
         let menu = NSMenu()
@@ -84,8 +91,9 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     func reload() {
+        let wasReloading = isReloading
         isReloading = true
-        defer { isReloading = false }
+        defer { isReloading = wasReloading }
         git.watch(store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory })
 
         if tableView.numberOfRows == store.workspaces.count {
@@ -120,15 +128,30 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     /// the dots are updated.
     func updateAgentIndicators() {
         for row in 0..<min(tableView.numberOfRows, store.workspaces.count) {
-            guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
-            cell.agentIndicator = agentIndicator(store.workspaces[row])
+            guard let workspace = workspace(at: row),
+                  let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
+            cell.agentIndicator = agentIndicator(workspace)
         }
     }
 
+    private func workspace(at row: Int) -> Workspace? {
+        store.workspaces.indices.contains(row) ? store.workspaces[row] : nil
+    }
+
+    private var clickedWorkspace: Workspace? {
+        workspace(at: tableView.clickedRow)
+    }
+
+    /// The table sends its action when a press ends without becoming a drag
+    /// or a context menu, which is when a click means switching workspaces.
+    @objc private func selectClickedWorkspace() {
+        guard let workspace = clickedWorkspace, workspace !== store.selected else { return }
+        delegate?.sidebar(self, didSelect: workspace)
+    }
+
     @objc private func renameClickedWorkspace() {
-        let row = tableView.clickedRow
-        guard row >= 0, row < store.workspaces.count else { return }
-        beginRename(of: store.workspaces[row])
+        guard let workspace = clickedWorkspace else { return }
+        beginRename(of: workspace)
     }
 
     func beginRename(of workspace: Workspace) {
@@ -145,9 +168,8 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     @objc private func closeClickedWorkspace() {
-        let row = tableView.clickedRow
-        guard row >= 0, row < store.workspaces.count else { return }
-        delegate?.sidebar(self, wantsClose: store.workspaces[row])
+        guard let workspace = clickedWorkspace else { return }
+        delegate?.sidebar(self, wantsClose: workspace)
     }
 
     /// One row at most shows its close button: the row under the pointer.
@@ -166,6 +188,51 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         store.workspaces.count
     }
 
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard workspace(at: row) != nil else { return nil }
+        let item = NSPasteboardItem()
+        item.setData(Data(), forType: Self.workspacePasteboardType)
+        return item
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession,
+                   willBeginAt screenPoint: NSPoint, forRowIndexes rowIndexes: IndexSet) {
+        draggingWorkspace = rowIndexes.first.flatMap { workspace(at: $0) }
+    }
+
+    private func draggedWorkspace(_ info: NSDraggingInfo) -> Workspace? {
+        guard let source = info.draggingSource as? NSTableView, source === tableView,
+              let draggingWorkspace, store.workspaces.contains(where: { $0 === draggingWorkspace }) else { return nil }
+        return draggingWorkspace
+    }
+
+    func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo,
+                   proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        guard draggedWorkspace(info) != nil, (0...store.workspaces.count).contains(row) else { return [] }
+        var index = row
+        if dropOperation == .on {
+            guard store.workspaces.indices.contains(row) else { return [] }
+            let pointer = tableView.convert(info.draggingLocation, from: nil)
+            index = insertionIndex(forDropOn: row, pointerY: pointer.y, rowRect: tableView.rect(ofRow: row))
+        }
+        // Dropping a row back where it is stays allowed, as in Finder, and
+        // leaves the order alone.
+        tableView.setDropRow(index, dropOperation: .above)
+        return .move
+    }
+
+    func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo,
+                   row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+        guard dropOperation == .above, let workspace = draggedWorkspace(info) else { return false }
+        return store.move(workspace, toInsertionIndex: row)
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession,
+                   endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        draggingWorkspace = nil
+        self.tableView.refreshPointer(at: screenPoint)
+    }
+
     // MARK: NSTableViewDelegate
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -177,36 +244,39 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     private func gitStatus(forRow row: Int) -> GitStatus? {
-        guard row < store.workspaces.count,
-              let directory = store.workspaces[row].selectedTab?.focusedSurface.workingDirectory else { return nil }
+        guard let directory = workspace(at: row)?.selectedTab?.focusedSurface.workingDirectory else { return nil }
         return git.status(for: directory)
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard let workspace = workspace(at: row) else { return nil }
         let identifier = NSUserInterfaceItemIdentifier("workspaceCell")
         let cell = tableView.makeView(withIdentifier: identifier, owner: nil) as? WorkspaceCellView ?? {
             let cell = WorkspaceCellView()
             cell.identifier = identifier
             return cell
         }()
-        let workspace = store.workspaces[row]
         cell.titleLabel.stringValue = workspace.name
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
         cell.gitStatus = gitStatus(forRow: row)
         cell.isHovered = row == hoveredRow
         cell.agentIndicator = agentIndicator(workspace)
-        cell.onClose = { [weak self] in
-            guard let self, row < self.store.workspaces.count else { return }
-            self.delegate?.sidebar(self, wantsClose: self.store.workspaces[row])
+        cell.onClose = { [weak self, weak workspace] in
+            guard let self, let workspace, self.store.workspaces.contains(where: { $0 === workspace }) else { return }
+            self.delegate?.sidebar(self, wantsClose: workspace)
         }
         return cell
     }
 
+    /// Mouse presses may become drags. Accessibility selection can proceed
+    /// without waiting for a click action.
+    func tableView(_ tableView: NSTableView, selectionIndexesForProposedSelection proposedSelectionIndexes: IndexSet) -> IndexSet {
+        self.tableView.isHandlingMouseDown ? tableView.selectedRowIndexes : proposedSelectionIndexes
+    }
+
     func tableViewSelectionDidChange(_ notification: Notification) {
-        guard !isReloading else { return }
-        let row = tableView.selectedRow
-        guard row >= 0, row < store.workspaces.count else { return }
-        let workspace = store.workspaces[row]
+        guard !isReloading, !tableView.isHandlingMouseDown,
+              let workspace = workspace(at: tableView.selectedRow) else { return }
         guard workspace !== store.selected else { return }
         delegate?.sidebar(self, didSelect: workspace)
     }
@@ -216,6 +286,19 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 /// hovered row stays right while rows scroll or are reused.
 private final class WorkspaceTableView: NSTableView {
     var onPointerMove: (() -> Void)?
+    private(set) var isHandlingMouseDown = false
+
+    override func mouseDown(with event: NSEvent) {
+        isHandlingMouseDown = true
+        defer { isHandlingMouseDown = false }
+        super.mouseDown(with: event)
+    }
+
+    func refreshPointer(at screenPoint: NSPoint) {
+        pointer = window?.convertPoint(fromScreen: screenPoint)
+        onPointerMove?()
+    }
+
     private var pointer: NSPoint?
     private var pointerArea: NSTrackingArea?
 
@@ -224,7 +307,9 @@ private final class WorkspaceTableView: NSTableView {
     override var acceptsFirstResponder: Bool { false }
 
     var hoveredRow: Int {
-        pointer.map { row(at: convert($0, from: nil)) } ?? -1
+        guard let pointer else { return -1 }
+        let point = convert(pointer, from: nil)
+        return visibleRect.contains(point) ? row(at: point) : -1
     }
 
     override func updateTrackingAreas() {
@@ -269,6 +354,39 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     private var nameBeforeRenaming = ""
     private var clickMonitor: Any?
     var onClose: (() -> Void)?
+
+    /// The dragged row shows what it is rather than what the pointer or the
+    /// command key happen to reveal on it, so the agent dot stays visible.
+    override var draggingImageComponents: [NSDraggingImageComponent] {
+        let wasHovered = isHovered
+        let hintText = hint.text
+        isHovered = false
+        showShortcutHint(nil)
+        layoutSubtreeIfNeeded()
+        // Vector rather than bitmap, so it stays sharp on any display the
+        // drag crosses.
+        let snapshot = NSImage(data: dataWithPDF(inside: bounds))
+        isHovered = wasHovered
+        showShortcutHint(hintText)
+
+        let appearance = effectiveAppearance
+        let image = NSImage(size: bounds.size, flipped: false) { rect in
+            appearance.performAsCurrentDrawingAppearance {
+                let card = NSBezierPath(rect: rect.insetBy(dx: 2, dy: 2))
+                NSColor.windowBackgroundColor.setFill()
+                card.fill()
+                NSColor.separatorColor.setStroke()
+                card.lineWidth = 1
+                card.stroke()
+            }
+            snapshot?.draw(in: rect)
+            return true
+        }
+        let component = NSDraggingImageComponent(key: .icon)
+        component.contents = image
+        component.frame = bounds
+        return [component]
+    }
 
     init() {
         super.init(frame: .zero)

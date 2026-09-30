@@ -136,6 +136,18 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         onChange?()
     }
 
+    @discardableResult
+    func move(_ workspace: WorkspaceModel<Leaf>, toInsertionIndex index: Int) -> Bool {
+        guard (0...workspaces.count).contains(index),
+              let source = workspaces.firstIndex(where: { $0 === workspace }) else { return false }
+        let destination = index > source ? index - 1 : index
+        guard source != destination else { return true }
+        workspaces.remove(at: source)
+        workspaces.insert(workspace, at: destination)
+        onChange?()
+        return true
+    }
+
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
         for workspace in workspaces {
             if let tab = workspace.tab(containing: leaf) { return (workspace, tab) }

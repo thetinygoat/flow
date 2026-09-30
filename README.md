@@ -40,6 +40,8 @@ Flow updates itself.
 
 Each project gets its own workspace in the sidebar, with its own tabs and split panes. Flow reopens everything as you left it.
 
+Drag workspaces up or down in the sidebar to reorder them. Flow remembers their order when you reopen it.
+
 | Shortcut                              | Action           |
 | ------------------------------------- | ---------------- |
 | <kbd>⌘</kbd><kbd>N</kbd>              | New workspace    |

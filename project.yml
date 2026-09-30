@@ -163,6 +163,7 @@ targets:
       - path: Sources/Ghostty/DropText.swift
       - path: Sources/Ghostty/LinkTarget.swift
       - path: Sources/UI/WorkspaceMenu.swift
+      - path: Sources/UI/RowDrop.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

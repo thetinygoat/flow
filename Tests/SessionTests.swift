@@ -1,6 +1,33 @@
 import XCTest
 
 final class SessionTests: XCTestCase {
+    func testReorderedWorkspacesRestoreFromFileWithSelectionAndContents() throws {
+        let store = TestStore()
+        let workspaces = ["first", "second", "third"].map { name in
+            let workspace = store.addWorkspace(customName: name)
+            workspace.add(TestTab(leaf: FakeLeaf(workingDirectory: "/" + name)))
+            return workspace
+        }
+        store.select(workspaces[0])
+        store.move(workspaces[0], toInsertionIndex: 3)
+        store.move(workspaces[2], toInsertionIndex: 0)
+        let expected = store.snapshot()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("session.json")
+        Session(windows: [expected]).save(to: url)
+
+        let loaded = try XCTUnwrap(Session.load(from: url))
+        let restored = TestStore()
+        restored.restore(loaded.windows[0]) { id, directory, _ in
+            FakeLeaf(id: id, workingDirectory: directory)
+        }
+
+        XCTAssertEqual(restored.workspaces.map(\.id), [workspaces[2].id, workspaces[1].id, workspaces[0].id])
+        XCTAssertEqual(restored.selected?.id, workspaces[0].id)
+        XCTAssertEqual(restored.snapshot(), expected)
+    }
+
     func testRoundTripPreservesLayoutNamesAndSelection() {
         let store = TestStore()
         let first = store.addWorkspace(customName: "work")

@@ -15,11 +15,11 @@ fi
     'builtin' 'unset' '_flow_file'
     # The first prompt comes after the user's config has set PATH, so the
     # shims go in front of wherever the agents were installed.
-    if [[ -o 'interactive' && -n "$FLOW_SURFACE_ID" && -z "$FLOW_AGENTS_DISABLED" ]]; then
+    if [[ -o 'interactive' && -n "$FLOW_SURFACE_ID" && -n "$FLOW_SHIMS" && -z "$FLOW_AGENTS_DISABLED" ]]; then
         _flow_agents_init() {
             precmd_functions=(${precmd_functions:#_flow_agents_init})
             'builtin' 'unfunction' '_flow_agents_init'
-            'builtin' 'local' dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID"
+            'builtin' 'local' dir="$FLOW_SHIMS/$FLOW_SURFACE_ID"
             "$FLOW_FLW" shims "$dir" && 'builtin' 'export' PATH="$dir:$PATH"
         }
         'builtin' 'typeset' -ga precmd_functions

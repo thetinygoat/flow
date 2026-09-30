@@ -13,10 +13,10 @@ end
 
 # The first prompt comes after the user's config has set PATH, so the shims
 # go in front of wherever the agents were installed.
-if status is-interactive; and set --query FLOW_SURFACE_ID; and not set --query FLOW_AGENTS_DISABLED
+if status is-interactive; and set --query FLOW_SURFACE_ID FLOW_SHIMS; and not set --query FLOW_AGENTS_DISABLED
     function __flow_agents_init --on-event fish_prompt
         functions --erase __flow_agents_init
-        set --local dir (set --query TMPDIR; and echo $TMPDIR; or echo /tmp)/flow-shims/$FLOW_SURFACE_ID
+        set --local dir $FLOW_SHIMS/$FLOW_SURFACE_ID
         "$FLOW_FLW" shims $dir; and set --global --export --prepend PATH $dir
     end
 end

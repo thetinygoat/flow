@@ -53,10 +53,10 @@ enum FlwCommand: Equatable {
     static func refreshScript(environment: [String: String]) -> String {
         let posix = #""$FLOW_FLW" shims "$dir" && PATH="$dir:$PATH""#
         guard environment["SHELL"].map({ ($0 as NSString).lastPathComponent }) == "fish" else {
-            return #"dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID""# + "\n" + posix
+            return #"dir="$FLOW_SHIMS/$FLOW_SURFACE_ID""# + "\n" + posix
         }
         return """
-            set dir (set -q TMPDIR; and echo $TMPDIR; or echo /tmp)/flow-shims/$FLOW_SURFACE_ID
+            set dir $FLOW_SHIMS/$FLOW_SURFACE_ID
             "$FLOW_FLW" shims $dir; and set -gx --prepend PATH $dir
             """
     }

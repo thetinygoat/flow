@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if windows.isEmpty {
             newWindow()
         }
-        AgentShims.removeStale(temporaryDirectory: NSTemporaryDirectory()) { [weak self] id in
+        AgentShims.removeStale { [weak self] id in
             self?.surface(withID: id) != nil
         }
         windows.forEach { $0.show() }
@@ -331,7 +331,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
-        configuration.environment = AgentEnvironment.variables(surface: id, workspace: workspace, socket: agentSocket.path, flw: Self.flwPath)
+        configuration.environment = AgentEnvironment.variables(
+            surface: id, workspace: workspace, socket: agentSocket.path, flw: Self.flwPath, shims: AgentShims.root())
         let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration)
         surface.delegate = self
         return surface

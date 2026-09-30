@@ -5,11 +5,11 @@
 #
 # The first prompt comes after the user's config has set PATH, so the shims
 # go in front of wherever the agents were installed.
-if [[ $- == *i* && -n "$FLOW_SURFACE_ID" && -z "$FLOW_AGENTS_DISABLED" ]]; then
+if [[ $- == *i* && -n "$FLOW_SURFACE_ID" && -n "$FLOW_SHIMS" && -z "$FLOW_AGENTS_DISABLED" ]]; then
     __flow_agents_init() {
         PROMPT_COMMAND=${PROMPT_COMMAND/__flow_agents_init;/}
         unset -f __flow_agents_init
-        local dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID"
+        local dir="$FLOW_SHIMS/$FLOW_SURFACE_ID"
         "$FLOW_FLW" shims "$dir" && PATH="$dir:$PATH"
     }
     PROMPT_COMMAND="__flow_agents_init;${PROMPT_COMMAND}"

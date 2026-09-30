@@ -113,10 +113,13 @@ final class FlwCommandTests: XCTestCase {
             return XCTFail()
         }
         XCTAssertEqual(posix, #"""
-            dir="${TMPDIR:-/tmp}/flow-shims/$FLOW_SURFACE_ID"
+            dir="$FLOW_SHIMS/$FLOW_SURFACE_ID"
             "$FLOW_FLW" shims "$dir" && PATH="$dir:$PATH"
             """#)
-        XCTAssertTrue(fish.contains(#""$FLOW_FLW" shims $dir; and set -gx --prepend PATH $dir"#))
+        XCTAssertEqual(fish, #"""
+            set dir $FLOW_SHIMS/$FLOW_SURFACE_ID
+            "$FLOW_FLW" shims $dir; and set -gx --prepend PATH $dir
+            """#)
     }
 
     func testAnythingElseShowsUsage() throws {

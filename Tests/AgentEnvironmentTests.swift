@@ -5,12 +5,18 @@ final class AgentEnvironmentTests: XCTestCase {
         let surface = UUID(), workspace = UUID()
 
         XCTAssertEqual(AgentEnvironment.variables(surface: surface, workspace: workspace, socket: "/tmp/agent.1.sock",
-                                                  flw: "/Applications/Flow.app/Contents/Helpers/flw"), [
+                                                  flw: "/Applications/Flow.app/Contents/Helpers/flw", shims: "/tmp/flow-shims/1"), [
             "FLOW_SURFACE_ID": surface.uuidString,
             "FLOW_WORKSPACE_ID": workspace.uuidString,
             "FLOW_SOCKET": "/tmp/agent.1.sock",
             "FLOW_FLW": "/Applications/Flow.app/Contents/Helpers/flw",
+            "FLOW_SHIMS": "/tmp/flow-shims/1",
         ])
+    }
+
+    func testEachFlowHasItsOwnShims() {
+        XCTAssertEqual(AgentShims.root(temporaryDirectory: "/tmp/"), "/tmp/flow-shims/\(getpid())")
+        XCTAssertEqual(AgentShims.root(), (NSTemporaryDirectory() as NSString).appendingPathComponent("flow-shims/\(getpid())"))
     }
 
     func testEachFlowHasItsOwnSocket() {

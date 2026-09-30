@@ -8,6 +8,8 @@ enum AgentEnvironment {
     static let socketKey = "FLOW_SOCKET"
     /// The `flw` inside the app, for the shell integration to call.
     static let flwKey = "FLOW_FLW"
+    /// Where this Flow's shells keep their shims, one directory per terminal.
+    static let shimsKey = "FLOW_SHIMS"
     /// Set by the user to start agents exactly as typed.
     static let disabledKey = "FLOW_AGENTS_DISABLED"
     /// Set by a shim, so `flw launch` can look for the real binary past it.
@@ -49,12 +51,13 @@ enum AgentEnvironment {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast
     }
 
-    static func variables(surface: UUID, workspace: UUID, socket: String, flw: String) -> [String: String] {
+    static func variables(surface: UUID, workspace: UUID, socket: String, flw: String, shims: String) -> [String: String] {
         [
             surfaceKey: surface.uuidString,
             workspaceKey: workspace.uuidString,
             socketKey: socket,
             flwKey: flw,
+            shimsKey: shims,
         ]
     }
 }

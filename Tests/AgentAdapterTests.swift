@@ -443,15 +443,25 @@ final class AgentLauncherTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: shims)[.posixPermissions] as? Int, 0o700)
     }
 
-    func testRemovesShimDirectoriesOfClosedTerminals() throws {
+    func testRemovesTheShimsOfQuitFlowsAndClosedTerminals() throws {
+        let files = FileManager.default
+        let own: pid_t = 4242, dead = deadPID(), running = getpid()
         let live = UUID(), closed = UUID()
-        for name in [live.uuidString, closed.uuidString, "not-a-terminal"] {
-            try FileManager.default.createDirectory(at: root.appendingPathComponent("flow-shims/\(name)"), withIntermediateDirectories: true)
+        func make(_ path: String) throws {
+            try files.createDirectory(at: root.appendingPathComponent("flow-shims/" + path), withIntermediateDirectories: true)
         }
+        for name in [live.uuidString, closed.uuidString, "not-a-terminal"] {
+            try make("\(own)/\(name)")
+        }
+        try make("\(dead)/\(UUID().uuidString)")
+        try make("\(running)/\(closed.uuidString)")
+        try make(closed.uuidString)
 
-        AgentShims.removeStale(temporaryDirectory: root.path) { $0 == live }
+        AgentShims.removeStale(temporaryDirectory: root.path, pid: own) { $0 == live }
 
-        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("flow-shims").path)), [live.uuidString])
-        XCTAssertEqual(AgentShims.directory(surface: live.uuidString, temporaryDirectory: root.path), root.path + "/flow-shims/" + live.uuidString)
+        XCTAssertEqual(Set(try files.contentsOfDirectory(atPath: root.appendingPathComponent("flow-shims").path)),
+                       ["\(own)", "\(running)", closed.uuidString])
+        XCTAssertEqual(try files.contentsOfDirectory(atPath: AgentShims.root(pid: own, temporaryDirectory: root.path)), [live.uuidString])
+        XCTAssertEqual(try files.contentsOfDirectory(atPath: AgentShims.root(pid: running, temporaryDirectory: root.path)), [closed.uuidString])
     }
 }

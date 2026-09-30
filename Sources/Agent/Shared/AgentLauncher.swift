@@ -61,8 +61,10 @@ struct AgentLauncher: Equatable {
 /// The per-terminal directory of scripts that stand in for agent binaries,
 /// so typing an agent's name runs it through `flw launch`.
 enum AgentShims {
-    static func directory(surface: String, temporaryDirectory: String) -> String {
-        (temporaryDirectory as NSString).appendingPathComponent("flow-shims/\(surface)")
+    /// Each running Flow keeps its terminals' shims apart, so two copies of
+    /// the app never remove each other's.
+    static func root(pid: pid_t = getpid(), temporaryDirectory: String = NSTemporaryDirectory()) -> String {
+        (temporaryDirectory as NSString).appendingPathComponent("flow-shims/\(pid)")
     }
 
     static func script(for adapter: AgentAdapter, directory: String, flw: String) -> String {
@@ -92,11 +94,20 @@ enum AgentShims {
         }
     }
 
-    /// Removes the shim directories of terminals that no longer exist.
-    static func removeStale(temporaryDirectory: String, isLive: (UUID) -> Bool) {
-        let root = (temporaryDirectory as NSString).appendingPathComponent("flow-shims")
-        for name in (try? FileManager.default.contentsOfDirectory(atPath: root)) ?? [] where !(UUID(uuidString: name).map(isLive) ?? false) {
-            try? FileManager.default.removeItem(atPath: (root as NSString).appendingPathComponent(name))
+    /// Removes the shims of Flows that have quit, and of this Flow's
+    /// terminals that no longer exist.
+    static func removeStale(temporaryDirectory: String = NSTemporaryDirectory(), pid: pid_t = getpid(), isLive: (UUID) -> Bool) {
+        let files = FileManager.default
+        let roots = (temporaryDirectory as NSString).appendingPathComponent("flow-shims")
+        for name in (try? files.contentsOfDirectory(atPath: roots)) ?? [] {
+            guard let owner = pid_t(name), owner > 0, owner != pid else { continue }
+            if !AgentEnvironment.isRunning(owner) {
+                try? files.removeItem(atPath: (roots as NSString).appendingPathComponent(name))
+            }
+        }
+        let own = root(pid: pid, temporaryDirectory: temporaryDirectory)
+        for name in (try? files.contentsOfDirectory(atPath: own)) ?? [] where !(UUID(uuidString: name).map(isLive) ?? false) {
+            try? files.removeItem(atPath: (own as NSString).appendingPathComponent(name))
         }
     }
 }

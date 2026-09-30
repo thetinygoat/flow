@@ -20,6 +20,8 @@ export const Flow = async () => {
   const lastText = new Map()
   const busy = new Set()
   const live = new Set()
+  // The tool each open permission request holds up, by request id.
+  const asking = new Map()
   // Flow orders events by when `flw` sends them, so each waits for the one before.
   let sent = Promise.resolve()
 
@@ -59,10 +61,21 @@ export const Flow = async () => {
           lastText.delete(sessionID)
           break
         case "permission.asked":
+          asking.set(properties.id, properties.permission)
           send("needsInput", sessionID, "permission")
           break
         case "question.asked":
           send("needsInput", sessionID, "question")
+          break
+        // The session stays busy while it waits, so no busy status follows
+        // the answer. A rejection that ends the turn is followed by session.idle.
+        case "permission.replied":
+          send("working", sessionID, asking.get(properties.requestID))
+          asking.delete(properties.requestID)
+          break
+        case "question.replied":
+        case "question.rejected":
+          send("working", sessionID)
           break
         case "session.error": {
           const error = properties.error

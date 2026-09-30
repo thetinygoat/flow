@@ -3,12 +3,13 @@ import Foundation
 /// What an invocation of `flw` asks for, worked out from its arguments and
 /// environment alone so it can be tested without running the tool.
 enum FlwCommand: Equatable {
-    case event(AgentEvent, socket: String)
-    case hook(adapter: String, socket: String)
+    /// A nil socket is for `flw` run outside Flow, which looks for one itself.
+    case event(AgentEvent, socket: String?)
+    case hook(adapter: String, socket: String?)
     case launch(adapter: String, arguments: [String])
     case shims(directory: String)
     case refreshAgents(script: String)
-    case ping(socket: String)
+    case ping(socket: String?)
     case usage
 
     struct UsageError: Error, Equatable, CustomStringConvertible {
@@ -28,7 +29,7 @@ enum FlwCommand: Equatable {
         """
 
     static func parse(_ arguments: [String], environment: [String: String], currentDirectory: String, now: Date) throws -> FlwCommand {
-        let socket = environment[AgentEnvironment.socketKey].flatMap { $0.isEmpty ? nil : $0 } ?? AgentEnvironment.socketURL.path
+        let socket = environment[AgentEnvironment.socketKey].flatMap { $0.isEmpty ? nil : $0 }
         switch (arguments.first, arguments.dropFirst().first) {
         case ("event", _):
             return .event(try event(Array(arguments.dropFirst()), environment: environment, currentDirectory: currentDirectory, now: now), socket: socket)

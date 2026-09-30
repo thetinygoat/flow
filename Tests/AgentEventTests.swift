@@ -80,8 +80,9 @@ final class FlwCommandTests: XCTestCase {
         ), socket: "/tmp/flow.sock"))
     }
 
-    func testOutsideFlowUsesTheDefaultSocketAndNoTerminal() throws {
-        XCTAssertEqual(try parse(["ping"], environment: [:]), .ping(socket: AgentEnvironment.socketURL.path))
+    func testOutsideFlowLeavesTheSocketToFindAndNoTerminal() throws {
+        XCTAssertEqual(try parse(["ping"], environment: [:]), .ping(socket: nil))
+        XCTAssertEqual(try parse(["ping"], environment: ["FLOW_SOCKET": ""]), .ping(socket: nil))
         guard case let .event(event, _) = try parse(["event", "attention"], environment: [:]) else { return XCTFail() }
         XCTAssertNil(event.surfaceID)
         XCTAssertNil(event.workspaceID)

@@ -9,7 +9,16 @@ func debug(_ message: String) {
     FileHandle.standardError.write(Data("flw: \(message)\n".utf8))
 }
 
-func send(_ event: AgentEvent, to socket: String) throws {
+/// Outside Flow there is no FLOW_SOCKET, so `flw` talks to the Flow started last.
+func resolve(_ socket: String?) -> String? {
+    socket ?? AgentEnvironment.newestRunningSocket()?.path
+}
+
+func send(_ event: AgentEvent, to socket: String?) throws {
+    guard let socket = resolve(socket) else {
+        debug("no Flow is running")
+        return
+    }
     guard let fd = UnixSocket.connect(to: socket) else {
         debug("cannot connect to \(socket)")
         return
@@ -35,6 +44,10 @@ do {
     case .usage:
         FileHandle.standardError.write(Data((FlwCommand.usageText + "\n").utf8))
     case let .ping(socket):
+        guard let socket = resolve(socket) else {
+            FileHandle.standardError.write(Data("flw: no Flow is running\n".utf8))
+            exit(1)
+        }
         print(socket)
         guard let fd = UnixSocket.connect(to: socket) else { exit(1) }
         close(fd)

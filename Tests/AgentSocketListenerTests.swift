@@ -44,4 +44,18 @@ final class AgentSocketListenerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertNil(UnixSocket.connect(to: url.path))
     }
+
+    func testRemovesOnlyTheSocketsOfFlowsThatAreGone() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let live = AgentEnvironment.socketURL(pid: getpid(), in: directory)
+        let dead = AgentEnvironment.socketURL(pid: deadPID(), in: directory)
+        let other = directory.appendingPathComponent("notes.txt")
+        for url in [live, dead, other] {
+            try Data().write(to: url)
+        }
+        AgentSocketListener.removeStaleSockets(in: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: live.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dead.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: other.path))
+    }
 }

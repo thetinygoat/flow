@@ -20,9 +20,16 @@ final class AgentSocketListener {
         init(source: DispatchSourceRead) { self.source = source }
     }
 
-    init(url: URL = AgentEnvironment.socketURL, deliver: @escaping @MainActor (AgentEvent) -> Void) {
+    init(url: URL = AgentEnvironment.socketURL(), deliver: @escaping @MainActor (AgentEvent) -> Void) {
         self.url = url
         self.deliver = deliver
+    }
+
+    /// A Flow that crashed or was killed left its socket behind.
+    static func removeStaleSockets(in directory: URL = AgentEnvironment.socketDirectory) {
+        for socket in AgentEnvironment.sockets(in: directory) where !AgentEnvironment.isRunning(socket.pid) {
+            unlink(socket.url.path)
+        }
     }
 
     deinit {

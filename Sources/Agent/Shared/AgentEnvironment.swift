@@ -13,15 +13,47 @@ enum AgentEnvironment {
     /// Set by a shim, so `flw launch` can look for the real binary past it.
     static let shimDirectoryKey = "FLOW_SHIM_DIR"
 
-    static let socketURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    static let socketDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("flow", isDirectory: true)
-        .appendingPathComponent("agent.sock")
 
-    static func variables(surface: UUID, workspace: UUID, flw: String) -> [String: String] {
+    /// Each running Flow listens on its own socket, so two copies of the app
+    /// never take each other's.
+    static func socketURL(pid: pid_t = getpid(), in directory: URL = socketDirectory) -> URL {
+        directory.appendingPathComponent("agent.\(pid).sock")
+    }
+
+    /// The agent sockets in `directory`, with the pid of the Flow that made each.
+    static func sockets(in directory: URL = socketDirectory) -> [(url: URL, pid: pid_t)] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return names.compactMap { name in
+            guard name.hasPrefix("agent."), name.hasSuffix(".sock"),
+                  let pid = pid_t(name.dropFirst("agent.".count).dropLast(".sock".count)), pid > 0 else { return nil }
+            return (directory.appendingPathComponent(name), pid)
+        }
+    }
+
+    /// A process owned by someone else still exists, it just cannot be signalled.
+    static func isRunning(_ pid: pid_t) -> Bool {
+        kill(pid, 0) == 0 || errno != ESRCH
+    }
+
+    /// For `flw` run outside Flow: the socket of the Flow started most recently.
+    static func newestRunningSocket(in directory: URL = socketDirectory) -> URL? {
+        sockets(in: directory)
+            .filter { isRunning($0.pid) }
+            .max { modified($0.url) < modified($1.url) }?
+            .url
+    }
+
+    private static func modified(_ url: URL) -> Date {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast
+    }
+
+    static func variables(surface: UUID, workspace: UUID, socket: String, flw: String) -> [String: String] {
         [
             surfaceKey: surface.uuidString,
             workspaceKey: workspace.uuidString,
-            socketKey: socketURL.path,
+            socketKey: socket,
             flwKey: flw,
         ]
     }

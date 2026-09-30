@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// automatically; nothing is checked before the user agrees.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var agentSessions: AgentSessionStore!
+    private let agentSocket = AgentEnvironment.socketURL()
     private var agentListener: AgentSocketListener?
     private lazy var serviceProvider = ServiceProvider { [weak self] directory, newWindow in
         self?.openWorkspace(in: directory, newWindow: newWindow)
@@ -74,7 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.surface(withID: update.surface)?.1.agentIsWorking = update.session.state == .ended ? nil : update.session.state == .working
             self?.notify(update)
         }
-        let listener = AgentSocketListener { [weak self] event in
+        AgentSocketListener.removeStaleSockets()
+        let listener = AgentSocketListener(url: agentSocket) { [weak self] event in
             self?.agentSessions.apply(event)
         }
         do {
@@ -329,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
-        configuration.environment = AgentEnvironment.variables(surface: id, workspace: workspace, flw: Self.flwPath)
+        configuration.environment = AgentEnvironment.variables(surface: id, workspace: workspace, socket: agentSocket.path, flw: Self.flwPath)
         let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration)
         surface.delegate = self
         return surface

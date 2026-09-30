@@ -23,7 +23,9 @@ final class DesktopNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     /// A notification posted with the `replacing` key of one still delivered
     /// takes its place, so a terminal shows only the latest of that kind.
-    func post(title: String, body: String, subtitle: String, from terminal: UUID, evenIfInView: Bool = false, replacing key: String? = nil) {
+    /// Callers that play their own sound post it `silent`.
+    func post(title: String, body: String, subtitle: String, from terminal: UUID, evenIfInView: Bool = false,
+              replacing key: String? = nil, silent: Bool = false) {
         guard evenIfInView || isInView?(terminal) != true else { return }
         // Closed terminals are forgotten here rather than on every close path;
         // their notifications could no longer bring anything to the front.
@@ -38,7 +40,7 @@ final class DesktopNotifications: NSObject, UNUserNotificationCenterDelegate {
             content.title = title
             content.subtitle = subtitle
             content.body = body
-            content.sound = .default
+            content.sound = silent ? nil : .default
             content.userInfo = ["terminal": terminal.uuidString]
             let id = key.map { "\($0).\(terminal.uuidString)" } ?? UUID().uuidString
             self.center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in

@@ -22,9 +22,7 @@ struct AgentNotification: Equatable {
         let session = update.session
         switch update.kind {
         case .needsInput:
-            // A repeat of the same wait would only replace the notification
-            // the user already has.
-            guard update.previous?.state != .waiting || update.previous?.detail != session.detail else { return nil }
+            guard !update.repeatsWait else { return nil }
             return AgentNotification(title: title, body: session.detail.flatMap { waitingReasons[$0] } ?? waitingBody)
         case .turnEnded:
             return AgentNotification(title: title, body: session.detail.nonEmpty ?? finishedBody)
@@ -36,7 +34,7 @@ struct AgentNotification: Equatable {
     }
 }
 
-private extension Optional<String> {
+extension Optional<String> {
     var nonEmpty: String? {
         flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
     }

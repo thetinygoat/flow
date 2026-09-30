@@ -26,6 +26,12 @@ final class AgentSessionStore {
         var kind: AgentEvent.Kind
         var previous: Session?
         var session: Session
+
+        /// A wait for the same reason the terminal was already waiting for,
+        /// which the user has already been told about.
+        var repeatsWait: Bool {
+            kind == .needsInput && previous?.state == .waiting && previous?.detail == session.detail
+        }
     }
 
     private(set) var sessions: [UUID: Session] = [:]

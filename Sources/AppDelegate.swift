@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hintsSuppressed = false
     private lazy var aboutWindow = AboutWindowController()
     private let notifications = DesktopNotifications()
+    private let agentSounds = AgentSounds()
     /// Sparkle asks on the second launch whether to check for updates
     /// automatically; nothing is checked before the user agrees.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -149,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         pendingSave?.cancel()
         save()
+        agentSounds.silence()
         agentListener?.stop()
     }
 
@@ -347,8 +349,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
-        guard let notification = AgentNotification.make(for: update, title: title, isVisible: window.isInView(surface)) else { return }
-        notifications.post(title: notification.title, body: notification.body, subtitle: "", from: surface.id, replacing: "agent")
+        let isVisible = window.isInView(surface)
+        if let sound = AgentSound.make(for: update, isVisible: isVisible) {
+            agentSounds.play(sound)
+        }
+        guard let notification = AgentNotification.make(for: update, title: title, isVisible: isVisible) else { return }
+        notifications.post(title: notification.title, body: notification.body, subtitle: "", from: surface.id, replacing: "agent", silent: true)
     }
 
     /// Sessions of terminals that have closed would otherwise linger, and

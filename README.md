@@ -22,7 +22,7 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 **Native and fast.** Flow is a Swift and AppKit app powered by libghostty. There is no Electron and no web view.
 
-**Agent integration (coming soon).** First-class support for AI agents like Claude Code, Codex and others.
+**Made for agents.** Flow shows what Claude Code, Codex and OpenCode are doing in each workspace, and tells you when one finishes or needs you. See [Agents](#agents).
 
 **Private and simple.** No account, no telemetry, no tracking. Your terminal is yours.
 
@@ -50,6 +50,30 @@ Drag workspaces up or down in the sidebar to reorder them. Flow remembers their 
 | <kbd>⌘</kbd><kbd>1</kbd>–<kbd>9</kbd> | Switch workspace |
 
 Hold <kbd>⌘</kbd> to see the shortcut for each workspace. The [docs](https://getflowterm.app/docs/keyboard-shortcuts/) list the rest.
+
+## Agents
+
+Run `claude`, `codex` or `opencode` in a Flow terminal and the workspace shows what it is doing:
+
+| Dot            | Meaning                                              |
+| -------------- | ---------------------------------------------------- |
+| Blue, pulsing  | The agent is working                                 |
+| Yellow         | The agent is waiting for you                         |
+| Green          | A turn finished while you were looking elsewhere     |
+
+Looking at the terminal clears the green dot. A terminal you are not looking at also gets a macOS notification, which focuses it when clicked, and a sound: one when an agent needs you, another when it finishes.
+
+Flow does this through the agents' own hooks and plugins, added to each launch and nothing else. It never writes to `~/.claude`, `~/.codex` or `~/.config/opencode`, and an agent started outside Flow behaves exactly as before. There is nothing to set up for fish and zsh. Two things need a step from you:
+
+**Bash.** Flow cannot add itself to bash. Put this at the end of `~/.bashrc` or `~/.bash_profile`:
+
+```bash
+[ -n "$FLOW_FLW" ] && source "${FLOW_FLW%/*}/../Resources/shell-integration/bash/flow.bash"
+```
+
+**Codex.** Codex runs a hook only after you have reviewed it. The first time you start `codex` in Flow, run `/hooks` inside it and trust the Flow hooks. Codex remembers your answer, and asks again only if Flow moves to a different location.
+
+To run an agent without Flow's hooks for one session, start it with `FLOW_AGENTS_DISABLED=1`.
 
 ## Configuration
 

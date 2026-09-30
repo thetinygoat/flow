@@ -3,6 +3,9 @@ import Foundation
 /// Agent hooks call this, so apart from `ping`, `launch` and `shims` it always exits 0:
 /// a Flow that is closed or confused must never fail or slow down the agent.
 let environment = ProcessInfo.processInfo.environment
+/// Hooks run in order but reach Flow in whatever order their processes get
+/// there, so events carry when `flw` started, not when it finished reading.
+let now = Date()
 
 func debug(_ message: String) {
     guard environment["FLOW_DEBUG"] != nil else { return }
@@ -38,7 +41,7 @@ do {
         Array(CommandLine.arguments.dropFirst()),
         environment: environment,
         currentDirectory: FileManager.default.currentDirectoryPath,
-        now: Date()
+        now: now
     )
     switch command {
     case .usage:
@@ -59,7 +62,7 @@ do {
             exit(0)
         }
         let input = FileHandle.standardInput.readDataToEndOfFile()
-        guard let payload = HookPayload(json: input, agent: adapter.name, environment: environment, now: Date()) else {
+        guard let payload = HookPayload(json: input, agent: adapter.name, environment: environment, now: now) else {
             debug("hook input is not a JSON object")
             exit(0)
         }

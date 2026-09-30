@@ -160,20 +160,33 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertEqual(session?.state, .working)
     }
 
-    func testALateStartOfTheSameSessionIsIgnored() {
+    func testAStartOfTheLiveSessionKeepsItGoingWhateverItsTime() {
         let early = Date(timeIntervalSince1970: 1), late = Date(timeIntervalSince1970: 2)
-        send(.turnStarted, at: late)
-        let before = changes
-        send(.sessionStarted, at: early)
-        XCTAssertEqual(session?.state, .working)
-        XCTAssertEqual(session?.updatedAt, late)
-        XCTAssertEqual(changes, before)
+        for startedAt in [early, late] {
+            store.remove(surface)
+            send(.sessionStarted, at: early)
+            send(.turnStarted, at: early)
+            send(.working, detail: "Bash", at: early)
+            send(.sessionStarted, at: startedAt)
+            XCTAssertEqual(session?.state, .working)
+            XCTAssertEqual(session?.detail, "Bash")
+            XCTAssertEqual(session?.startedAt, early)
+            XCTAssertEqual(session?.updatedAt, startedAt)
+        }
     }
 
-    func testANewerStartOfTheSameSessionResetsIt() {
+    func testAStartOfAnotherSessionReplacesIt() {
+        let now = Date(timeIntervalSince1970: 1)
+        send(.turnStarted, at: now)
+        send(.attention, detail: "old news", at: now)
+        send(.sessionStarted, session: "s2", at: now)
+        XCTAssertEqual(session, AgentSessionStore.Session(agent: "test", sessionID: "s2", startedAt: now, updatedAt: now))
+    }
+
+    func testAStartOfAnEndedSessionStartsItAfresh() {
         let early = Date(timeIntervalSince1970: 1), late = Date(timeIntervalSince1970: 2)
         send(.turnStarted, at: early)
-        send(.attention, detail: "old news", at: early)
+        send(.sessionEnded, at: early)
         send(.sessionStarted, at: late)
         XCTAssertEqual(session, AgentSessionStore.Session(agent: "test", sessionID: "s1", startedAt: late, updatedAt: late))
     }

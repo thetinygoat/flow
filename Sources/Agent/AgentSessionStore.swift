@@ -58,10 +58,12 @@ final class AgentSessionStore {
             return
         }
         let previous = sessions[surface]
+        // Resuming or compacting announces the running session again, and
+        // startup hooks can land after its turn has begun.
+        let restatesLiveSession = event.kind == .sessionStarted && previous.map { $0.sessionID == event.sessionID && $0.state != .ended } == true
         // Each hook reaches the socket in its own process, so a later hook can
-        // overtake an earlier one. A start of another session is never stale:
-        // the terminal has moved on to it.
-        if let previous, event.at < previous.updatedAt, event.kind != .sessionStarted || event.sessionID == previous.sessionID {
+        // overtake an earlier one.
+        if let previous, event.kind != .sessionStarted, event.at < previous.updatedAt {
             logger.notice("agent event \(event.kind.rawValue, privacy: .public) ignored: older than the last one for terminal \(surface.uuidString, privacy: .public)")
             return
         }
@@ -69,12 +71,12 @@ final class AgentSessionStore {
 
         // A session that ended, or was never announced, is started afresh by
         // whatever the agent says next, in case its sessionStarted was missed.
-        var session = previous.flatMap { event.kind == .sessionStarted || $0.state == .ended ? nil : $0 }
+        var session = previous.flatMap { (event.kind == .sessionStarted && !restatesLiveSession) || $0.state == .ended ? nil : $0 }
             ?? Session(agent: event.agent, sessionID: event.sessionID, startedAt: event.at, updatedAt: event.at)
         session.agent = event.agent
         session.sessionID = event.sessionID
-        session.updatedAt = event.at
-        if event.kind != .attention {
+        session.updatedAt = max(session.updatedAt, event.at)
+        if event.kind != .attention, !restatesLiveSession {
             session.detail = event.detail
         }
 

@@ -12,7 +12,7 @@ extension AgentAdapter {
 /// Claude Code reads hooks from a `--settings` flag as well as its settings
 /// files, so Flow hands its hooks to each launch and never touches `~/.claude`.
 enum ClaudeCode {
-    static let hookEvents = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop", "SessionEnd"]
+    static let hookEvents = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop", "StopFailure", "SessionEnd"]
 
     /// The notification types where Claude is blocked on the user. Others need
     /// nothing from them: `idle_prompt` is only a reminder, sent a minute after
@@ -95,6 +95,10 @@ enum ClaudeCode {
             return event(.needsInput, type)
         case "Stop":
             return event(.turnEnded, payload.summary("last_assistant_message"))
+        case "StopFailure":
+            // `error` is only the kind of failure, such as rate_limit; the
+            // message says what happened in words.
+            return event(.turnEnded, payload.summary("last_assistant_message") ?? payload.summary("error_details") ?? payload.summary("error"))
         case "SessionEnd":
             return event(.sessionEnded, nil)
         default:

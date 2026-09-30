@@ -17,6 +17,10 @@ enum ClaudeHookFixtures {
     static let permissionPrompt = #"{"session_id":"62dfedaf-72b8-418a-a11c-30c406412c34","transcript_path":"/Users/me/.claude/projects/-Users-me-project/62dfedaf-72b8-418a-a11c-30c406412c34.jsonl","cwd":"/Users/me/project","hook_event_name":"Notification","message":"Claude needs your permission to use Bash","notification_type":"permission_prompt"}"#
     static let authSuccess = #"{"session_id":"62dfedaf-72b8-418a-a11c-30c406412c34","cwd":"/Users/me/project","hook_event_name":"Notification","message":"Authenticated","notification_type":"auth_success"}"#
     static let pushNotification = #"{"session_id":"62dfedaf-72b8-418a-a11c-30c406412c34","cwd":"/Users/me/project","hook_event_name":"PostToolUse","tool_name":"PushNotification","tool_input":{"message":"Build finished","status":"proactive"},"tool_response":{},"tool_use_id":"toolu_01"}"#
+
+    // A failed API call cannot be forced on demand, so this follows the
+    // documented shape too.
+    static let stopFailure = #"{"session_id":"62dfedaf-72b8-418a-a11c-30c406412c34","transcript_path":"/Users/me/.claude/projects/-Users-me-project/62dfedaf-72b8-418a-a11c-30c406412c34.jsonl","cwd":"/Users/me/project","hook_event_name":"StopFailure","error":"rate_limit","error_details":"429 Too Many Requests","last_assistant_message":"API Error: Rate limit reached"}"#
 }
 
 final class AgentAdapterTests: XCTestCase {
@@ -69,6 +73,18 @@ final class ClaudeCodeTests: XCTestCase {
         }
         XCTAssertNil(try translate(ClaudeHookFixtures.authSuccess))
         XCTAssertNil(try translate(ClaudeHookFixtures.permissionPrompt.replacingOccurrences(of: "permission_prompt", with: "idle_prompt")))
+    }
+
+    func testAFailedTurnEndsWithTheError() throws {
+        XCTAssertEqual(try translate(ClaudeHookFixtures.stopFailure), expected(.turnEnded, "API Error: Rate limit reached"))
+        let withoutMessage = ClaudeHookFixtures.stopFailure.replacingOccurrences(of: #","last_assistant_message":"API Error: Rate limit reached""#, with: "")
+        XCTAssertEqual(try translate(withoutMessage), expected(.turnEnded, "429 Too Many Requests"))
+        let typeOnly = withoutMessage.replacingOccurrences(of: #","error_details":"429 Too Many Requests""#, with: "")
+        XCTAssertEqual(try translate(typeOnly), expected(.turnEnded, "rate_limit"))
+        let long = String(repeating: "overloaded ", count: 50)
+        let detail = try XCTUnwrap(try translate(ClaudeHookFixtures.stopFailure.replacingOccurrences(of: "API Error: Rate limit reached", with: #"API Error:\n\#(long)"#))?.detail)
+        XCTAssertEqual(detail.count, HookPayload.detailLimit)
+        XCTAssertFalse(detail.contains("\n"))
     }
 
     func testPushNotificationAsksForAttention() throws {

@@ -60,6 +60,7 @@ jobs:
       - name: Build libghostty
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
+          xcodebuild -downloadComponent MetalToolchain
           git submodule update --init --depth 1 Vendor/ghostty
           scripts/build-ghosttykit.sh
 

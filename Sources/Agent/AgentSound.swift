@@ -1,8 +1,7 @@
 import Foundation
 
-/// The sound played when an agent needs the user or has finished. A waiting
-/// agent is stuck until answered, so it sounds even in the terminal the user
-/// is looking at; the rest only sound where a notification would be posted.
+/// The sound played when an agent in a terminal the user is not looking at
+/// needs them or has finished.
 enum AgentSound: Equatable, Hashable {
     case needsInput, finished
 
@@ -16,7 +15,7 @@ enum AgentSound: Equatable, Hashable {
     static func make(for update: AgentSessionStore.Update, isVisible: Bool) -> AgentSound? {
         switch update.kind {
         case .needsInput:
-            update.repeatsWait ? nil : .needsInput
+            isVisible || update.repeatsWait ? nil : .needsInput
         case .turnEnded:
             isVisible ? nil : .finished
         case .attention:

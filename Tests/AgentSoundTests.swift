@@ -13,15 +13,14 @@ final class AgentSoundTests: XCTestCase {
         return AgentSessionStore.Update(surface: surface, kind: kind, previous: old, session: new)
     }
 
-    func testWaitingSoundsEvenInView() {
-        for isVisible in [false, true] {
-            XCTAssertEqual(AgentSound.make(for: update(.needsInput, state: .waiting, detail: "permission_prompt"), isVisible: isVisible), .needsInput)
-        }
+    func testWaitingSoundsOnlyOutOfView() {
+        XCTAssertEqual(AgentSound.make(for: update(.needsInput, state: .waiting, detail: "permission_prompt"), isVisible: false), .needsInput)
+        XCTAssertNil(AgentSound.make(for: update(.needsInput, state: .waiting, detail: "permission_prompt"), isVisible: true))
     }
 
     func testTheSameWaitIsSilent() {
         XCTAssertNil(AgentSound.make(for: update(.needsInput, from: .waiting, previousDetail: "permission_prompt", state: .waiting, detail: "permission_prompt"), isVisible: false))
-        XCTAssertEqual(AgentSound.make(for: update(.needsInput, from: .waiting, previousDetail: "agent_needs_input", state: .waiting, detail: "permission_prompt"), isVisible: true),
+        XCTAssertEqual(AgentSound.make(for: update(.needsInput, from: .waiting, previousDetail: "agent_needs_input", state: .waiting, detail: "permission_prompt"), isVisible: false),
                        .needsInput)
     }
 

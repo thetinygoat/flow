@@ -83,7 +83,7 @@ Flow aims to support every Ghostty setting, but some don't work in Flow yet. If 
 
 ## Build from source
 
-You need Xcode 27, Zig 0.15.2 and xcodegen (`brew install xcodegen`).
+You need Xcode 27, Zig 0.15.2 and xcodegen (`brew install zig@0.15 xcodegen`). Use Homebrew's Zig: the upstream 0.15.2 build can't link against the Xcode 26.4 and later SDKs.
 
 ```sh
 git clone --recursive https://github.com/thetinygoat/flow.git && cd flow

@@ -16,8 +16,6 @@ concurrency:
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
-  ZIG_VERSION: 0.15.2
-  ZIG_SHA256: 3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b
   XCODEGEN_VERSION: 2.46.0
   XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
 
@@ -51,11 +49,13 @@ jobs:
 
       - name: Install Zig
         if: steps.cache.outputs.cache-hit != 'true'
+        # Upstream Zig 0.15.2 can't link against the SDKs from Xcode 26.4 on;
+        # Homebrew's build carries the fix.
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/zig.tar.xz" "https://ziglang.org/download/$ZIG_VERSION/zig-aarch64-macos-$ZIG_VERSION.tar.xz"
-          echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c
-          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/zig-aarch64-macos-$ZIG_VERSION" >> "$GITHUB_PATH"
+          brew install zig@0.15
+          echo "$(brew --prefix zig@0.15)/bin" >> "$GITHUB_PATH"
 
       - name: Build libghostty
         if: steps.cache.outputs.cache-hit != 'true'

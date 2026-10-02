@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  # Runs on main too so pull requests can restore the libghostty cache, which
+  # GitHub only shares from the base branch.
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+  XCODEGEN_VERSION: 2.46.0
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+
+jobs:
+  app:
+    name: App tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute libghostty cache key
+        id: ghosttykit
+        run: |
+          hash=$({ scripts/ghosttykit-stamp.sh; cat scripts/build-ghosttykit.sh; xcodebuild -version; } | shasum -a 256 | cut -c1-32)
+          echo "key=ghosttykit-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: Restore libghostty
+        id: cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: ${{ steps.ghosttykit.outputs.key }}
+          path: |
+            Vendor/GhosttyKit.xcframework
+            Vendor/GhosttyResources
+            Vendor/GhosttyKit.stamp
+
+      - name: Install Zig
+        if: steps.cache.outputs.cache-hit != 'true'
+        # Upstream Zig 0.15.2 can't link against the SDKs from Xcode 26.4 on;
+        # Homebrew's build carries the fix.
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: |
+          brew install zig@0.15
+          echo "$(brew --prefix zig@0.15)/bin" >> "$GITHUB_PATH"
+
+      - name: Build libghostty
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          git submodule update --init --depth 1 Vendor/ghostty
+          scripts/build-ghosttykit.sh
+
+      - name: Install XcodeGen
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          echo "$XCODEGEN_SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Test
+        # CI has no signing identity, so everything is signed ad hoc.
+        run: |
+          xcodegen generate --quiet
+          xcodebuild test \
+            -scheme flow \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=
+
+  scripts:
+    name: Release script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.22
+          enable-cache: false
+
+      - run: uv run scripts/release_test.py
+
+  zizmor:
+    name: Workflow audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.22
+          enable-cache: false
+
+      - run: uvx zizmor@1.30.1 --persona=pedantic --format=github .github
+        env:
+          GH_TOKEN: ${{ github.token }}

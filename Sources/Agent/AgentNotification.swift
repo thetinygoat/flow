@@ -13,6 +13,7 @@ struct AgentNotification: Equatable {
     /// get the generic body.
     static let waitingReasons = [
         "permission_prompt": "Needs permission",
+        "permission": "Needs permission",
         "elicitation_dialog": "Has a question for you",
         "elicitation_url_dialog": "Needs you to open a link",
     ]

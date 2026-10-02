@@ -19,6 +19,7 @@ final class AgentNotificationTests: XCTestCase {
     func testWaitingNamesTheReasonWhenItKnowsIt() {
         XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "permission_prompt")),
                        AgentNotification(title: "~/Code/flow", body: "Needs permission"))
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "permission"))?.body, "Needs permission")
         XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "agent_needs_input"))?.body, "Waiting for your input")
         XCTAssertEqual(notification(update(.needsInput, state: .waiting))?.body, "Waiting for your input")
     }

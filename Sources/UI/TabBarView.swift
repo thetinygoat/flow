@@ -7,6 +7,7 @@ protocol TabBarViewDelegate: AnyObject {
 
 /// A row of closable tabs. Hidden by its owner when there is only one tab.
 final class TabBarView: NSView {
+    static let height: CGFloat = 26
     weak var delegate: TabBarViewDelegate?
     var backgroundColor: NSColor = .clear {
         didSet { needsDisplay = true }
@@ -21,6 +22,7 @@ final class TabBarView: NSView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: Self.height),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -64,6 +66,7 @@ final class TabBarView: NSView {
                 self.delegate?.tabBar(self, didCloseTabAt: index)
             }
             stack.addArrangedSubview(item)
+            item.heightAnchor.constraint(equalTo: heightAnchor).isActive = true
         }
         for (index, item) in items.enumerated() {
             item.title = titles[index]

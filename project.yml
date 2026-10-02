@@ -164,6 +164,10 @@ targets:
       - path: Sources/Ghostty/LinkTarget.swift
       - path: Sources/UI/WorkspaceMenu.swift
       - path: Sources/UI/RowDrop.swift
+      - path: Sources/UI/TabBarView.swift
+      - path: Sources/UI/ShortcutHintView.swift
+      - path: Sources/UI/AgentDotView.swift
+      - path: Sources/UI/ProgressBarView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

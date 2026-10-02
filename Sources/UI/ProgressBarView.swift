@@ -21,6 +21,10 @@ final class ProgressBarView: NSView {
         didSet {
             guard report != oldValue else { return }
             isHidden = report == nil
+            if report == nil {
+                fill.removeAnimation(forKey: "slide")
+                animatedWidth = nil
+            }
             needsLayout = true
         }
     }
@@ -28,6 +32,7 @@ final class ProgressBarView: NSView {
     private let track = CALayer()
     private let fill = CALayer()
     private let segmentWidthRatio: CGFloat = 0.25
+    private var animatedWidth: CGFloat?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -57,13 +62,14 @@ final class ProgressBarView: NSView {
         // A paused report without a percentage reads as finished work on hold.
         let percent = report.percent ?? (report.state == .pause ? 100 : nil)
 
-        fill.removeAnimation(forKey: "slide")
         withoutAnimation {
             track.frame = bounds
             track.backgroundColor = percent == nil ? color.withAlphaComponent(0.3).cgColor : nil
             fill.backgroundColor = color.cgColor
         }
         if let percent {
+            fill.removeAnimation(forKey: "slide")
+            animatedWidth = nil
             // Sublayers animate frame changes on their own, which eases the
             // bar between reported percentages.
             fill.frame = NSRect(x: 0, y: 0, width: bounds.width * CGFloat(min(max(percent, 0), 100)) / 100, height: bounds.height)
@@ -72,7 +78,12 @@ final class ProgressBarView: NSView {
             withoutAnimation {
                 fill.frame = NSRect(x: 0, y: 0, width: width, height: bounds.height)
             }
-            fill.add(slideAnimation(segmentWidth: width), forKey: "slide")
+            if animatedWidth != bounds.width || fill.animation(forKey: "slide") == nil {
+                let animation = slideAnimation(segmentWidth: width)
+                animation.beginTime = fill.animation(forKey: "slide")?.beginTime ?? fill.convertTime(CACurrentMediaTime(), from: nil)
+                fill.add(animation, forKey: "slide")
+                animatedWidth = bounds.width
+            }
         }
     }
 

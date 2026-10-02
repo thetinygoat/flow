@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Compromised releases are usually caught within days, so wait before
+    # taking one.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

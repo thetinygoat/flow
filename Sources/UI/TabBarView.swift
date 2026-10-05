@@ -118,6 +118,7 @@ private final class TabItemView: NSView {
         super.init(frame: .zero)
 
         updateStyle()
+        label.font = .systemFont(ofSize: 13)
         label.lineBreakMode = .byTruncatingTail
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         label.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -128,6 +129,7 @@ private final class TabItemView: NSView {
         close.imagePosition = .imageOnly
         close.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
         close.contentTintColor = .secondaryLabelColor
+        close.setContentHuggingPriority(.required, for: .horizontal)
 
         agentDot.isHidden = true
         let stack = NSStackView(views: [agentDot, label, hint, close])
@@ -184,13 +186,17 @@ private final class TabItemView: NSView {
     }
 
     private func updateStyle() {
-        label.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
         label.textColor = isSelected ? .labelColor : .secondaryLabelColor
         updateClose()
     }
 
+    /// Hiding the button would drop it from the stack and reflow the title,
+    /// so it stays in place and only fades out.
     private func updateClose() {
-        close.isHidden = hint.text != nil || !(isSelected || isHovered)
+        close.isHidden = hint.text != nil
+        let visible = isSelected || isHovered
+        close.alphaValue = visible ? 1 : 0
+        close.isEnabled = visible
     }
 
     func showShortcutHint(_ text: String?) {

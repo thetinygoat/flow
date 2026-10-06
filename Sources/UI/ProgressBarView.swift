@@ -51,6 +51,14 @@ final class ProgressBarView: NSView {
         nil
     }
 
+    /// Leaving the window, as a terminal does when its tab is switched away,
+    /// drops the slide animation, and rejoining at the same size doesn't lay
+    /// the bar out again on its own.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { needsLayout = true }
+    }
+
     override func layout() {
         super.layout()
         guard let report else { return }

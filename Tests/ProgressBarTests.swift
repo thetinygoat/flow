@@ -34,6 +34,19 @@ final class ProgressBarTests: XCTestCase {
         XCTAssertEqual(fill(view).frame.width, 100)
     }
 
+    func testLeavingAndRejoiningTheWindowKeepsTheAnimation() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
+        let view = ProgressBarView(frame: NSRect(x: 0, y: 0, width: 800, height: 2))
+        window.contentView!.addSubview(view)
+        view.report = ProgressReport(state: .indeterminate, percent: nil)
+        view.layoutSubtreeIfNeeded()
+        view.removeFromSuperview()
+        fill(view).removeAllAnimations()
+        window.contentView!.addSubview(view)
+        view.layoutSubtreeIfNeeded()
+        XCTAssertNotNil(fill(view).animation(forKey: "slide"))
+    }
+
     func testClearingAndDeterminateReportsStopTheAnimation() {
         let view = ProgressBarView(frame: NSRect(x: 0, y: 0, width: 800, height: 2))
         view.report = ProgressReport(state: .indeterminate, percent: nil)

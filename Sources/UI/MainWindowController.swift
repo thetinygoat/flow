@@ -47,21 +47,17 @@ final class MainWindowController: NSWindowController {
         resetZoomButton.action = #selector(resetZoomTapped)
         resetZoomButton.isBordered = false
         resetZoomButton.toolTip = "Show all panes"
-        resetZoomButton.frame.size = NSSize(width: 32, height: 28)
         resetZoomButton.isHidden = true
-        zoomAccessory.view = resetZoomButton
+        zoomAccessory.view = Self.accessoryRow([resetZoomButton])
         zoomAccessory.layoutAttribute = .trailing
         window.addTitlebarAccessoryViewController(zoomAccessory)
 
         // In the title bar rather than the sidebar, so the toggle is still
         // there to bring the sidebar back once it is collapsed.
-        let buttons = NSStackView(views: [
+        sidebarAccessory.view = Self.accessoryRow([
             titlebarButton(symbol: "sidebar.left", description: "Toggle sidebar", action: #selector(toggleWorkspaceSidebar)),
             titlebarButton(symbol: "plus", description: "New workspace", action: #selector(newWorkspaceTapped)),
         ])
-        buttons.spacing = 0
-        buttons.frame.size = NSSize(width: 64, height: 28)
-        sidebarAccessory.view = buttons
         sidebarAccessory.layoutAttribute = .leading
         window.addTitlebarAccessoryViewController(sidebarAccessory)
     }
@@ -71,8 +67,22 @@ final class MainWindowController: NSWindowController {
         button.isBordered = false
         button.toolTip = description
         button.contentTintColor = .secondaryLabelColor
-        button.widthAnchor.constraint(equalToConstant: 32).isActive = true
         return button
+    }
+
+    /// A titlebar accessory view must keep a zero origin: AppKit raises when
+    /// a screen change re-lays out the titlebar and Auto Layout re-centres the
+    /// view from its fitting size. A plain frame-based row has no fitting size
+    /// of its own, so only the buttons inside it move.
+    private static func accessoryRow(_ buttons: [NSButton]) -> NSView {
+        let buttonSize = NSSize(width: 32, height: 28)
+        let row = NSView(frame: NSRect(x: 0, y: 0, width: buttonSize.width * CGFloat(buttons.count), height: buttonSize.height))
+        for (index, button) in buttons.enumerated() {
+            button.frame = NSRect(x: buttonSize.width * CGFloat(index), y: 0, width: buttonSize.width, height: buttonSize.height)
+            button.autoresizingMask = [.minYMargin, .maxYMargin]
+            row.addSubview(button)
+        }
+        return row
     }
 
     required init?(coder: NSCoder) {

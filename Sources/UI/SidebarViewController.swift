@@ -16,6 +16,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     private let store: WorkspaceStore
     private let tableView = WorkspaceTableView()
+    private let scrollView = NSScrollView()
     private static let workspacePasteboardType = NSPasteboard.PasteboardType("dev.thetinygoat.flow.workspace")
     private var draggingWorkspace: Workspace?
     private var isReloading = false
@@ -58,10 +59,14 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         menu.addItem(withTitle: "Close Workspace", action: #selector(closeClickedWorkspace), keyEquivalent: "")
         tableView.menu = menu
 
-        let scrollView = NSScrollView()
         scrollView.documentView = tableView
         scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        // A connected mouse switches the system to always-visible scrollers,
+        // which would take width from the rows.
+        scrollView.scrollerStyle = .overlay
+        NotificationCenter.default.addObserver(self, selector: #selector(keepOverlayScroller), name: NSScroller.preferredScrollerStyleDidChangeNotification, object: nil)
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         // Scrolling moves rows under a still pointer, so the hovered row is
@@ -173,6 +178,10 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     /// One row at most shows its close button: the row under the pointer.
+    @objc private func keepOverlayScroller() {
+        scrollView.scrollerStyle = .overlay
+    }
+
     @objc private func updateHoveredRow() {
         let row = tableView.hoveredRow
         guard row != hoveredRow else { return }

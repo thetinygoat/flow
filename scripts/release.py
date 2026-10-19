@@ -38,6 +38,7 @@ NOTARY_PROFILE = "flow-notary"
 MINIMUM_SYSTEM = "14.0"
 SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 FEED_KEEP = 15
+CHANGELOG = "https://getflowterm.app/changelog/"
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build" / "release"
@@ -142,13 +143,16 @@ def _published(item):
         return datetime.min.replace(tzinfo=timezone.utc)
 
 
-def update_appcast(feed, version, build, url, length, signature, notes_url, minimum_system, now=None):
+def update_appcast(feed, version, build, url, length, signature, notes_url, history_url, minimum_system, now=None):
     """Returns the feed with this release added.
 
     Sparkle offers each user the newest entry whose build number is higher
     than theirs and whose minimum macOS they meet, so older entries stay in
     the feed: a user on an older macOS still finds the last release that runs
-    there. The feed keeps the newest FEED_KEEP entries."""
+    there. The feed keeps the newest FEED_KEEP entries.
+
+    Sparkle shows notes from a Markdown link in a native text view, but any
+    other link as a whole web page, so notes_url names the Markdown."""
     ET.register_namespace("sparkle", SPARKLE_NS)
     if feed is None:
         root = ET.Element("rss", {"version": "2.0"})
@@ -172,6 +176,7 @@ def update_appcast(feed, version, build, url, length, signature, notes_url, mini
     ET.SubElement(item, _sparkle("shortVersionString")).text = version
     ET.SubElement(item, _sparkle("minimumSystemVersion")).text = minimum_system
     ET.SubElement(item, _sparkle("releaseNotesLink")).text = notes_url
+    ET.SubElement(item, _sparkle("fullReleaseNotesLink")).text = history_url
     ET.SubElement(item, "enclosure", {
         "url": url,
         "length": str(length),
@@ -196,7 +201,8 @@ class Release:
         self.dmg = DIST / f"Flow-{version}.dmg"
         self.appcast = DIST / "appcast.xml"
         self.state_file = DIST / "release.json"
-        self.notes_url = f"https://getflowterm.app/changelog/{version}/"
+        self.notes_url = f"{CHANGELOG}{version}.md"
+        self.page_url = f"{CHANGELOG}{version}/"
         # Updates are read from the latest release's feed, and GitHub never
         # counts a pre-release as latest, so a candidate reaches only the
         # people who download it.
@@ -210,6 +216,9 @@ class Release:
 
     def save_state(self, **fields):
         self.state_file.write_text(json.dumps({**(self.state() or {}), **fields}, indent=2) + "\n")
+
+    def notes_published(self):
+        return succeeds("curl", "--silent", "--fail", "--head", "--max-time", "10", self.notes_url)
 
     def release_exists(self):
         return succeeds("gh", "release", "view", self.tag, "--repo", REPO)
@@ -368,6 +377,7 @@ class Release:
             length=length,
             signature=signature,
             notes_url=self.notes_url,
+            history_url=CHANGELOG,
             minimum_system=MINIMUM_SYSTEM,
         ))
         print(self.appcast)
@@ -405,6 +415,9 @@ class Release:
             raise ReleaseError(f"{self.tag} is not on the current branch")
         if not succeeds("xcrun", "stapler", "validate", self.dmg):
             raise ReleaseError(f"{self.dmg} is not notarized")
+        # Every update dialog loads the notes, and shows an error without them.
+        if not self.prerelease and not self.notes_published():
+            raise ReleaseError(f"{self.notes_url} is not live; deploy the changelog entry first")
         branch = output("git", "branch", "--show-current")
         if not branch:
             raise ReleaseError("check out the branch being released")
@@ -414,7 +427,7 @@ class Release:
                 "--title", f"Flow {self.version}", "--notes", "A release candidate for testing. It is not offered as an update.")
         else:
             run("gh", "release", "create", self.tag, self.dmg, self.appcast, "--repo", REPO,
-                "--title", f"Flow {self.version}", "--notes", f"Release notes: {self.notes_url}")
+                "--title", f"Flow {self.version}", "--notes", f"Release notes: {self.page_url}")
         print(f"published https://github.com/{REPO}/releases/tag/{self.tag}")
 
 

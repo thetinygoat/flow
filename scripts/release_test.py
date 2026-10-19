@@ -34,7 +34,8 @@ def add(feed, build, version=None, now=START, signature="sig"):
         url=f"https://example.com/{build}.dmg",
         length=100,
         signature=signature,
-        notes_url=f"https://getflowterm.app/releases/{build}",
+        notes_url=f"https://getflowterm.app/changelog/{build}.md",
+        history_url="https://getflowterm.app/changelog/",
         minimum_system="14.0",
         now=now,
     )
@@ -121,6 +122,8 @@ class AppcastTests(unittest.TestCase):
         self.assertEqual(item.find("title").text, "Flow 0.1.0")
         self.assertEqual(item.find(f"{{{SPARKLE_NS}}}minimumSystemVersion").text, "14.0")
         self.assertEqual(item.find("enclosure").get(f"{{{SPARKLE_NS}}}edSignature"), "sig")
+        self.assertEqual(item.find(f"{{{SPARKLE_NS}}}releaseNotesLink").text, "https://getflowterm.app/changelog/10.md")
+        self.assertEqual(item.find(f"{{{SPARKLE_NS}}}fullReleaseNotesLink").text, "https://getflowterm.app/changelog/")
         self.assertIn(b"xmlns:sparkle", feed)
 
     def test_later_release_keeps_older_entries(self):

@@ -34,12 +34,8 @@ enum UnixSocket {
         }
     }
 
-    /// Connects to the socket at `path`, giving up on writes that stall for a
-    /// second so an agent's hook never hangs on a busy app.
     static func connect(to path: String) -> Int32? {
         guard let fd = make() else { return nil }
-        var timeout = timeval(tv_sec: 1, tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
         let result = withAddress(path) { Darwin.connect(fd, $0, $1) }
         guard result == 0 else {
             close(fd)
@@ -60,6 +56,18 @@ enum UnixSocket {
                 offset += written
             }
             return true
+        }
+    }
+
+    /// Returns once Flow has closed its end, which it does only after taking
+    /// everything written, so nothing sent afterwards can overtake it.
+    static func awaitClose(_ fd: Int32) {
+        shutdown(fd, SHUT_WR)
+        var byte: UInt8 = 0
+        while true {
+            let count = Darwin.read(fd, &byte, 1)
+            if count > 0 || (count < 0 && errno == EINTR) { continue }
+            return
         }
     }
 }

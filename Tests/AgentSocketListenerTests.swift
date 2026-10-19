@@ -36,6 +36,31 @@ final class AgentSocketListenerTests: XCTestCase {
         XCTAssertEqual(received, [event])
     }
 
+    func testEventsSentOneAfterAnotherArriveInOrder() throws {
+        let url = directory.appendingPathComponent("agent.sock")
+        var received: [AgentEvent] = []
+        let listener = AgentSocketListener(url: url) { received.append($0) }
+        try listener.start()
+        defer { listener.stop() }
+
+        let surface = UUID()
+        let sent = (0..<50).map { index in
+            AgentEvent(agent: "test", kind: index.isMultiple(of: 2) ? .working : .turnEnded, sessionID: "\(index)", surfaceID: surface, workspaceID: nil, cwd: "/", at: Date(timeIntervalSince1970: 0))
+        }
+        for event in sent {
+            let fd = try XCTUnwrap(UnixSocket.connect(to: url.path))
+            XCTAssertTrue(UnixSocket.write(try event.line(), to: fd))
+            UnixSocket.awaitClose(fd)
+            close(fd)
+        }
+
+        let deadline = Date().addingTimeInterval(2)
+        while received.count < sent.count, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertEqual(received, sent)
+    }
+
     func testStopRemovesTheSocketFile() throws {
         let url = directory.appendingPathComponent("agent.sock")
         let listener = AgentSocketListener(url: url) { _ in }

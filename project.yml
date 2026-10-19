@@ -149,6 +149,9 @@ targets:
   flowTests:
     type: bundle.unit-test
     platform: macOS
+    dependencies:
+      - target: flw
+        embed: false
     sources:
       - path: Tests
       - path: Sources/Logger.swift

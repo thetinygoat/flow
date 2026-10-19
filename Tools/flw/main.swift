@@ -3,8 +3,8 @@ import Foundation
 /// Agent hooks call this, so apart from `ping`, `launch` and `shims` it always exits 0:
 /// a Flow that is closed or confused must never fail or slow down the agent.
 let environment = ProcessInfo.processInfo.environment
-/// Hooks run in order but reach Flow in whatever order their processes get
-/// there, so events carry when `flw` started, not when it finished reading.
+/// A hook that gave up on Flow can still reach it after the next one, so
+/// events carry when `flw` started, not when it finished reading.
 let now = Date()
 
 func debug(_ message: String) {
@@ -26,10 +26,20 @@ func send(_ event: AgentEvent, to socket: String?) throws {
         debug("cannot connect to \(socket)")
         return
     }
-    if !UnixSocket.write(try event.line(), to: fd) {
+    if UnixSocket.write(try event.line(), to: fd) {
+        UnixSocket.awaitClose(fd)
+    } else {
         debug("cannot write to \(socket): \(String(cString: strerror(errno)))")
     }
     close(fd)
+}
+
+/// Agents wait for their hooks, so `flw` gives up on Flow after this long,
+/// whatever it is doing, rather than hold one up.
+func exitAtDeadline() {
+    signal(SIGALRM) { _ in _exit(0) }
+    var timer = itimerval(it_interval: timeval(), it_value: timeval(tv_sec: 0, tv_usec: 300_000))
+    setitimer(ITIMER_REAL, &timer, nil)
 }
 
 /// Hooks and shims name this path, so it must still work after the shell
@@ -55,8 +65,10 @@ do {
         guard let fd = UnixSocket.connect(to: socket) else { exit(1) }
         close(fd)
     case let .event(event, socket):
+        exitAtDeadline()
         try send(event, to: socket)
     case let .hook(name, socket):
+        exitAtDeadline()
         guard let adapter = AgentAdapter.named(name) else {
             debug("no agent named \(name)")
             exit(0)

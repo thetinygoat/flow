@@ -71,7 +71,7 @@ Flow does this through the agents' own hooks and plugins, added to each launch a
 [ -n "$FLOW_FLW" ] && source "${FLOW_FLW%/*}/../Resources/shell-integration/bash/flow.bash"
 ```
 
-**Codex.** Codex runs a hook only after you have reviewed it. The first time you start `codex` in Flow, run `/hooks` inside it and trust the Flow hooks. Codex remembers your answer, and asks again only if Flow moves to a different location.
+**Codex.** Codex runs a hook only after you have reviewed it. The first time you start `codex` in Flow, run `/hooks` inside it and trust the Flow hooks. Codex remembers your answer, and asks again only if Flow moves to a different location or an update changes its hooks.
 
 To run an agent without Flow's hooks for one session, start it with `FLOW_AGENTS_DISABLED=1`.
 

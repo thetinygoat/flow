@@ -12,19 +12,17 @@ extension AgentAdapter {
 /// Codex reads hooks from `-c` overrides as well as its config files, so Flow
 /// hands its hooks to each launch and never touches `~/.codex`. Codex runs a
 /// hook only once the user has trusted it with `/hooks`, and remembers that
-/// trust by the hook's definition, so the definitions must not change between
-/// launches or the user is asked again.
+/// trust by the hook's definition, so a definition that changes between
+/// launches asks the user again.
+///
+/// The hooks are synchronous: Codex starts async ones together, so they reach
+/// Flow out of order, and `codex exec` drops any still running when it exits.
 enum Codex {
     static let hookEvents = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop", "Interrupt", "SessionEnd"]
 
-    /// Codex waits on SessionEnd hooks whatever they ask, and warns when asked
-    /// not to.
-    static let synchronousEvents: Set = ["SessionEnd"]
-
     static func override(for event: String, flw: String) -> String {
         let command = "\(flw.shellQuoted) hook codex"
-        let async = synchronousEvents.contains(event) ? "" : ",async=true"
-        return #"hooks.\#(event)=[{hooks=[{type="command",command=\#(command.tomlQuoted)\#(async)}]}]"#
+        return #"hooks.\#(event)=[{hooks=[{type="command",command=\#(command.tomlQuoted)}]}]"#
     }
 
     /// Adds Flow's hooks ahead of the user's arguments, so that on a conflict

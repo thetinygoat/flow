@@ -135,7 +135,7 @@ final class ClaudeCodeTests: XCTestCase {
         }
         let hook = try XCTUnwrap(((settings["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]])?.first?["hooks"] as? [[String: Any]]).first
         XCTAssertEqual(hook?["type"] as? String, "command")
-        XCTAssertEqual(hook?["async"] as? Bool, true)
+        XCTAssertNil(hook?["async"])
     }
 
     func testMergesIntoTheUsersInlineSettings() throws {
@@ -253,7 +253,7 @@ final class CodexTests: XCTestCase {
         XCTAssertEqual(Array(arguments.suffix(2)), ["exec", "hi"])
         XCTAssertEqual(arguments.count, Codex.hookEvents.count * 2 + 2)
         XCTAssertEqual(Set(overrides(arguments).keys), Set(Codex.hookEvents.map { "hooks.\($0)" }))
-        XCTAssertEqual(overrides(arguments)["hooks.Stop"], #"[{hooks=[{type="command",\#(hook),async=true}]}]"#)
+        XCTAssertEqual(overrides(arguments)["hooks.Stop"], #"[{hooks=[{type="command",\#(hook)}]}]"#)
         XCTAssertEqual(overrides(arguments)["hooks.SessionEnd"], #"[{hooks=[{type="command",\#(hook)}]}]"#)
     }
 
@@ -263,7 +263,7 @@ final class CodexTests: XCTestCase {
 
     func testQuotesTheCommandForToml() {
         XCTAssertEqual(Codex.override(for: "Stop", flw: #"/a"b\c/flw"#),
-                       #"hooks.Stop=[{hooks=[{type="command",command="'/a\"b\\c/flw' hook codex",async=true}]}]"#)
+                       #"hooks.Stop=[{hooks=[{type="command",command="'/a\"b\\c/flw' hook codex"}]}]"#)
     }
 
     func testLeavesEventsTheUserSetsHooksForToThem() {

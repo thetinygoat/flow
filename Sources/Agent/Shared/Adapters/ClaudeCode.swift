@@ -20,7 +20,8 @@ enum ClaudeCode {
     static let needsInputTypes: Set = ["permission_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog"]
 
     static func settings(flw: String) -> [String: Any] {
-        let hook: [String: Any] = ["type": "command", "command": "\(flw.shellQuoted) hook claude", "async": true]
+        // Synchronous, so that each hook reaches Flow before the next one starts.
+        let hook: [String: Any] = ["type": "command", "command": "\(flw.shellQuoted) hook claude"]
         return [
             "hooks": Dictionary(uniqueKeysWithValues: hookEvents.map { ($0, [["hooks": [hook]]]) }),
             // Flow notifies from the hooks, so Claude's own terminal

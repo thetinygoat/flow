@@ -13,7 +13,8 @@ Before cutting a release, update the website. It lives in the `thetinygoat/getfl
 1. Write the changelog entry in `src/content/changelog/<version>.md`, covering every user-facing change since the last release (`git log v<last>..HEAD`). Copy the front matter of the previous entry.
 2. Add or update docs in `src/content/docs/` for the features that need them (see below).
 3. Write and revise both with the `/unslop` skill.
-4. Deploy the site before `scripts/release.py <version> --publish`. Flow's update dialog loads `/changelog/<version>.md`, and publishing refuses to run until it is live.
+4. Start the site's dev server, give the user the links to the new changelog entry (the page and its `.md`) and any docs you changed, and work their feedback in. Deploy only once they are happy.
+5. Deploy the site before `scripts/release.py <version> --publish`. Flow's update dialog loads `/changelog/<version>.md`, and publishing refuses to run until it is live.
 
 ## changelog
 

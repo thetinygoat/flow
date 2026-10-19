@@ -18,12 +18,7 @@ Before cutting a release, update the website. It lives in the `thetinygoat/getfl
 
 ## changelog
 
-Write for someone who uses Flow, not someone who reads its code: what they saw before, what happens now, and anything they have to do. A short lead line, then a `##` heading per change. Fixes and internal changes belong here, never in the docs.
-
-- Good: "Dragging a Flow window to an external display could quit Flow at once. The window now moves without trouble."
-- Bad: "Keep titlebar accessory views frame-based so screen changes don't crash." (a commit message, about the code)
-- Good: "Flow's Codex hooks changed, so Codex skips them until you trust them again: run `/hooks` in Codex and trust the Flow hooks."
-- Bad: "Hooks are now synchronous." (true, but says nothing about what the user sees or must do)
+Follow the Changelog section of the site's AGENTS.md. The changelog is mechanical: a grouped list of what changed, never a story. Fixes and internal changes belong there, never in the docs.
 
 ## docs
 

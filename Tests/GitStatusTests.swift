@@ -294,3 +294,49 @@ final class GitStatusTests: XCTestCase {
         XCTAssertNil(GitStatusMonitor.read(directory.path))
     }
 }
+
+final class GitStatusParserTests: XCTestCase {
+    func testHeaderFormsPreserveBranchAndDirtyFlag() {
+        for (header, branch) in [("## main...origin/main [ahead 1]", "main"),
+                                 ("## HEAD (no branch)", "detached"),
+                                 ("## No commits yet on feature/日本語", "feature/日本語")] {
+            for dirty in [false, true] {
+                var parser = GitStatusParser()
+                for byte in (header + "\n" + (dirty ? "?? file\n" : "")).utf8 {
+                    parser.append(Data([byte]))
+                }
+                XCTAssertEqual(parser.status, GitStatus(branch: branch, isDirty: dirty))
+            }
+        }
+    }
+
+    func testEveryChunkBoundaryPreservesBranchAndDirtyStatus() {
+        for text in ["## main...origin/main [ahead 1]\n", "## feature/日本語\n M file\n?? new\n"] {
+            let bytes = Array(text.utf8)
+            for split in 0...bytes.count {
+                var parser = GitStatusParser()
+                parser.append(Data(bytes[..<split]))
+                parser.append(Data(bytes[split...]))
+                XCTAssertEqual(parser.status, GitStatus(porcelain: text))
+            }
+        }
+    }
+
+    func testLargeStatusOutputOnlyNeedsOneDirtyFlag() {
+        var parser = GitStatusParser()
+        parser.append(Data("## main\n".utf8))
+        let chunk = Data(String(repeating: " M file\n", count: 1024).utf8)
+        for _ in 0..<1024 { parser.append(chunk) }
+        XCTAssertEqual(parser.status, GitStatus(branch: "main", isDirty: true))
+    }
+
+    func testInvalidAndOversizedHeadersAreRejected() {
+        var parser = GitStatusParser()
+        parser.append(Data("fatal: no repository\n".utf8))
+        XCTAssertNil(parser.status)
+        parser = GitStatusParser()
+        parser.append(Data(("## " + String(repeating: "x", count: 65536)).utf8))
+        parser.append(Data("\n M file\n".utf8))
+        XCTAssertNil(parser.status)
+    }
+}

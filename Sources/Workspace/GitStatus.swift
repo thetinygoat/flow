@@ -303,11 +303,16 @@ final class GitStatusMonitor {
         }
         let deadline = DispatchWorkItem { process.terminate() }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
-        var data = Data()
-        while true {
-            let chunk = output.fileHandleForReading.readData(ofLength: 4096)
-            guard !chunk.isEmpty else { break }
-            if let consume { consume(chunk) } else { data.append(chunk) }
+        let data: Data
+        if let consume {
+            while true {
+                let chunk = output.fileHandleForReading.readData(ofLength: 4096)
+                guard !chunk.isEmpty else { break }
+                consume(chunk)
+            }
+            data = Data()
+        } else {
+            data = output.fileHandleForReading.readDataToEndOfFile()
         }
         exited.wait()
         deadline.cancel()
@@ -354,11 +359,13 @@ private final class FileEvents {
 extension GitStatus {
     /// Parses `git status --porcelain=v1 --branch` output.
     init?(porcelain text: String) {
-        var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-        guard let header = lines.first, header.hasPrefix("## ") else { return nil }
-        lines.removeFirst()
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+        guard let header = lines.first, let branch = Self.branch(fromHeader: String(header)) else { return nil }
+        self.init(branch: branch, isDirty: lines.count > 1)
+    }
 
-        // "## main...origin/main [ahead 1]" or "## HEAD (no branch)" or "## No commits yet on main"
+    static func branch(fromHeader header: String) -> String? {
+        guard header.hasPrefix("## ") else { return nil }
         var branch = String(header.dropFirst(3))
         if let range = branch.range(of: "...") {
             branch = String(branch[..<range.lowerBound])
@@ -369,7 +376,7 @@ extension GitStatus {
         if branch.hasPrefix("HEAD ") {
             branch = "detached"
         }
-        self.init(branch: branch, isDirty: !lines.isEmpty)
+        return branch
     }
 }
 
@@ -400,7 +407,8 @@ struct GitStatusParser {
     }
 
     var status: GitStatus? {
-        guard !invalid, let text = String(data: header, encoding: .utf8) else { return nil }
-        return GitStatus(porcelain: text + (isDirty ? "\n M" : ""))
+        guard !invalid, let text = String(data: header, encoding: .utf8),
+              let branch = GitStatus.branch(fromHeader: text) else { return nil }
+        return GitStatus(branch: branch, isDirty: isDirty)
     }
 }

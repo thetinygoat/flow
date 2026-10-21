@@ -465,3 +465,17 @@ final class AgentLauncherTests: XCTestCase {
         XCTAssertEqual(try files.contentsOfDirectory(atPath: AgentShims.root(pid: running, temporaryDirectory: root.path)), [closed.uuidString])
     }
 }
+
+final class HookSummaryTests: XCTestCase {
+    func testSummaryMatchesWhitespaceAndUnicodeBoundaries() throws {
+        for message in ["  one\n\t two  ", String(repeating: "é", count: 200),
+                        String(repeating: "👩🏽‍💻 ", count: 10000), String(repeating: "a", count: 199) + " b"] {
+            let input = try JSONSerialization.data(withJSONObject: ["message": message])
+            let payload = try XCTUnwrap(HookPayload(json: input, agent: "test", environment: [:], now: Date()))
+            let normalized = message.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            let expected = normalized.count > HookPayload.detailLimit
+                ? String(normalized.prefix(HookPayload.detailLimit - 1)) + "…" : normalized
+            XCTAssertEqual(payload.summary("message"), expected)
+        }
+    }
+}

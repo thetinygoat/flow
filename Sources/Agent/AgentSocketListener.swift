@@ -99,16 +99,20 @@ final class AgentSocketListener {
         client.buffer.append(contentsOf: chunk[..<count])
         while let newline = client.buffer.firstIndex(of: UInt8(ascii: "\n")) {
             guard client.buffer.distance(from: client.buffer.startIndex, to: newline) <= Self.maximumLineLength else {
-                disconnect(fd)
+                rejectOversizedLine(fd)
                 return
             }
             handle(client.buffer[client.buffer.startIndex..<newline])
             client.buffer = client.buffer[(newline + 1)...]
         }
         if client.buffer.count > Self.maximumLineLength {
-            logger.error("agent socket: dropped a client sending a line over \(Self.maximumLineLength) bytes")
-            disconnect(fd)
+            rejectOversizedLine(fd)
         }
+    }
+
+    private func rejectOversizedLine(_ fd: Int32) {
+        logger.error("agent socket: dropped a client sending a line over \(Self.maximumLineLength) bytes")
+        disconnect(fd)
     }
 
     private func disconnect(_ fd: Int32) {

@@ -1,6 +1,26 @@
 import XCTest
 
 final class SessionTests: XCTestCase {
+    func testSavedSessionIsReadableAndDeterministic() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("session.json")
+        let store = TestStore()
+        store.addWorkspace(customName: "work").add(TestTab(leaf: FakeLeaf()))
+        let session = Session(windows: [store.snapshot()])
+
+        XCTAssertTrue(session.save(to: url))
+        let first = try Data(contentsOf: url)
+        XCTAssertTrue(session.save(to: url))
+        XCTAssertEqual(try Data(contentsOf: url), first)
+        XCTAssertEqual(Session.load(from: url), session)
+        let text = try XCTUnwrap(String(data: first, encoding: .utf8))
+        XCTAssertGreaterThan(text.split(separator: "\n").count, 10)
+        let selection = try XCTUnwrap(text.range(of: "\"selectedWorkspace\""))
+        let workspaces = try XCTUnwrap(text.range(of: "\"workspaces\""))
+        XCTAssertLessThan(selection.lowerBound, workspaces.lowerBound)
+    }
+
     func testReorderedWorkspacesRestoreFromFileWithSelectionAndContents() throws {
         let store = TestStore()
         let workspaces = ["first", "second", "third"].map { name in
@@ -185,5 +205,73 @@ final class WindowPlacementTests: XCTestCase {
     func testNoScreensKeepsFrame() {
         let frame = CGRect(x: 5000, y: 5000, width: 1100, height: 700)
         XCTAssertEqual(Session.Window.placing(frame, on: []), frame)
+    }
+}
+
+final class SessionPerformanceTests: XCTestCase {
+    func testRestorePublishesOnlyTheCompletedWindow() {
+        let original = TestStore()
+        for index in 0..<30 {
+            original.addWorkspace(customName: "w\(index)").add(TestTab(leaf: FakeLeaf()))
+        }
+        original.select(original.workspaces[7])
+        let saved = original.snapshot()
+        let restored = TestStore()
+        var snapshots: [Session.Window] = []
+        restored.onChange = { snapshots.append(restored.snapshot()) }
+        restored.restore(saved) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
+        XCTAssertEqual(snapshots, [saved])
+    }
+
+    func testNestedBatchesPublishOnceAndEmptyBatchesDoNotPublish() {
+        let store = TestStore()
+        var changes = 0
+        store.onChange = { changes += 1 }
+        store.performBatch {
+            store.addWorkspace()
+            store.performBatch { store.addWorkspace() }
+            XCTAssertEqual(changes, 0)
+        }
+        XCTAssertEqual(changes, 1)
+        store.performBatch {}
+        XCTAssertEqual(changes, 1)
+    }
+
+    func testSlowWriterKeepsOnlyTheLatestPendingSnapshot() {
+        let began = expectation(description: "first write started")
+        let resume = DispatchSemaphore(value: 0)
+        let first = Session(windows: [])
+        let intermediate = Session(windows: [.init(workspaces: [], selectedWorkspace: 1)])
+        let last = Session(windows: [.init(workspaces: [], selectedWorkspace: 2)])
+        var written: [Session] = []
+        let writer = SessionWriter { session in
+            XCTAssertFalse(Thread.isMainThread)
+            written.append(session)
+            if written.count == 1 {
+                began.fulfill()
+                XCTAssertEqual(resume.wait(timeout: .now() + 5), .success)
+            }
+            return true
+        }
+        writer.save(first)
+        wait(for: [began], timeout: 2)
+        writer.save(intermediate)
+        writer.save(last)
+        resume.signal()
+        writer.flush(last)
+        XCTAssertEqual(written, [first, last])
+    }
+
+    func testFailedWritesAreRetriedAndSuccessfulWritesAreDeduplicated() {
+        var attempts = 0
+        let writer = SessionWriter { _ in
+            attempts += 1
+            return attempts > 1
+        }
+        let session = Session(windows: [])
+        writer.flush(session)
+        writer.flush(session)
+        writer.flush(session)
+        XCTAssertEqual(attempts, 2)
     }
 }

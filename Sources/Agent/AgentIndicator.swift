@@ -25,8 +25,7 @@ extension AgentSessionStore {
         var result: AgentIndicator?
         for surface in surfaces {
             guard let indicator = sessions[surface].flatMap(AgentIndicator.init) else { continue }
-            if indicator == .waiting { return indicator }
-            if result == nil || indicator > result! { result = indicator }
+            result = max(result ?? indicator, indicator)
         }
         return result
     }

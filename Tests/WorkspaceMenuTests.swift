@@ -57,3 +57,26 @@ final class WorkspaceMenuTests: XCTestCase {
         XCTAssertEqual(menu.menu.items.map(\.title), ["Rename Workspace"])
     }
 }
+
+@MainActor
+final class MenuReuseTests: XCTestCase {
+    func testUnchangedMenuKeepsItemsAndSelectionChangesStillApply() {
+        let menu = WorkspaceMenu(title: "Workspace", fixedItems: [], target: NSObject(),
+                                 selectWorkspace: Selector(("workspace:")), selectTab: Selector(("tab:")))
+        var selection = 0
+        menu.contents = {
+            .init(workspaces: .init(names: ["one", "two"], selected: selection),
+                  tabs: .init(names: [], selected: nil))
+        }
+        menu.menuNeedsUpdate(menu.menu)
+        let original = menu.menu.items
+        menu.menuNeedsUpdate(menu.menu)
+        XCTAssertTrue(zip(original, menu.menu.items).allSatisfy { $0 === $1 })
+        selection = 1
+        menu.menuNeedsUpdate(menu.menu)
+        XCTAssertEqual(menu.menu.items.filter { !$0.isSeparatorItem }.map(\.state), [.off, .on])
+        menu.contents = { nil }
+        menu.menuNeedsUpdate(menu.menu)
+        XCTAssertTrue(menu.menu.items.isEmpty)
+    }
+}

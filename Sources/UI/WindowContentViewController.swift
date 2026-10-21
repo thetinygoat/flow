@@ -27,15 +27,8 @@ final class WindowContentViewController: NSViewController {
         fatalError("init(coder:) is not supported")
     }
 
-    private var width: CGFloat {
-        get {
-            let saved = UserDefaults.standard.double(forKey: Self.widthKey)
-            return saved > 0 ? min(max(saved, Self.widthRange.lowerBound), Self.widthRange.upperBound) : 240
-        }
-        set {
-            let clamped = min(max(newValue, Self.widthRange.lowerBound), Self.widthRange.upperBound)
-            sidebarWidth.constant = clamped
-        }
+    private static func clampedWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, widthRange.lowerBound), widthRange.upperBound)
     }
 
     var isSidebarHidden: Bool {
@@ -60,7 +53,8 @@ final class WindowContentViewController: NSViewController {
             view.addSubview(child)
         }
 
-        sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: width)
+        let savedWidth = UserDefaults.standard.double(forKey: Self.widthKey)
+        sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: Self.clampedWidth(savedWidth > 0 ? savedWidth : 240))
         contentAfterSidebar = content.view.leadingAnchor.constraint(equalTo: sidebar.view.trailingAnchor)
         contentAtEdge = content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         NSLayoutConstraint.activate([
@@ -84,7 +78,7 @@ final class WindowContentViewController: NSViewController {
         }
         handle.onDrag = { [weak self] distance in
             guard let self else { return }
-            width = widthAtDragStart + distance
+            sidebarWidth.constant = Self.clampedWidth(widthAtDragStart + distance)
         }
         handle.onEnd = { [weak self] in
             guard let self else { return }

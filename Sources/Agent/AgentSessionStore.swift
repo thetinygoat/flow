@@ -22,6 +22,19 @@ final class AgentSessionStore {
 
     /// One applied event, with the terminal's session before and after it.
     struct Update {
+        enum AlertKind {
+            case needsInput, finished, attention
+        }
+
+        var alertKind: AlertKind? {
+            switch kind {
+            case .needsInput: .needsInput
+            case .turnEnded: .finished
+            case .attention: .attention
+            case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: nil
+            }
+        }
+
         var surface: UUID
         var kind: AgentEvent.Kind
         var previous: Session?
@@ -113,7 +126,6 @@ final class AgentSessionStore {
     }
 
     func remove(_ surface: UUID) {
-        guard let session = sessions.removeValue(forKey: surface) else { return }
-        if AgentIndicator(session) != nil { onChange?(surface) }
+        sessions.removeValue(forKey: surface)
     }
 }

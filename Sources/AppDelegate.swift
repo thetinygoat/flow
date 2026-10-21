@@ -319,7 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func notify(_ update: AgentSessionStore.Update) {
-        guard [.needsInput, .turnEnded, .attention].contains(update.kind) else { return }
+        guard update.alertKind != nil else { return }
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"

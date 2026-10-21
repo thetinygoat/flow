@@ -39,7 +39,7 @@ enum ClipboardConfirmation {
             defer: false)
         sheet.title = request.title
         sheet.contentView = NSHostingView(rootView: ConfirmationView(request: request, contents: contents) { [weak window, weak sheet] confirmed in
-            guard let window, let sheet else { return }
+            guard let window, let sheet else { return completion(false) }
             window.endSheet(sheet)
             completion(confirmed)
         })

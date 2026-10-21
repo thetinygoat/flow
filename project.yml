@@ -52,7 +52,7 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleName: Flow
-        CFBundleDisplayName: Flow
+        CFBundleDisplayName: $(FLOW_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "14.0"
@@ -102,6 +102,7 @@ targets:
         CURRENT_PROJECT_VERSION: "0"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow
+        FLOW_DISPLAY_NAME: Flow
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Resources/Flow.entitlements
@@ -111,6 +112,10 @@ targets:
         Debug:
           CODE_SIGN_IDENTITY: Apple Development
           DEVELOPMENT_TEAM: DP5STKBRSS
+          # A debug build running beside the installed Flow is a separate app to
+          # macOS, so neither steals the other's activation or Dock entry.
+          PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flow.debug
+          FLOW_DISPLAY_NAME: Flow Debug
         Release:
           CODE_SIGN_IDENTITY: Developer ID Application
           DEVELOPMENT_TEAM: DP5STKBRSS

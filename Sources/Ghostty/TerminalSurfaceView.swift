@@ -93,9 +93,7 @@ final class TerminalSurfaceView: NSView {
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
     private var searchBar: SearchBarView?
-    private let progressBar = ProgressBarView()
     private let linkPreview = LinkPreviewView()
-    private var progressTimeout: Timer?
     private var searchDebounce: Timer?
 
     override var acceptsFirstResponder: Bool { true }
@@ -150,9 +148,6 @@ final class TerminalSurfaceView: NSView {
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
 
-        progressBar.frame = NSRect(x: 0, y: bounds.height - ProgressBarView.height, width: bounds.width, height: ProgressBarView.height)
-        progressBar.autoresizingMask = [.width, .minYMargin]
-        addSubview(progressBar)
         linkPreview.install(in: self)
         registerForDraggedTypes([.fileURL, .URL, .string])
 
@@ -206,7 +201,6 @@ final class TerminalSurfaceView: NSView {
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         windowObservers.forEach(NotificationCenter.default.removeObserver)
         searchDebounce?.invalidate()
-        progressTimeout?.invalidate()
         if passwordInput { SecureInput.shared.removeScoped(ObjectIdentifier(self)) }
         if let surface { ghostty_surface_free(surface) }
     }
@@ -576,30 +570,6 @@ final class TerminalSurfaceView: NSView {
         let barHadFocus = (window?.firstResponder as? NSView)?.isDescendant(of: bar) == true
         bar.removeFromSuperview()
         if barHadFocus { window?.makeFirstResponder(self) }
-    }
-
-    /// Whether the agent in this terminal is working, or nil when no agent
-    /// reports to Flow. An agent's own account of its state is more reliable
-    /// than the progress it prints, so while it has one the bar follows it and
-    /// progress reports are ignored.
-    var agentIsWorking: Bool? {
-        didSet {
-            guard agentIsWorking != oldValue else { return }
-            progressTimeout?.invalidate()
-            progressBar.report = agentIsWorking == true ? ProgressReport(state: .indeterminate, percent: nil) : nil
-        }
-    }
-
-    /// Programs refresh their progress while they work, so a report that goes
-    /// quiet for 15 seconds is dropped rather than left on screen forever.
-    func setProgress(_ report: ProgressReport?) {
-        guard agentIsWorking == nil else { return }
-        progressBar.report = report
-        progressTimeout?.invalidate()
-        guard report != nil else { return }
-        progressTimeout = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in
-            self?.progressBar.report = nil
-        }
     }
 
     // MARK: Dropping

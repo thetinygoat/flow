@@ -72,7 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.windows.forEach { $0.controller.agentsDidChange() }
         }
         agentSessions.onUpdate = { [weak self] update in
-            self?.surface(withID: update.surface)?.1.agentIsWorking = update.session.state == .ended ? nil : update.session.state == .working
             self?.notify(update)
         }
         AgentSocketListener.removeStaleSockets()

@@ -214,10 +214,6 @@ final class GhosttyRuntime {
                     duration: .nanoseconds(Int64(clamping: finished.duration))),
                 in: surface)
 
-        case GHOSTTY_ACTION_PROGRESS_REPORT:
-            guard let surface else { return false }
-            surface.setProgress(ProgressReport(action.action.progress_report))
-
         case GHOSTTY_ACTION_MOUSE_OVER_LINK:
             guard let surface else { return false }
             let link = action.action.mouse_over_link
@@ -301,7 +297,7 @@ final class GhosttyRuntime {
             config = GhosttyConfig(copying: action.action.config_change.config)
             onConfigChange?()
 
-        case GHOSTTY_ACTION_CONFIG_CHANGE, GHOSTTY_ACTION_RENDERER_HEALTH, GHOSTTY_ACTION_COLOR_CHANGE:
+        case GHOSTTY_ACTION_CONFIG_CHANGE, GHOSTTY_ACTION_RENDERER_HEALTH, GHOSTTY_ACTION_COLOR_CHANGE, GHOSTTY_ACTION_PROGRESS_REPORT:
             break
 
         default:
@@ -357,17 +353,3 @@ extension ghostty_action_secure_input_e {
     }
 }
 
-extension ProgressReport {
-    /// Nil when the program asked for the bar to be removed.
-    init?(_ c: ghostty_action_progress_report_s) {
-        let state: State
-        switch c.state {
-        case GHOSTTY_PROGRESS_STATE_SET: state = .set
-        case GHOSTTY_PROGRESS_STATE_ERROR: state = .error
-        case GHOSTTY_PROGRESS_STATE_INDETERMINATE: state = .indeterminate
-        case GHOSTTY_PROGRESS_STATE_PAUSE: state = .pause
-        default: return nil
-        }
-        self.init(state: state, percent: c.progress < 0 ? nil : Int(c.progress))
-    }
-}

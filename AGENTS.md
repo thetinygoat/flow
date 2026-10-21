@@ -5,6 +5,7 @@
    > # Builds libghostty from ../ghostty (branch flow-build: v1.3.1 + two Xcode 27)
 3. the vendor/ghostty directory will show as changed to git due to patches, ignore it.
 4. if you have fixed something in the terminal, close the old debug build if running, and start a new one.
+5. every keyboard shortcut Flow adds must be listed in the Keyboard Shortcuts window (the ? button in the title bar). The list is written by hand in `KeyboardShortcuts.all`, so add the new shortcut there whenever you add, change or remove one, named for what it does and in the section it belongs to. Open the window to check it, and add the shortcut to the site's keyboard shortcuts page at the next release.
 
 # releases
 

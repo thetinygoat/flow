@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hintTimer: Timer?
     private var hintsSuppressed = false
     private lazy var aboutWindow = AboutWindowController()
+    private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
     private let notifications = DesktopNotifications()
     private let agentSounds = AgentSounds()
     /// Sparkle asks on the second launch whether to check for updates
@@ -401,6 +402,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func reloadConfig() {
         runtime.reloadConfig()
+    }
+
+    @objc func showKeyboardShortcuts(_ sender: Any?) {
+        keyboardShortcutsWindow.show(KeyboardShortcuts.all)
     }
 
     @objc private func showAbout() {

@@ -51,7 +51,7 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleName: Flow
+        CFBundleName: $(FLOW_DISPLAY_NAME)
         CFBundleDisplayName: $(FLOW_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)

@@ -316,7 +316,11 @@ extension TerminalWindow: SidebarViewControllerDelegate, TerminalAreaViewControl
     func sidebar(_ sidebar: SidebarViewController, didFinishRenaming workspace: Workspace, to name: String?) {
         if let name { workspace.customName = name }
         store.notifyChanged()
-        controller.terminalArea.focusSelectedSurface()
+        // Return ends the rename while AppKit is still closing the field, and
+        // it then hands focus to the window, so the terminal takes it after.
+        DispatchQueue.main.async { [weak self] in
+            self?.controller.terminalArea.focusSelectedSurface()
+        }
     }
 
     func sidebar(_ sidebar: SidebarViewController, wantsClose workspace: Workspace) {

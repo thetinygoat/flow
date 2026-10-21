@@ -119,9 +119,10 @@ final class MainWindowController: NSWindowController {
         resetZoomButton.isHidden = store.selected?.selectedTab?.panes.zoomed == nil
     }
 
-    func agentsDidChange() {
-        sidebar.updateAgentIndicators()
-        terminalArea.reloadTabs()
+    func agentsDidChange(in surface: TerminalSurfaceView) {
+        guard let (workspace, tab) = store.workspace(containing: surface) else { return }
+        sidebar.updateAgentIndicator(for: workspace)
+        if workspace === store.selected { terminalArea.updateAgentIndicator(for: tab) }
     }
 
     func titleDidChange(of surface: TerminalSurfaceView) {

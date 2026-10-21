@@ -56,8 +56,22 @@ struct HookPayload {
     /// A message field as one line short enough to show beside a workspace.
     func summary(_ key: String) -> String? {
         string(key).map { message in
-            let line = message.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-            return line.count > Self.detailLimit ? line.prefix(Self.detailLimit - 1) + "…" : line
+            var characters: [Character] = []
+            characters.reserveCapacity(Self.detailLimit + 2)
+            var spacePending = false
+            for character in message {
+                if character.isWhitespace {
+                    spacePending = !characters.isEmpty
+                    continue
+                }
+                if spacePending { characters.append(" ") }
+                spacePending = false
+                characters.append(character)
+                if characters.count > Self.detailLimit {
+                    return String(characters.prefix(Self.detailLimit - 1)) + "…"
+                }
+            }
+            return String(characters)
         }
     }
 

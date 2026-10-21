@@ -61,15 +61,17 @@ struct Session: Codable, Equatable {
         return try? JSONDecoder().decode(Session.self, from: data)
     }
 
-    func save(to url: URL = fileURL) {
+    @discardableResult
+    func save(to url: URL = fileURL) -> Bool {
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(self).write(to: url, options: .atomic)
+            return true
         } catch {
             logger.error("failed to save session: \(error)")
+            return false
         }
     }
 }
@@ -96,26 +98,28 @@ extension WorkspaceStoreModel {
     /// its saved id and working directory, given the id of its workspace.
     /// Workspaces whose tabs were all lost are skipped.
     func restore(_ window: Session.Window, makeLeaf: (_ id: UUID, _ workingDirectory: String?, _ workspace: UUID) -> Leaf) {
-        for saved in window.workspaces {
-            let workspace = addWorkspace(id: saved.id, customName: saved.customName)
-            for tab in saved.tabs {
-                let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id) }
-                let leaves = root.leaves
-                guard let first = leaves.first else { continue }
-                let panes = PaneTreeModel(root: root)
-                let zoomed = tab.zoomedPane.flatMap { leaves.indices.contains($0) ? leaves[$0] : nil }
-                if let zoomed { panes.toggleZoom(zoomed) }
-                workspace.add(TabModel(panes: panes, focused: zoomed ?? first))
+        performBatch {
+            for saved in window.workspaces {
+                let workspace = addWorkspace(id: saved.id, customName: saved.customName)
+                for tab in saved.tabs {
+                    let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id) }
+                    let leaves = root.leaves
+                    guard let first = leaves.first else { continue }
+                    let panes = PaneTreeModel(root: root)
+                    let zoomed = tab.zoomedPane.flatMap { leaves.indices.contains($0) ? leaves[$0] : nil }
+                    if let zoomed { panes.toggleZoom(zoomed) }
+                    workspace.add(TabModel(panes: panes, focused: zoomed ?? first))
+                }
+                if workspace.tabs.indices.contains(saved.selectedTab) {
+                    workspace.select(workspace.tabs[saved.selectedTab])
+                }
+                if workspace.tabs.isEmpty {
+                    remove(workspace)
+                }
             }
-            if saved.selectedTab < workspace.tabs.count {
-                workspace.select(workspace.tabs[saved.selectedTab])
+            if workspaces.indices.contains(window.selectedWorkspace) {
+                select(workspaces[window.selectedWorkspace])
             }
-            if workspace.tabs.isEmpty {
-                remove(workspace)
-            }
-        }
-        if window.selectedWorkspace < workspaces.count {
-            select(workspaces[window.selectedWorkspace])
         }
     }
 }
@@ -131,5 +135,49 @@ extension Session.Window {
               !screens.contains(where: { $0.intersection(titleBar).width >= 80 }) else { return frame }
         let size = CGSize(width: min(frame.width, screen.width), height: min(frame.height, screen.height))
         return CGRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2, width: size.width, height: size.height)
+    }
+}
+
+/// Slow storage must not stall input or accumulate obsolete session snapshots.
+final class SessionWriter {
+    private let queue = DispatchQueue(label: "dev.thetinygoat.flow.session", qos: .utility)
+    private let lock = NSLock()
+    private var pending: Session?
+    private var isWriting = false
+    private var lastSaved: Session?
+    private let write: (Session) -> Bool
+
+    init(write: @escaping (Session) -> Bool = { $0.save() }) {
+        self.write = write
+    }
+
+    func save(_ session: Session) {
+        lock.lock()
+        defer { lock.unlock() }
+        pending = session
+        guard !isWriting else { return }
+        isWriting = true
+        queue.async { self.drain() }
+    }
+
+    func flush(_ session: Session) {
+        save(session)
+        queue.sync {}
+    }
+
+    private func drain() {
+        while true {
+            lock.lock()
+            guard let session = pending else {
+                isWriting = false
+                lock.unlock()
+                return
+            }
+            pending = nil
+            lock.unlock()
+            if session != lastSaved, write(session) {
+                lastSaved = session
+            }
+        }
     }
 }

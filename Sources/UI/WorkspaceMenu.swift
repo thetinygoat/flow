@@ -5,12 +5,12 @@ import AppKit
 /// It is filled in only when it opens or is searched for a key equivalent, so
 /// it is never out of date and costs nothing in between.
 final class WorkspaceMenu: NSObject, NSMenuDelegate {
-    struct Entries {
+    struct Entries: Equatable {
         var names: [String]
         var selected: Int?
     }
 
-    struct Contents {
+    struct Contents: Equatable {
         var workspaces: Entries
         var tabs: Entries
     }
@@ -22,6 +22,7 @@ final class WorkspaceMenu: NSObject, NSMenuDelegate {
     private weak var target: AnyObject?
     private let selectWorkspace: Selector
     private let selectTab: Selector
+    private var displayedContents: Contents?
 
     /// Workspace and tab items carry their index as the tag.
     init(title: String, fixedItems: [NSMenuItem], target: AnyObject, selectWorkspace: Selector, selectTab: Selector) {
@@ -36,10 +37,13 @@ final class WorkspaceMenu: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let current = contents()
+        guard current != displayedContents else { return }
+        displayedContents = current
         while menu.numberOfItems > fixedItemCount {
             menu.removeItem(at: fixedItemCount)
         }
-        guard let contents = contents() else { return }
+        guard let contents = current else { return }
         add(contents.workspaces, action: selectWorkspace, modifiers: .command, nineIsLast: true)
         add(contents.tabs, action: selectTab, modifiers: .control, nineIsLast: false)
     }

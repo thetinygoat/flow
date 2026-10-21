@@ -13,6 +13,7 @@ final class TabBarView: NSView {
         didSet { needsDisplay = true }
     }
     private let stack = NSStackView()
+    private var items: [TabItemView] = []
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -39,15 +40,16 @@ final class TabBarView: NSView {
         bounds.fill()
     }
 
-    private var items: [TabItemView] {
-        stack.arrangedSubviews.compactMap { $0 as? TabItemView }
+    func updateIndicator(_ indicator: AgentIndicator?, at index: Int) {
+        guard items.indices.contains(index) else { return }
+        items[index].agentIndicator = indicator
     }
 
     /// Titles change with every shell prompt, so items are kept and updated;
     /// views are only added or removed when the number of tabs changes.
     func reload(titles: [String], indicators: [AgentIndicator?], selectedIndex: Int?) {
         while items.count > titles.count {
-            items.last?.removeFromSuperview()
+            items.removeLast().removeFromSuperview()
         }
         while items.count < titles.count {
             let item = TabItemView()
@@ -60,6 +62,7 @@ final class TabBarView: NSView {
                 self.delegate?.tabBar(self, didCloseTabAt: index)
             }
             stack.addArrangedSubview(item)
+            items.append(item)
             item.heightAnchor.constraint(equalTo: heightAnchor).isActive = true
         }
         for (index, item) in items.enumerated() {

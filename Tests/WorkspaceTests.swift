@@ -171,6 +171,22 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(changes, 4)
     }
 
+    func testSelectingCurrentWorkspacePublishesItsNewlySelectedTab() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let first = TestTab(leaf: FakeLeaf())
+        let second = TestTab(leaf: FakeLeaf())
+        workspace.add(first)
+        workspace.add(second)
+        var published: TestTab?
+        store.onChange = { published = store.selected?.selectedTab }
+
+        workspace.select(first)
+        store.select(workspace)
+
+        XCTAssertTrue(published === first)
+    }
+
     func testMovingWorkspacesPreservesSelectionAndNotifies() {
         let store = TestStore()
         let workspaces = (0..<4).map { _ in store.addWorkspace() }

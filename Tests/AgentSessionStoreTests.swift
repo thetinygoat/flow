@@ -11,7 +11,7 @@ final class AgentSessionStoreTests: XCTestCase {
     override func setUp() async throws {
         let live = surface
         store = AgentSessionStore(isLive: { $0 == live }, isVisible: { [unowned self] _ in self.visible })
-        store.onChange = { [unowned self] in self.changes += 1 }
+        store.onChange = { [unowned self] _ in self.changes += 1 }
         store.onUpdate = { [unowned self] in self.updates.append($0) }
     }
 

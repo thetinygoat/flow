@@ -22,6 +22,12 @@ enum AgentIndicator: Int, Comparable {
 
 extension AgentSessionStore {
     func indicator(for surfaces: some Sequence<UUID>) -> AgentIndicator? {
-        surfaces.compactMap { sessions[$0].flatMap(AgentIndicator.init) }.max()
+        var result: AgentIndicator?
+        for surface in surfaces {
+            guard let indicator = sessions[surface].flatMap(AgentIndicator.init) else { continue }
+            if indicator == .waiting { return indicator }
+            if result == nil || indicator > result! { result = indicator }
+        }
+        return result
     }
 }

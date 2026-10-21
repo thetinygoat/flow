@@ -136,12 +136,11 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
     /// Agents change state far more often than rows need rebuilding, so only
     /// the dots are updated.
-    func updateAgentIndicators() {
-        for row in 0..<min(tableView.numberOfRows, store.workspaces.count) {
-            guard let workspace = workspace(at: row),
-                  let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
-            cell.agentIndicator = agentIndicator(workspace)
-        }
+    func updateAgentIndicator(for workspace: Workspace) {
+        guard let row = store.workspaces.firstIndex(where: { $0 === workspace }),
+              row < tableView.numberOfRows,
+              let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
+        cell.agentIndicator = agentIndicator(workspace)
     }
 
     private func workspace(at row: Int) -> Workspace? {

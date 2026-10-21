@@ -98,6 +98,10 @@ final class AgentSocketListener {
         }
         client.buffer.append(contentsOf: chunk[..<count])
         while let newline = client.buffer.firstIndex(of: UInt8(ascii: "\n")) {
+            guard client.buffer.distance(from: client.buffer.startIndex, to: newline) <= Self.maximumLineLength else {
+                disconnect(fd)
+                return
+            }
             handle(client.buffer[client.buffer.startIndex..<newline])
             client.buffer = client.buffer[(newline + 1)...]
         }

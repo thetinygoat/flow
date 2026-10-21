@@ -34,7 +34,6 @@ final class WindowContentViewController: NSViewController {
         }
         set {
             let clamped = min(max(newValue, Self.widthRange.lowerBound), Self.widthRange.upperBound)
-            UserDefaults.standard.set(Double(clamped), forKey: Self.widthKey)
             sidebarWidth.constant = clamped
         }
     }
@@ -87,6 +86,10 @@ final class WindowContentViewController: NSViewController {
             guard let self else { return }
             width = widthAtDragStart + distance
         }
+        handle.onEnd = { [weak self] in
+            guard let self else { return }
+            UserDefaults.standard.set(Double(sidebarWidth.constant), forKey: Self.widthKey)
+        }
         isSidebarHidden = UserDefaults.standard.bool(forKey: Self.hiddenKey)
     }
 
@@ -99,6 +102,7 @@ final class WindowContentViewController: NSViewController {
 private final class SidebarResizeHandle: NSView {
     var onBegin: (() -> Void)?
     var onDrag: ((CGFloat) -> Void)?
+    var onEnd: (() -> Void)?
     private var start: CGFloat = 0
 
     override func resetCursorRects() {
@@ -116,5 +120,9 @@ private final class SidebarResizeHandle: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         onDrag?(event.locationInWindow.x - start)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        onEnd?()
     }
 }

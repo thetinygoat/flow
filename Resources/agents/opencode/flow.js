@@ -94,6 +94,8 @@ export const Flow = async () => {
           live.delete(sessionID)
           children.delete(sessionID)
           pending.delete(sessionID)
+          busy.delete(sessionID)
+          lastText.delete(sessionID)
           break
       }
     },

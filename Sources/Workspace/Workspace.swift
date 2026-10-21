@@ -118,6 +118,8 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var workspaces: [WorkspaceModel<Leaf>] = []
     private(set) var selected: WorkspaceModel<Leaf>?
     var onChange: (() -> Void)?
+    private var batchDepth = 0
+    private var hasPendingChange = false
 
     /// The new workspace goes right after the selected one, next to the work
     /// it was opened from, and becomes the selected one.
@@ -127,7 +129,7 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         let index = selected.flatMap { selected in workspaces.firstIndex { $0 === selected } }.map { $0 + 1 } ?? workspaces.endIndex
         workspaces.insert(workspace, at: index)
         selected = workspace
-        onChange?()
+        notifyChanged()
         return workspace
     }
 
@@ -137,12 +139,12 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         if selected === workspace {
             selected = workspaces.isEmpty ? nil : workspaces[min(index, workspaces.count - 1)]
         }
-        onChange?()
+        notifyChanged()
     }
 
     func select(_ workspace: WorkspaceModel<Leaf>) {
         selected = workspace
-        onChange?()
+        notifyChanged()
     }
 
     @discardableResult
@@ -153,7 +155,7 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         guard source != destination else { return true }
         workspaces.remove(at: source)
         workspaces.insert(workspace, at: destination)
-        onChange?()
+        notifyChanged()
         return true
     }
 
@@ -165,6 +167,20 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     }
 
     func notifyChanged() {
+        guard batchDepth == 0 else {
+            hasPendingChange = true
+            return
+        }
         onChange?()
+    }
+
+    func performBatch(_ changes: () -> Void) {
+        batchDepth += 1
+        changes()
+        batchDepth -= 1
+        if batchDepth == 0, hasPendingChange {
+            hasPendingChange = false
+            notifyChanged()
+        }
     }
 }

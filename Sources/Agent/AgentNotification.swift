@@ -9,13 +9,16 @@ struct AgentNotification: Equatable {
     static let waitingBody = "Waiting for your input"
     static let finishedBody = "Finished"
 
-    /// Reasons agents give for waiting, in words for people. Unlisted reasons
-    /// get the generic body.
+    /// Reasons agents give for waiting, in words for people. Any other reason
+    /// is shown as it is, since some agents already say in words what they
+    /// are asking.
     static let waitingReasons = [
         "permission_prompt": "Needs permission",
         "permission": "Needs permission",
         "elicitation_dialog": "Has a question for you",
         "elicitation_url_dialog": "Needs you to open a link",
+        "agent_needs_input": waitingBody,
+        "question": waitingBody,
     ]
 
     static func make(for update: AgentSessionStore.Update, title: String, isVisible: Bool) -> AgentNotification? {
@@ -24,7 +27,7 @@ struct AgentNotification: Equatable {
         switch update.kind {
         case .needsInput:
             guard !update.repeatsWait else { return nil }
-            return AgentNotification(title: title, body: session.detail.flatMap { waitingReasons[$0] } ?? waitingBody)
+            return AgentNotification(title: title, body: session.detail.nonEmpty.map { waitingReasons[$0] ?? $0 } ?? waitingBody)
         case .turnEnded:
             return AgentNotification(title: title, body: session.detail.nonEmpty ?? finishedBody)
         case .attention:

@@ -32,7 +32,19 @@ final class AgentNotificationTests: XCTestCase {
                        AgentNotification(title: "~/Code/flow", body: "Needs permission"))
         XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "permission"))?.body, "Needs permission")
         XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "agent_needs_input"))?.body, "Waiting for your input")
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "question"))?.body, "Waiting for your input")
         XCTAssertEqual(notification(update(.needsInput, state: .waiting))?.body, "Waiting for your input")
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: " "))?.body, "Waiting for your input")
+    }
+
+    func testWaitingShowsAReasonGivenInWords() {
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "Approval requested: git push origin main")),
+                       AgentNotification(title: "~/Code/flow", body: "Approval requested: git push origin main"))
+    }
+
+    func testClaudesReasonsKeepTheirWording() {
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "elicitation_dialog"))?.body, "Has a question for you")
+        XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "elicitation_url_dialog"))?.body, "Needs you to open a link")
     }
 
     func testTheSameWaitIsNotRepeated() {

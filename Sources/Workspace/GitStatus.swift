@@ -79,7 +79,7 @@ struct GitRepository: Hashable {
         return path == workTree || path.hasPrefix(workTree + "/")
     }
 
-    private static let home = realPath(NSHomeDirectory())
+    static let home = realPath(NSHomeDirectory())
 
     private static func linkedGitDir(_ file: String, relativeTo directory: String) -> String? {
         guard let line = contents(of: file), line.hasPrefix("gitdir: ") else { return nil }

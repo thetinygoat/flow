@@ -72,14 +72,47 @@ final class WorkspaceTests: XCTestCase {
 
         let leaf = FakeLeaf(workingDirectory: NSHomeDirectory() + "/Code/flow")
         workspace.add(TestTab(leaf: leaf))
-        XCTAssertEqual(workspace.name, "~/C/flow")
+        XCTAssertEqual(workspace.name, "flow")
 
         leaf.workingDirectory = "/tmp"
-        XCTAssertEqual(workspace.name, "/tmp")
+        XCTAssertEqual(workspace.name, "tmp")
 
         workspace.customName = "mine"
         leaf.workingDirectory = "/var"
         XCTAssertEqual(workspace.name, "mine")
+    }
+
+    func testNameIsTheRepositoryAnywhereInsideIt() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let repository = root.appendingPathComponent("segment")
+        try FileManager.default.createDirectory(at: repository.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: repository.appendingPathComponent("src/lib"), withIntermediateDirectories: true)
+        try Data("ref: refs/heads/main\n".utf8).write(to: repository.appendingPathComponent(".git/HEAD"))
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let leaf = FakeLeaf(workingDirectory: repository.path)
+        let workspace = WorkspaceModel<FakeLeaf>()
+        workspace.add(TestTab(leaf: leaf))
+        XCTAssertEqual(workspace.name, "segment")
+
+        leaf.workingDirectory = repository.appendingPathComponent("src/lib").path
+        XCTAssertEqual(workspace.name, "segment")
+
+        leaf.workingDirectory = root.path
+        XCTAssertEqual(workspace.name, root.lastPathComponent, "outside the repository the folder names it")
+    }
+
+    func testARepositoryAtHomeNamesNothing() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("Downloads/notes"), withIntermediateDirectories: true)
+        try Data("ref: refs/heads/main\n".utf8).write(to: home.appendingPathComponent(".git/HEAD"))
+        addTeardownBlock { try? FileManager.default.removeItem(at: home) }
+        let workTree = try XCTUnwrap(GitRepository(containing: home.path)).workTree
+
+        XCTAssertEqual(WorkspaceModel<FakeLeaf>.name(forDirectory: home.appendingPathComponent("Downloads/notes").path, home: workTree), "notes")
+        XCTAssertEqual(WorkspaceModel<FakeLeaf>.name(forDirectory: home.appendingPathComponent("Downloads/notes").path, home: nil), home.lastPathComponent,
+                       "the same repository away from home names the workspace")
     }
 
     func testStoreRemovalSelection() {

@@ -278,7 +278,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
             return cell
         }()
         cell.titleLabel.stringValue = workspace.name
-        cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.fishStylePath ?? ""
+        cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.abbreviatingHome ?? ""
         cell.gitStatus = gitStatus(forRow: row)
         cell.isHovered = row == hoveredRow
         cell.agentIndicator = agentIndicator(workspace)

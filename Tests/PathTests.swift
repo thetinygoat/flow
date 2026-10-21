@@ -12,15 +12,13 @@ final class PathTests: XCTestCase {
     func testSiblingOfHomeIsNotAbbreviated() {
         XCTAssertEqual((home + "-work").abbreviatingHome, home + "-work")
         XCTAssertEqual((home + "-work/Code").abbreviatingHome, home + "-work/Code")
-        XCTAssertFalse((home + "2/Code").fishStylePath.hasPrefix("~"))
     }
 
-    func testFishStylePath() {
-        XCTAssertEqual(home.fishStylePath, "~")
-        XCTAssertEqual((home + "/Code").fishStylePath, "~/Code")
-        XCTAssertEqual((home + "/Downloads/actual-budget").fishStylePath, "~/D/actual-budget")
-        XCTAssertEqual((home + "/.config/ghostty").fishStylePath, "~/.c/ghostty")
-        XCTAssertEqual("/usr/local/bin".fishStylePath, "/u/l/bin")
-        XCTAssertEqual("/".fishStylePath, "/")
+    func testFolderName() {
+        XCTAssertEqual(home.folderName, "~")
+        XCTAssertEqual((home + "/Code/flow").folderName, "flow")
+        XCTAssertEqual((home + "/.config").folderName, ".config")
+        XCTAssertEqual("/usr/local/bin".folderName, "bin")
+        XCTAssertEqual("/".folderName, "/")
     }
 }

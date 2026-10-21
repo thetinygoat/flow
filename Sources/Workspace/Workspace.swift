@@ -8,15 +8,11 @@ extension String {
         return "~" + dropFirst(home.count)
     }
 
-    /// "~/Documents/project" becomes "~/D/project", the way fish shows the prompt.
-    var fishStylePath: String {
-        var parts = abbreviatingHome.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count > 1 else { return abbreviatingHome }
-        for index in parts.indices.dropLast() where parts[index] != "~" && !parts[index].isEmpty {
-            let keep = parts[index].hasPrefix(".") ? 2 : 1
-            parts[index] = String(parts[index].prefix(keep))
-        }
-        return parts.joined(separator: "/")
+    /// "/Users/me/Code/flow" becomes "flow"; home and the root keep "~" and "/".
+    var folderName: String {
+        let path = abbreviatingHome
+        guard path != "~", path != "/" else { return path }
+        return (path as NSString).lastPathComponent
     }
 }
 
@@ -72,7 +68,17 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     }
 
     var name: String {
-        customName ?? selectedTab?.focusedLeaf.workingDirectory?.fishStylePath ?? "~"
+        customName ?? selectedTab?.focusedLeaf.workingDirectory.map { Self.name(forDirectory: $0) } ?? "~"
+    }
+
+    /// Inside a repository the workspace is named after it, so it keeps its
+    /// name in a subdirectory. A repository at home holds dotfiles rather than
+    /// a project, so it names nothing.
+    static func name(forDirectory directory: String, home: String? = GitRepository.home) -> String {
+        guard let repository = GitRepository(containing: directory), repository.workTree != home else {
+            return directory.folderName
+        }
+        return (repository.workTree as NSString).lastPathComponent
     }
 
     func add(_ tab: TabModel<Leaf>) {

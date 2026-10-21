@@ -21,15 +21,15 @@ struct AgentNotification: Equatable {
     static func make(for update: AgentSessionStore.Update, title: String, isVisible: Bool) -> AgentNotification? {
         guard !isVisible else { return nil }
         let session = update.session
-        switch update.alertKind {
+        switch update.kind {
         case .needsInput:
             guard !update.repeatsWait else { return nil }
             return AgentNotification(title: title, body: session.detail.flatMap { waitingReasons[$0] } ?? waitingBody)
-        case .finished:
+        case .turnEnded:
             return AgentNotification(title: title, body: session.detail.nonEmpty ?? finishedBody)
         case .attention:
             return session.attention.nonEmpty.map { AgentNotification(title: title, body: $0) }
-        case nil:
+        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown:
             return nil
         }
     }

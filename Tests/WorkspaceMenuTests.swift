@@ -60,6 +60,25 @@ final class WorkspaceMenuTests: XCTestCase {
 
 @MainActor
 final class MenuReuseTests: XCTestCase {
+    func testRepeatedMenuUpdatesReuseDerivedWorkspaceNames() {
+        var lookups = 0
+        let workspace = WorkspaceModel<FakeLeaf>(resolveName: { _ in
+            lookups += 1
+            return "repository"
+        })
+        workspace.add(TestTab(leaf: FakeLeaf(workingDirectory: "/repo/subdirectory")))
+        let menu = WorkspaceMenu(title: "Workspace", fixedItems: [], target: NSObject(),
+                                 selectWorkspace: Selector(("workspace:")), selectTab: Selector(("tab:")))
+        menu.contents = {
+            .init(workspaces: .init(names: [workspace.name], selected: 0), tabs: .init(names: [], selected: nil))
+        }
+        for _ in 0..<30 { menu.menuNeedsUpdate(menu.menu) }
+        XCTAssertEqual(lookups, 1)
+        workspace.invalidateDerivedName()
+        menu.menuNeedsUpdate(menu.menu)
+        XCTAssertEqual(lookups, 2)
+    }
+
     func testUnchangedMenuKeepsItemsAndSelectionChangesStillApply() {
         let menu = WorkspaceMenu(title: "Workspace", fixedItems: [], target: NSObject(),
                                  selectWorkspace: Selector(("workspace:")), selectTab: Selector(("tab:")))

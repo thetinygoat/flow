@@ -28,6 +28,7 @@ final class WindowContentViewControllerTests: XCTestCase {
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentViewController = controller
+        window.orderFront(nil)
         return window
     }
 

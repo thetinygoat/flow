@@ -21,7 +21,7 @@ final class AgentNotificationTests: XCTestCase {
                                        .turnEnded, .sessionEnded, .attention, .unknown]
         for kind in kinds {
             let event = update(kind, state: .working, attention: "look here")
-            let canNotify = event.alertKind != nil
+            let canNotify = event.alerts
             XCTAssertEqual(canNotify, notification(event) != nil, "\(kind)")
             XCTAssertEqual(canNotify, AgentSound.make(for: event, isVisible: false) != nil, "\(kind)")
         }

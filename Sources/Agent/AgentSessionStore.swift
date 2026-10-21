@@ -22,16 +22,10 @@ final class AgentSessionStore {
 
     /// One applied event, with the terminal's session before and after it.
     struct Update {
-        enum AlertKind {
-            case needsInput, finished, attention
-        }
-
-        var alertKind: AlertKind? {
+        var alerts: Bool {
             switch kind {
-            case .needsInput: .needsInput
-            case .turnEnded: .finished
-            case .attention: .attention
-            case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: nil
+            case .needsInput, .turnEnded, .attention: true
+            case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: false
             }
         }
 

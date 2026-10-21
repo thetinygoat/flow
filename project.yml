@@ -165,6 +165,7 @@ targets:
       - path: Sources/ServiceProvider.swift
       - path: Sources/Ghostty/DropText.swift
       - path: Sources/Ghostty/LinkTarget.swift
+      - path: Sources/UI/TerminalScrollbar.swift
       - path: Sources/UI/WindowContentViewController.swift
       - path: Sources/UI/WorkspaceMenu.swift
       - path: Sources/UI/RowDrop.swift

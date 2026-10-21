@@ -105,6 +105,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         isReloading = true
         defer { isReloading = wasReloading }
         git.watch(store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory })
+        store.workspaces.forEach { $0.invalidateDerivedName() }
 
         if tableView.numberOfRows == store.workspaces.count {
             var rows = IndexSet(0..<store.workspaces.count)

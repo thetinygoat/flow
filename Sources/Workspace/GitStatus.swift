@@ -310,7 +310,7 @@ final class GitStatusMonitor {
         let data: Data
         if let consume {
             while true {
-                let chunk = output.fileHandleForReading.readData(ofLength: 4096)
+                let chunk = output.fileHandleForReading.readData(ofLength: 64 * 1024)
                 guard !chunk.isEmpty else { break }
                 consume(chunk)
             }
@@ -394,21 +394,23 @@ struct GitStatusParser {
 
     mutating func append(_ data: Data) {
         guard !invalid else { return }
-        if hasHeader {
-            isDirty = isDirty || data.contains { $0 != 10 }
-            return
+        var remainder = data[...]
+        if !hasHeader {
+            if let newline = remainder.firstIndex(of: 10) {
+                header.append(contentsOf: remainder[..<newline])
+                hasHeader = true
+                remainder = remainder[remainder.index(after: newline)...]
+            } else {
+                header.append(remainder)
+                remainder = Data()
+            }
+            if header.count > 64 * 1024 {
+                header.removeAll()
+                invalid = true
+                return
+            }
         }
-        if let newline = data.firstIndex(of: 10) {
-            header.append(contentsOf: data[..<newline])
-            hasHeader = true
-            isDirty = data[data.index(after: newline)...].contains { $0 != 10 }
-        } else {
-            header.append(data)
-        }
-        if header.count > 64 * 1024 {
-            header.removeAll()
-            invalid = true
-        }
+        isDirty = isDirty || remainder.contains { $0 != 10 }
     }
 
     var status: GitStatus? {

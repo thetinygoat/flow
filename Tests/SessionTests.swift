@@ -1,6 +1,35 @@
 import XCTest
 
 final class SessionTests: XCTestCase {
+    func testRestorePreservesSelectionAfterSkippingEmptyWorkspaces() {
+        let firstTab = Session.Tab(layout: .terminal(id: UUID(), workingDirectory: "/first"), zoomedPane: nil)
+        let secondTab = Session.Tab(layout: .terminal(id: UUID(), workingDirectory: "/second"), zoomedPane: nil)
+        let empty = Session.Workspace(id: UUID(), customName: "empty", tabs: [], selectedTab: 0)
+        let middle = Session.Workspace(id: UUID(), customName: "middle", tabs: [firstTab, secondTab], selectedTab: 0)
+        let last = Session.Workspace(id: UUID(), customName: "last", tabs: [secondTab], selectedTab: 0)
+        for (selection, expected) in [(1, middle.id), (2, last.id)] {
+            let store = TestStore()
+            store.restore(.init(workspaces: [empty, middle, last], selectedWorkspace: selection)) { id, directory, _ in
+                FakeLeaf(id: id, workingDirectory: directory)
+            }
+            XCTAssertEqual(store.workspaces.map(\.id), [middle.id, last.id])
+            XCTAssertEqual(store.selected?.id, expected)
+            XCTAssertEqual(store.workspaces[0].selectedTab?.focusedLeaf.workingDirectory, "/first")
+        }
+    }
+
+    func testRestoreFallsBackWhenTheSelectedWorkspaceIsEmpty() {
+        let tab = Session.Tab(layout: .terminal(id: UUID(), workingDirectory: "/"), zoomedPane: nil)
+        let first = Session.Workspace(id: UUID(), customName: nil, tabs: [tab], selectedTab: 0)
+        let empty = Session.Workspace(id: UUID(), customName: nil, tabs: [], selectedTab: 0)
+        let last = Session.Workspace(id: UUID(), customName: nil, tabs: [tab], selectedTab: 0)
+        let store = TestStore()
+        store.restore(.init(workspaces: [first, empty, last], selectedWorkspace: 1)) { id, directory, _ in
+            FakeLeaf(id: id, workingDirectory: directory)
+        }
+        XCTAssertEqual(store.selected?.id, last.id)
+    }
+
     func testSavedSessionIsReadableAndDeterministic() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

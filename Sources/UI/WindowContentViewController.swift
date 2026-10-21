@@ -90,8 +90,7 @@ final class WindowContentViewController: NSViewController {
             self?.savePendingWidth()
         }
         let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(saveWidthBeforeClosing(_:)), name: NSWindow.willCloseNotification, object: nil)
-        center.addObserver(self, selector: #selector(saveWidthBeforeClosing(_:)), name: NSApplication.willTerminateNotification, object: nil)
+        center.addObserver(self, selector: #selector(saveWidthBeforeTerminating(_:)), name: NSApplication.willTerminateNotification, object: nil)
         isSidebarHidden = defaults.bool(forKey: Self.hiddenKey)
     }
 
@@ -99,9 +98,12 @@ final class WindowContentViewController: NSViewController {
         NotificationCenter.default.removeObserver(self)
     }
 
-    @objc private func saveWidthBeforeClosing(_ notification: Notification) {
-        guard notification.name == NSApplication.willTerminateNotification ||
-              (notification.object as? NSWindow) === view.window else { return }
+    override func viewWillDisappear() {
+        savePendingWidth()
+        super.viewWillDisappear()
+    }
+
+    @objc private func saveWidthBeforeTerminating(_ notification: Notification) {
         savePendingWidth()
     }
 

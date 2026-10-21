@@ -61,14 +61,27 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var customName: String?
     private(set) var tabs: [TabModel<Leaf>] = []
     private(set) var selectedTab: TabModel<Leaf>?
+    private var derivedName: (directory: String, name: String)?
+    private let resolveName: (String) -> String
 
-    init(id: UUID = UUID(), customName: String? = nil) {
+    init(id: UUID = UUID(), customName: String? = nil,
+         resolveName: @escaping (String) -> String = { WorkspaceModel<Leaf>.name(forDirectory: $0) }) {
         self.id = id
         self.customName = customName
+        self.resolveName = resolveName
     }
 
     var name: String {
-        customName ?? selectedTab?.focusedLeaf.workingDirectory.map { Self.name(forDirectory: $0) } ?? "~"
+        if let customName { return customName }
+        guard let directory = selectedTab?.focusedLeaf.workingDirectory else { return "~" }
+        if let derivedName, derivedName.directory == directory { return derivedName.name }
+        let name = resolveName(directory)
+        derivedName = (directory, name)
+        return name
+    }
+
+    func invalidateDerivedName() {
+        derivedName = nil
     }
 
     /// Inside a repository the workspace is named after it, so it keeps its
@@ -163,15 +176,6 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
         for workspace in workspaces {
             if let tab = workspace.tab(containing: leaf) { return (workspace, tab) }
-        }
-        return nil
-    }
-
-    func workspace(containingID id: UUID) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
-        for workspace in workspaces {
-            if let tab = workspace.tabs.first(where: { $0.panes.leaves.contains { $0.id == id } }) {
-                return (workspace, tab)
-            }
         }
         return nil
     }

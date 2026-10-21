@@ -100,27 +100,29 @@ extension WorkspaceStoreModel {
     /// Workspaces whose tabs were all lost are skipped.
     func restore(_ window: Session.Window, makeLeaf: (_ id: UUID, _ workingDirectory: String?, _ workspace: UUID) -> Leaf) {
         performBatch {
-            for saved in window.workspaces {
+            var selectedWorkspace: WorkspaceModel<Leaf>?
+            for (workspaceIndex, saved) in window.workspaces.enumerated() {
                 let workspace = addWorkspace(id: saved.id, customName: saved.customName)
-                for tab in saved.tabs {
+                var selectedTab: TabModel<Leaf>?
+                for (tabIndex, tab) in saved.tabs.enumerated() {
                     let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id) }
                     let leaves = root.leaves
                     guard let first = leaves.first else { continue }
                     let panes = PaneTreeModel(root: root)
                     let zoomed = tab.zoomedPane.flatMap { leaves.indices.contains($0) ? leaves[$0] : nil }
                     if let zoomed { panes.toggleZoom(zoomed) }
-                    workspace.add(TabModel(panes: panes, focused: zoomed ?? first))
+                    let restored = TabModel(panes: panes, focused: zoomed ?? first)
+                    workspace.add(restored)
+                    if tabIndex == saved.selectedTab { selectedTab = restored }
                 }
-                if workspace.tabs.indices.contains(saved.selectedTab) {
-                    workspace.select(workspace.tabs[saved.selectedTab])
-                }
+                if let selectedTab { workspace.select(selectedTab) }
                 if workspace.tabs.isEmpty {
                     remove(workspace)
+                } else if workspaceIndex == window.selectedWorkspace {
+                    selectedWorkspace = workspace
                 }
             }
-            if workspaces.indices.contains(window.selectedWorkspace) {
-                select(workspaces[window.selectedWorkspace])
-            }
+            if let selectedWorkspace { select(selectedWorkspace) }
         }
     }
 }

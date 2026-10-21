@@ -13,14 +13,14 @@ enum AgentSound: Equatable, Hashable {
     }
 
     static func make(for update: AgentSessionStore.Update, isVisible: Bool) -> AgentSound? {
-        switch update.alertKind {
+        switch update.kind {
         case .needsInput:
             isVisible || update.repeatsWait ? nil : .needsInput
-        case .finished:
+        case .turnEnded:
             isVisible ? nil : .finished
         case .attention:
             isVisible || update.session.attention.nonEmpty == nil ? nil : .finished
-        case nil:
+        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown:
             nil
         }
     }

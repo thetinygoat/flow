@@ -68,12 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             isLive: { [weak self] id in self?.surface(withID: id) != nil },
             isVisible: { [weak self] id in self?.isInView(id) == true })
         agentSessions.onChange = { [weak self] id in
-            guard let self else { return }
-            for window in windows {
-                guard let (workspace, tab) = window.store.workspace(containingID: id) else { continue }
-                window.controller.agentsDidChange(in: workspace, tab: tab)
-                return
-            }
+            guard let (window, surface) = self?.surface(withID: id),
+                  let (workspace, tab) = window.store.workspace(containing: surface) else { return }
+            window.controller.agentsDidChange(in: workspace, tab: tab)
         }
         agentSessions.onUpdate = { [weak self] update in
             self?.notify(update)
@@ -323,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func notify(_ update: AgentSessionStore.Update) {
-        guard update.alertKind != nil else { return }
+        guard update.alerts else { return }
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"

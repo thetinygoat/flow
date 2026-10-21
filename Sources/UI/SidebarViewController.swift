@@ -78,8 +78,20 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         let container = NSVisualEffectView()
         container.material = .sidebar
         container.blendingMode = .behindWindow
+        // The sidebar material lets a bright desktop colour the whole sidebar,
+        // so a wash of the window colour keeps only a hint of it.
+        let tint = NSBox()
+        tint.boxType = .custom
+        tint.borderWidth = 0
+        tint.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8)
+        tint.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(tint)
         container.addSubview(scrollView)
         NSLayoutConstraint.activate([
+            tint.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            tint.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            tint.topAnchor.constraint(equalTo: container.topAnchor),
+            tint.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: container.topAnchor),

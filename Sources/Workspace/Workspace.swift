@@ -119,10 +119,13 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var selected: WorkspaceModel<Leaf>?
     var onChange: (() -> Void)?
 
+    /// The new workspace goes right after the selected one, next to the work
+    /// it was opened from, and becomes the selected one.
     @discardableResult
     func addWorkspace(id: UUID = UUID(), customName: String? = nil) -> WorkspaceModel<Leaf> {
         let workspace = WorkspaceModel<Leaf>(id: id, customName: customName)
-        workspaces.append(workspace)
+        let index = selected.flatMap { selected in workspaces.firstIndex { $0 === selected } }.map { $0 + 1 } ?? workspaces.endIndex
+        workspaces.insert(workspace, at: index)
         selected = workspace
         onChange?()
         return workspace

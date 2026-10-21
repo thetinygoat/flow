@@ -115,6 +115,19 @@ final class WorkspaceTests: XCTestCase {
                        "the same repository away from home names the workspace")
     }
 
+    func testNewWorkspaceGoesRightAfterTheSelectedOne() {
+        let store = TestStore()
+        let first = store.addWorkspace()
+        let second = store.addWorkspace()
+        let third = store.addWorkspace()
+        XCTAssertEqual(store.workspaces.map(\.id), [first, second, third].map(\.id), "each new one follows the one added before it")
+
+        store.select(first)
+        let fourth = store.addWorkspace()
+        XCTAssertEqual(store.workspaces.map(\.id), [first, fourth, second, third].map(\.id))
+        XCTAssertTrue(store.selected === fourth)
+    }
+
     func testStoreRemovalSelection() {
         let store = TestStore()
         let first = store.addWorkspace()

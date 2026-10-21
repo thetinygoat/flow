@@ -41,10 +41,6 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
         view = stack
     }
 
-    func setShortcutHintsVisible(_ visible: Bool) {
-        tabBar.setShortcutHintsVisible(visible)
-    }
-
     func show(_ workspace: Workspace?) {
         self.workspace = workspace
         reloadTabs()

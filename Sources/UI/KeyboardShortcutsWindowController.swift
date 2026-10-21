@@ -51,7 +51,7 @@ final class KeyboardShortcutsWindowController: NSWindowController {
         columns.alignment = .top
         columns.spacing = columnSpacing
 
-        let note = NSTextField(wrappingLabelWithString: "Hold ⌘ or ⌃ to see the shortcuts for your workspaces and tabs. Keybindings in your Ghostty config also work in Flow.")
+        let note = NSTextField(wrappingLabelWithString: "Keybindings in your Ghostty config also work in Flow.")
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         note.textColor = .tertiaryLabelColor
 

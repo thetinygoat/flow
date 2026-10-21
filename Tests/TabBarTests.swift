@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class TabBarTests: XCTestCase {
-    func testStatusSelectionAndShortcutHintsKeepTheTabStripHeight() {
+    func testStatusAndSelectionKeepTheTabStripHeight() {
         let tabs = TabBarView()
         let content = NSView()
         let root = NSStackView(views: [tabs, content])
@@ -22,15 +22,12 @@ final class TabBarTests: XCTestCase {
         ]
         for (indicators, selected) in states {
             tabs.reload(titles: titles, indicators: indicators, selectedIndex: selected)
-            for hints in [false, true, false] {
-                tabs.setShortcutHintsVisible(hints)
-                root.layoutSubtreeIfNeeded()
-                XCTAssertEqual(tabs.frame.height, TabBarView.height)
-                let items = (tabs.subviews.first as! NSStackView).arrangedSubviews
-                XCTAssertEqual(items.count, 2)
-                for item in items { XCTAssertEqual(item.frame.height, TabBarView.height) }
-                XCTAssertEqual(content.frame.height, root.bounds.height - TabBarView.height)
-            }
+            root.layoutSubtreeIfNeeded()
+            XCTAssertEqual(tabs.frame.height, TabBarView.height)
+            let items = (tabs.subviews.first as! NSStackView).arrangedSubviews
+            XCTAssertEqual(items.count, 2)
+            for item in items { XCTAssertEqual(item.frame.height, TabBarView.height) }
+            XCTAssertEqual(content.frame.height, root.bounds.height - TabBarView.height)
         }
     }
 }

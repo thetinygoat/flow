@@ -100,13 +100,6 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         view = container
     }
 
-    func setShortcutHintsVisible(_ visible: Bool) {
-        for row in 0..<tableView.numberOfRows {
-            guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { continue }
-            cell.showShortcutHint(visible && row < 9 ? "⌘\(row + 1)" : nil)
-        }
-    }
-
     func reload() {
         let wasReloading = isReloading
         isReloading = true
@@ -368,7 +361,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let titleLabel = NSTextField(labelWithString: "")
     let subtitleLabel = NSTextField(labelWithString: "")
     private let gitLabel = NSTextField(labelWithString: "")
-    private let hint = ShortcutHintView()
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
     private let agentDot = AgentDotView()
     private var onRename: ((String) -> Void)?
@@ -376,19 +368,16 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     private var clickMonitor: Any?
     var onClose: (() -> Void)?
 
-    /// The dragged row shows what it is rather than what the pointer or the
-    /// command key happen to reveal on it, so the agent dot stays visible.
+    /// The dragged row shows what it is rather than what the pointer happens
+    /// to reveal on it, so the agent dot stays visible.
     override var draggingImageComponents: [NSDraggingImageComponent] {
         let wasHovered = isHovered
-        let hintText = hint.text
         isHovered = false
-        showShortcutHint(nil)
         layoutSubtreeIfNeeded()
         // Vector rather than bitmap, so it stays sharp on any display the
         // drag crosses.
         let snapshot = NSImage(data: dataWithPDF(inside: bounds))
         isHovered = wasHovered
-        showShortcutHint(hintText)
 
         let appearance = effectiveAppearance
         let image = NSImage(size: bounds.size, flipped: false) { rect in
@@ -429,8 +418,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
-        hint.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(hint)
         closeButton.isBordered = false
         closeButton.imagePosition = .imageOnly
         closeButton.symbolConfiguration = .init(pointSize: 9, weight: .semibold)
@@ -446,8 +433,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            hint.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            hint.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             closeButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             agentDot.centerXAnchor.constraint(equalTo: closeButton.centerXAnchor),
@@ -468,11 +453,11 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         }
     }
 
-    /// The dot, the close button and the shortcut hint share one spot at the
-    /// end of the name; the hint wins, then the close button under the pointer.
+    /// The dot and the close button share one spot at the end of the name;
+    /// the close button wins under the pointer.
     private func updateCloseButton() {
-        closeButton.isHidden = !isHovered || hint.text != nil
-        agentDot.isHidden = agentDot.indicator == nil || !closeButton.isHidden || hint.text != nil
+        closeButton.isHidden = !isHovered
+        agentDot.isHidden = agentDot.indicator == nil || isHovered
     }
 
     @objc private func closeTapped() {
@@ -488,11 +473,6 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
             gitLabel.isHidden = false
             gitLabel.stringValue = gitStatus.isDirty ? "\(gitStatus.branch)*" : gitStatus.branch
         }
-    }
-
-    func showShortcutHint(_ text: String?) {
-        hint.text = text
-        updateCloseButton()
     }
 
     required init?(coder: NSCoder) {

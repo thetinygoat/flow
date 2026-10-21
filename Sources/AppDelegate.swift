@@ -14,9 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
     private var lastSaved: Session?
-    private var modifierMonitor: Any?
-    private var hintTimer: Timer?
-    private var hintsSuppressed = false
+    private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
     private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
     private let notifications = DesktopNotifications()
@@ -109,12 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pendingDirectories?.forEach { openWorkspace(in: $0, newWindow: false) }
         pendingDirectories = nil
 
-        // Holding command or control for a moment reveals the shortcut badges
-        // for that modifier. Once a key is pressed the shortcut has been used,
-        // so the badges stay hidden until the modifier is released.
-        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
-            self?.updateShortcutHints(for: event)
-            if event.type == .keyDown, let surface = event.window?.firstResponder as? TerminalSurfaceView {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if let surface = event.window?.firstResponder as? TerminalSurfaceView {
                 self?.markSeenIfInView(surface)
             }
             return event
@@ -124,28 +118,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             guard let self else { return }
             windows.compactMap(\.focusedSurface).forEach(markSeenIfInView)
-        }
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.hintTimer?.invalidate()
-            self?.hintsSuppressed = false
-            self?.windows.forEach { $0.controller.showShortcutHints(for: nil) }
-        }
-    }
-
-    private func updateShortcutHints(for event: NSEvent) {
-        hintTimer?.invalidate()
-        windows.forEach { $0.controller.showShortcutHints(for: nil) }
-        let modifiers = event.modifierFlags.intersection(ShortcutModifier.relevantFlags)
-        if event.type == .keyDown {
-            hintsSuppressed = true
-        } else if modifiers.isEmpty {
-            hintsSuppressed = false
-        }
-        guard !hintsSuppressed, let modifier = ShortcutModifier(modifiers), let window = currentWindow else { return }
-        hintTimer = Timer.scheduledTimer(withTimeInterval: 0.32, repeats: false) { _ in
-            window.controller.showShortcutHints(for: modifier)
         }
     }
 

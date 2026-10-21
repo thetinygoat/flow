@@ -43,12 +43,6 @@ final class TabBarView: NSView {
         stack.arrangedSubviews.compactMap { $0 as? TabItemView }
     }
 
-    func setShortcutHintsVisible(_ visible: Bool) {
-        for (index, item) in items.enumerated() {
-            item.showShortcutHint(visible && index < 9 ? "⌃\(index + 1)" : nil)
-        }
-    }
-
     /// Titles change with every shell prompt, so items are kept and updated;
     /// views are only added or removed when the number of tabs changes.
     func reload(titles: [String], indicators: [AgentIndicator?], selectedIndex: Int?) {
@@ -81,7 +75,6 @@ private final class TabItemView: NSView {
     var onClose: (() -> Void)?
     private let label = NSTextField(labelWithString: "")
     private let close: NSButton
-    private let hint = ShortcutHintView()
     private let agentDot = AgentDotView()
     private var trackingArea: NSTrackingArea?
     private var isHovered = false {
@@ -132,7 +125,7 @@ private final class TabItemView: NSView {
         close.setContentHuggingPriority(.required, for: .horizontal)
 
         agentDot.isHidden = true
-        let stack = NSStackView(views: [agentDot, label, hint, close])
+        let stack = NSStackView(views: [agentDot, label, close])
         stack.orientation = .horizontal
         stack.distribution = .fill
         stack.spacing = 8
@@ -193,15 +186,9 @@ private final class TabItemView: NSView {
     /// Hiding the button would drop it from the stack and reflow the title,
     /// so it stays in place and only fades out.
     private func updateClose() {
-        close.isHidden = hint.text != nil
         let visible = isSelected || isHovered
         close.alphaValue = visible ? 1 : 0
         close.isEnabled = visible
-    }
-
-    func showShortcutHint(_ text: String?) {
-        hint.text = text
-        updateClose()
     }
 
     override func mouseDown(with event: NSEvent) {

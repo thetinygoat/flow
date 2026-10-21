@@ -36,7 +36,7 @@ final class TerminalScrollbar: NSScrollView {
             center.addObserver(forName: NSScrollView.didEndLiveScrollNotification, object: self, queue: .main) { [weak self] _ in
                 guard let self else { return }
                 self.isLiveScrolling = false
-                self.sync()
+                if self.offset == self.lastSentRow { self.sync() }
             },
             center.addObserver(forName: NSScrollView.didLiveScrollNotification, object: self, queue: .main) { [weak self] _ in
                 self?.liveScrolled()

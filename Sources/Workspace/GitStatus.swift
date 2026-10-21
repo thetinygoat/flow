@@ -150,7 +150,7 @@ final class GitStatusMonitor {
                 guard paths.contains(where: repository.isRelevant) else { return }
                 let headChanged = paths.contains(repository.gitDir + "/HEAD")
                 DispatchQueue.main.async {
-                    guard let self, let state, self.watched[repository] === state else { return }
+                    guard let self, let state, self.isCurrent(state) else { return }
                     self.handle(headChanged: headChanged, in: state)
                 }
             }
@@ -163,6 +163,10 @@ final class GitStatusMonitor {
         guard let repository = repositories[directory], let state = watched[repository],
               let branch = state.branch ?? state.gitBranch else { return nil }
         return GitStatus(branch: branch, isDirty: state.isDirty ?? false)
+    }
+
+    private func isCurrent(_ state: Watched) -> Bool {
+        watched[state.repository] === state
     }
 
     private func handle(headChanged: Bool, in state: Watched) {
@@ -184,7 +188,7 @@ final class GitStatusMonitor {
         guard !state.isScheduled else { return }
         state.isScheduled = true
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0, state.nextCheck.timeIntervalSinceNow)) { [weak self, weak state] in
-            guard let self, let state, self.watched[state.repository] === state else { return }
+            guard let self, let state, self.isCurrent(state) else { return }
             state.isScheduled = false
             self.check(state)
         }
@@ -200,7 +204,7 @@ final class GitStatusMonitor {
             DispatchQueue.main.async {
                 state.isChecking = false
                 self.finishedChecks += 1
-                guard self.watched[state.repository] === state else { return }
+                guard self.isCurrent(state) else { return }
                 state.nextCheck = Date() + Self.delay(after: duration)
                 let changed = state.isDirty != status?.isDirty || state.gitBranch != status?.branch
                 state.isDirty = status?.isDirty
@@ -359,9 +363,10 @@ private final class FileEvents {
 extension GitStatus {
     /// Parses `git status --porcelain=v1 --branch` output.
     init?(porcelain text: String) {
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-        guard let header = lines.first, let branch = Self.branch(fromHeader: String(header)) else { return nil }
-        self.init(branch: branch, isDirty: lines.count > 1)
+        var parser = GitStatusParser()
+        parser.append(Data(text.utf8))
+        guard let status = parser.status else { return nil }
+        self = status
     }
 
     static func branch(fromHeader header: String) -> String? {

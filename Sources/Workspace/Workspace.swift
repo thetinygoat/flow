@@ -113,7 +113,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     }
 }
 
-/// All workspaces plus which one is selected. Observers get `onChange` after every mutation.
+/// All workspaces plus which one is selected. Observers get `onChange` after
+/// each mutation, or once at the end of the outermost nonempty batch.
 final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var workspaces: [WorkspaceModel<Leaf>] = []
     private(set) var selected: WorkspaceModel<Leaf>?
@@ -162,6 +163,15 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
         for workspace in workspaces {
             if let tab = workspace.tab(containing: leaf) { return (workspace, tab) }
+        }
+        return nil
+    }
+
+    func workspace(containingID id: UUID) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
+        for workspace in workspaces {
+            if let tab = workspace.tabs.first(where: { $0.panes.leaves.contains { $0.id == id } }) {
+                return (workspace, tab)
+            }
         }
         return nil
     }

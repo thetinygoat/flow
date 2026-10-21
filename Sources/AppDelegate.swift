@@ -68,8 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             isLive: { [weak self] id in self?.surface(withID: id) != nil },
             isVisible: { [weak self] id in self?.isInView(id) == true })
         agentSessions.onChange = { [weak self] id in
-            guard let (window, surface) = self?.surface(withID: id) else { return }
-            window.controller.agentsDidChange(in: surface)
+            guard let self else { return }
+            for window in windows {
+                guard let (workspace, tab) = window.store.workspace(containingID: id) else { continue }
+                window.controller.agentsDidChange(in: workspace, tab: tab)
+                return
+            }
         }
         agentSessions.onUpdate = { [weak self] update in
             self?.notify(update)

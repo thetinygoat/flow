@@ -108,7 +108,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
 
         if tableView.numberOfRows == store.workspaces.count {
             var rows = IndexSet(0..<store.workspaces.count)
-            if let renaming, let row = store.workspaces.firstIndex(where: { $0 === renaming }) {
+            if let renaming, let row = row(of: renaming) {
                 rows.remove(row)
             }
             tableView.reloadData(forRowIndexes: rows, columnIndexes: [0])
@@ -129,7 +129,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
             tableView.reloadData()
         }
         if let selected = store.selected,
-           let row = store.workspaces.firstIndex(where: { $0 === selected }) {
+           let row = row(of: selected) {
             tableView.selectRowIndexes([row], byExtendingSelection: false)
         }
     }
@@ -137,10 +137,14 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     /// Agents change state far more often than rows need rebuilding, so only
     /// the dots are updated.
     func updateAgentIndicator(for workspace: Workspace) {
-        guard let row = store.workspaces.firstIndex(where: { $0 === workspace }),
+        guard let row = row(of: workspace),
               row < tableView.numberOfRows,
               let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
         cell.agentIndicator = agentIndicator(workspace)
+    }
+
+    private func row(of workspace: Workspace) -> Int? {
+        store.workspaces.firstIndex { $0 === workspace }
     }
 
     private func workspace(at row: Int) -> Workspace? {
@@ -164,7 +168,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     func beginRename(of workspace: Workspace) {
-        guard renaming == nil, let row = store.workspaces.firstIndex(where: { $0 === workspace }) else { return }
+        guard renaming == nil, let row = row(of: workspace) else { return }
         tableView.scrollRowToVisible(row)
         guard let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: true) as? WorkspaceCellView else { return }
         renaming = workspace

@@ -16,10 +16,13 @@ final class WindowContentViewController: NSViewController {
     private var contentAfterSidebar: NSLayoutConstraint!
     private var contentAtEdge: NSLayoutConstraint!
     private var widthAtDragStart: CGFloat = 0
+    private var hasPendingWidth = false
+    private let defaults: UserDefaults
 
-    init(sidebar: NSViewController, content: NSViewController) {
+    init(sidebar: NSViewController, content: NSViewController, defaults: UserDefaults = .standard) {
         self.sidebar = sidebar
         self.content = content
+        self.defaults = defaults
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -34,7 +37,7 @@ final class WindowContentViewController: NSViewController {
     var isSidebarHidden: Bool {
         get { sidebar.view.isHidden }
         set {
-            UserDefaults.standard.set(newValue, forKey: Self.hiddenKey)
+            defaults.set(newValue, forKey: Self.hiddenKey)
             sidebar.view.isHidden = newValue
             handle.isHidden = newValue
             // The sidebar keeps its width while hidden, so its own layout is
@@ -53,7 +56,7 @@ final class WindowContentViewController: NSViewController {
             view.addSubview(child)
         }
 
-        let savedWidth = UserDefaults.standard.double(forKey: Self.widthKey)
+        let savedWidth = defaults.double(forKey: Self.widthKey)
         sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: Self.clampedWidth(savedWidth > 0 ? savedWidth : 240))
         contentAfterSidebar = content.view.leadingAnchor.constraint(equalTo: sidebar.view.trailingAnchor)
         contentAtEdge = content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
@@ -78,13 +81,34 @@ final class WindowContentViewController: NSViewController {
         }
         handle.onDrag = { [weak self] distance in
             guard let self else { return }
-            sidebarWidth.constant = Self.clampedWidth(widthAtDragStart + distance)
+            let width = Self.clampedWidth(widthAtDragStart + distance)
+            guard width != sidebarWidth.constant else { return }
+            sidebarWidth.constant = width
+            hasPendingWidth = true
         }
         handle.onEnd = { [weak self] in
-            guard let self else { return }
-            UserDefaults.standard.set(Double(sidebarWidth.constant), forKey: Self.widthKey)
+            self?.savePendingWidth()
         }
-        isSidebarHidden = UserDefaults.standard.bool(forKey: Self.hiddenKey)
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(saveWidthBeforeClosing(_:)), name: NSWindow.willCloseNotification, object: nil)
+        center.addObserver(self, selector: #selector(saveWidthBeforeClosing(_:)), name: NSApplication.willTerminateNotification, object: nil)
+        isSidebarHidden = defaults.bool(forKey: Self.hiddenKey)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func saveWidthBeforeClosing(_ notification: Notification) {
+        guard notification.name == NSApplication.willTerminateNotification ||
+              (notification.object as? NSWindow) === view.window else { return }
+        savePendingWidth()
+    }
+
+    private func savePendingWidth() {
+        guard hasPendingWidth else { return }
+        defaults.set(Double(sidebarWidth.constant), forKey: Self.widthKey)
+        hasPendingWidth = false
     }
 
     func toggleSidebar() {

@@ -160,6 +160,22 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertNil(store.workspace(containing: FakeLeaf()))
     }
 
+    func testStoreFindsTheWorkspaceAndTabForAnUnselectedPaneID() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let tab = TestTab(leaf: FakeLeaf())
+        let leaf = FakeLeaf()
+        tab.panes.split(tab.panes.leaves[0], direction: .right, with: leaf)
+        workspace.add(tab)
+        workspace.add(TestTab(leaf: FakeLeaf()))
+        store.addWorkspace().add(TestTab(leaf: FakeLeaf()))
+
+        let found = store.workspace(containingID: leaf.id)
+        XCTAssertTrue(found?.0 === workspace)
+        XCTAssertTrue(found?.1 === tab)
+        XCTAssertNil(store.workspace(containingID: UUID()))
+    }
+
     func testStoreNotifiesOnChange() {
         let store = TestStore()
         var changes = 0

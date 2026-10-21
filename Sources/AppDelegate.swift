@@ -557,8 +557,18 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {
         guard let window = window(containing: surface) else { return }
-        let workspace = window.store.workspace(containing: surface)?.0.name ?? ""
-        notifications.post(title: title, body: body, subtitle: workspace, from: surface.id)
+        let workspace = window.store.workspace(containing: surface)?.0
+        MainActor.assumeIsolated {
+            switch agentSessions.route(notification: body, from: surface.id, workspaceID: workspace?.id,
+                                       cwd: surface.workingDirectory ?? "", at: Date()) {
+            case .event(let event):
+                agentSessions.apply(event)
+            case .ignore:
+                break
+            case .post:
+                notifications.post(title: title, body: body, subtitle: workspace?.name ?? "", from: surface.id)
+            }
+        }
     }
 
     func runtime(_ runtime: GhosttyRuntime, didFinish command: CommandFinish, in surface: TerminalSurfaceView) {

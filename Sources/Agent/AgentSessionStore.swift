@@ -41,6 +41,16 @@ final class AgentSessionStore {
         }
     }
 
+    /// What to do with a desktop notification a terminal asked for.
+    enum NotificationRoute: Equatable {
+        /// The terminal's agent is telling Flow what it is doing.
+        case event(AgentEvent)
+        /// The agent's hooks already reported it.
+        case ignore
+        /// Not the agent's; post it as the terminal's.
+        case post
+    }
+
     private(set) var sessions: [UUID: Session] = [:]
     var onChange: ((UUID) -> Void)?
     var onUpdate: ((Update) -> Void)?
@@ -108,6 +118,14 @@ final class AgentSessionStore {
         if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) {
             onChange?(surface)
         }
+    }
+
+    func route(notification message: String, from surface: UUID, workspaceID: UUID?, cwd: String, at: Date) -> NotificationRoute {
+        guard let session = sessions[surface], session.state != .ended,
+              let translate = AgentAdapter.named(session.agent)?.translateNotification else { return .post }
+        guard let (kind, detail) = translate(message) else { return .ignore }
+        return .event(AgentEvent(agent: session.agent, kind: kind, sessionID: session.sessionID, surfaceID: surface,
+                                 workspaceID: workspaceID, cwd: cwd, at: at, detail: detail))
     }
 
     func markSeen(_ surface: UUID) {

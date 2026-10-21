@@ -15,8 +15,9 @@ final class AgentSessionStoreTests: XCTestCase {
         store.onUpdate = { [unowned self] in self.updates.append($0) }
     }
 
-    func send(_ kind: AgentEvent.Kind, detail: String? = nil, session: String = "s1", to surface: UUID? = nil, at: Date = Date()) {
-        store.apply(AgentEvent(agent: "test", kind: kind, sessionID: session, surfaceID: surface ?? self.surface,
+    func send(_ kind: AgentEvent.Kind, detail: String? = nil, session: String = "s1", to surface: UUID? = nil, at: Date = Date(),
+              agent: String = "test") {
+        store.apply(AgentEvent(agent: agent, kind: kind, sessionID: session, surfaceID: surface ?? self.surface,
                                workspaceID: nil, cwd: "/", at: at, detail: detail))
     }
 
@@ -197,6 +198,40 @@ final class AgentSessionStoreTests: XCTestCase {
         send(.sessionStarted, session: "new", at: early)
         XCTAssertEqual(session?.sessionID, "new")
         XCTAssertEqual(session?.state, .idle)
+    }
+
+    // MARK: Notifications
+
+    let workspace = UUID()
+    let now = Date(timeIntervalSince1970: 10)
+
+    func route(_ message: String, from surface: UUID? = nil) -> AgentSessionStore.NotificationRoute {
+        store.route(notification: message, from: surface ?? self.surface, workspaceID: workspace, cwd: "/project", at: now)
+    }
+
+    func testAnApprovalCodexShowsTheUserWaitsOnThem() {
+        send(.turnStarted, at: Date(timeIntervalSince1970: 1), agent: "codex")
+        let route = route("Approval requested: x")
+        XCTAssertEqual(route, .event(AgentEvent(agent: "codex", kind: .needsInput, sessionID: "s1", surfaceID: surface,
+                                                workspaceID: workspace, cwd: "/project", at: now, detail: "Approval requested: x")))
+        if case .event(let event) = route { store.apply(event) }
+        XCTAssertEqual(session?.state, .waiting)
+        XCTAssertEqual(session?.detail, "Approval requested: x")
+    }
+
+    func testNotificationsCodexsHooksCoverAreNotPosted() {
+        send(.turnStarted, agent: "codex")
+        XCTAssertEqual(route("Agent turn complete"), .ignore)
+    }
+
+    func testOtherNotificationsArePosted() {
+        XCTAssertEqual(route("Approval requested: x"), .post, "no agent")
+        send(.turnStarted, agent: "claude")
+        XCTAssertEqual(route("Approval requested: x"), .post, "an agent that does not read notifications")
+        send(.turnStarted, agent: "codex")
+        send(.sessionEnded, agent: "codex")
+        XCTAssertEqual(route("Approval requested: x"), .post, "an ended session")
+        XCTAssertEqual(route("Approval requested: x", from: UUID()), .post, "another terminal")
     }
 }
 

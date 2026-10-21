@@ -21,6 +21,10 @@ struct AgentAdapter {
     let launch: Launch
     /// Returns nil for hook calls Flow has no use for.
     let translate: (HookPayload) -> AgentEvent?
+    /// Reads a desktop notification the agent asked its terminal for. Returns
+    /// nil for one Flow has no use for. An agent without it has its
+    /// notifications posted as the terminal's.
+    var translateNotification: ((_ message: String) -> (kind: AgentEvent.Kind, detail: String?)?)? = nil
 
     static let all: [AgentAdapter] = [.claudeCode, .openCode, .codex]
 
@@ -55,24 +59,27 @@ struct HookPayload {
 
     /// A message field as one line short enough to show beside a workspace.
     func summary(_ key: String) -> String? {
-        string(key).map { message in
-            var characters: [Character] = []
-            characters.reserveCapacity(Self.detailLimit + 2)
-            var spacePending = false
-            for character in message {
-                if character.isWhitespace {
-                    spacePending = !characters.isEmpty
-                    continue
-                }
-                if spacePending { characters.append(" ") }
-                spacePending = false
-                characters.append(character)
-                if characters.count > Self.detailLimit {
-                    return String(characters.prefix(Self.detailLimit - 1)) + "…"
-                }
+        string(key).map(Self.summary)
+    }
+
+    /// `message` as one line short enough to show beside a workspace.
+    static func summary(_ message: String) -> String {
+        var characters: [Character] = []
+        characters.reserveCapacity(detailLimit + 2)
+        var spacePending = false
+        for character in message {
+            if character.isWhitespace {
+                spacePending = !characters.isEmpty
+                continue
             }
-            return String(characters)
+            if spacePending { characters.append(" ") }
+            spacePending = false
+            characters.append(character)
+            if characters.count > detailLimit {
+                return String(characters.prefix(detailLimit - 1)) + "…"
+            }
         }
+        return String(characters)
     }
 
     func object(_ key: String) -> [String: Any]? {

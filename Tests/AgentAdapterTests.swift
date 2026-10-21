@@ -35,6 +35,12 @@ final class AgentAdapterTests: XCTestCase {
         }
         XCTAssertNil(AgentAdapter.named("nonexistent"))
     }
+
+    func testOnlyCodexReadsItsNotifications() {
+        XCTAssertNil(AgentAdapter.claudeCode.translateNotification)
+        XCTAssertNil(AgentAdapter.openCode.translateNotification)
+        XCTAssertNotNil(AgentAdapter.codex.translateNotification)
+    }
 }
 
 final class ClaudeCodeTests: XCTestCase {
@@ -212,7 +218,6 @@ final class CodexTests: XCTestCase {
         XCTAssertEqual(try translate(CodexHookFixtures.userPromptSubmit), expected(.turnStarted))
         XCTAssertEqual(try translate(CodexHookFixtures.preToolUse), expected(.working, "Bash"))
         XCTAssertEqual(try translate(CodexHookFixtures.postToolUse), expected(.working, "Bash"))
-        XCTAssertEqual(try translate(CodexHookFixtures.permissionRequest), expected(.needsInput, "permission"))
         XCTAssertEqual(try translate(CodexHookFixtures.stop), expected(.turnEnded, "ok"))
         XCTAssertEqual(try translate(CodexHookFixtures.interrupt), expected(.turnEnded))
         XCTAssertEqual(try translate(CodexHookFixtures.sessionEnd), expected(.sessionEnded))
@@ -226,6 +231,10 @@ final class CodexTests: XCTestCase {
         XCTAssertNil(try translate(#"{"session_id":"s"}"#))
     }
 
+    func testPermissionRequestIsLeftToTheNotification() throws {
+        XCTAssertNil(try translate(CodexHookFixtures.permissionRequest))
+    }
+
     func testTurnEndedDetailIsOneShortLine() throws {
         let long = String(repeating: "word ", count: 100)
         let json = CodexHookFixtures.stop.replacingOccurrences(of: #""last_assistant_message":"ok""#, with: #""last_assistant_message":"Done.\n\n\#(long)""#)
@@ -235,7 +244,34 @@ final class CodexTests: XCTestCase {
         XCTAssertTrue(detail.hasSuffix("…"))
     }
 
+    // MARK: Notifications
+
+    func testNotificationsThatPutSomethingToTheUserNeedInput() throws {
+        for message in ["Approval requested: echo hi > made.txt", "Codex wants to edit made.txt", "Codex wants to edit 3 files",
+                        "Approval requested by github", "Plan mode prompt: Implement this plan?", "Question: Which branch?"] {
+            let translated = try XCTUnwrap(Codex.translateNotification(message), message)
+            XCTAssertEqual(translated.kind, .needsInput)
+            XCTAssertEqual(translated.detail, message)
+        }
+    }
+
+    func testNotificationDetailIsOneShortLine() throws {
+        let command = String(repeating: "echo hi && ", count: 50)
+        let detail = try XCTUnwrap(Codex.translateNotification("Approval requested: \(command)\nexit")?.detail)
+        XCTAssertEqual(detail.count, HookPayload.detailLimit)
+        XCTAssertTrue(detail.hasPrefix("Approval requested: echo hi && echo"))
+        XCTAssertTrue(detail.hasSuffix("…"))
+    }
+
+    func testDropsNotificationsTheHooksCover() {
+        XCTAssertNil(Codex.translateNotification("Agent turn complete"))
+        XCTAssertNil(Codex.translateNotification("I created made.txt."))
+        XCTAssertNil(Codex.translateNotification(""))
+    }
+
     // MARK: Arguments
+
+    let settings = ["tui.notifications": #"["approval-requested","plan-mode-prompt","async-question"]"#, "tui.notification_method": #""osc9""#, "tui.notification_condition": #""always""#]
 
     let hook = #"command="'/Applications/Flow Beta.app/Contents/Helpers/flw' hook codex""#
 
@@ -251,10 +287,27 @@ final class CodexTests: XCTestCase {
     func testAddsFlowsHooksAheadOfTheUsersArguments() {
         let arguments = Codex.arguments(["exec", "hi"], flw: flw)
         XCTAssertEqual(Array(arguments.suffix(2)), ["exec", "hi"])
-        XCTAssertEqual(arguments.count, Codex.hookEvents.count * 2 + 2)
-        XCTAssertEqual(Set(overrides(arguments).keys), Set(Codex.hookEvents.map { "hooks.\($0)" }))
+        XCTAssertEqual(arguments.count, (settings.count + Codex.hookEvents.count) * 2 + 2)
+        XCTAssertEqual(Set(overrides(arguments).keys), Set(Codex.hookEvents.map { "hooks.\($0)" }).union(settings.keys))
         XCTAssertEqual(overrides(arguments)["hooks.Stop"], #"[{hooks=[{type="command",\#(hook)}]}]"#)
         XCTAssertEqual(overrides(arguments)["hooks.SessionEnd"], #"[{hooks=[{type="command",\#(hook)}]}]"#)
+    }
+
+    func testForcesCodexsNotificationsFirst() {
+        let arguments = Codex.arguments(["exec", "hi"], flw: flw)
+        XCTAssertEqual(Array(arguments.prefix(6)), ["-c", #"tui.notifications=["approval-requested","plan-mode-prompt","async-question"]"#, "-c", #"tui.notification_method="osc9""#,
+                                                    "-c", #"tui.notification_condition="always""#])
+    }
+
+    func testLeavesNotificationSettingsTheUserOverridesToThem() {
+        let user = ["-c", #"tui.notification_condition="unfocused""#, #"--config="tui.notification_method"=bel"#]
+        let arguments = Codex.arguments(user, flw: flw)
+        XCTAssertEqual(Array(arguments.suffix(user.count)), user)
+        XCTAssertEqual(overrides(Array(arguments.dropLast(user.count))).filter { $0.key.hasPrefix("tui.") }, ["tui.notifications": settings["tui.notifications"]!])
+
+        let table = ["-c", "tui={notifications=false}"]
+        XCTAssertEqual(overrides(Codex.arguments(table, flw: flw)).filter { settings[$0.key] != nil }, [:])
+        XCTAssertEqual(Array(Codex.arguments(table, flw: flw).suffix(2)), table)
     }
 
     func testHooksAreTheSameEveryLaunch() {
@@ -271,15 +324,15 @@ final class CodexTests: XCTestCase {
         let arguments = Codex.arguments(user, flw: flw)
         XCTAssertEqual(Array(arguments.suffix(user.count)), user)
         XCTAssertEqual(Set(overrides(Array(arguments.dropLast(user.count))).keys),
-                       ["hooks.UserPromptSubmit", "hooks.PostToolUse", "hooks.PermissionRequest", "hooks.SessionEnd"])
-        XCTAssertEqual(Codex.arguments(["-c", "hooks={}"], flw: flw), ["-c", "hooks={}"])
+                       Set(["hooks.UserPromptSubmit", "hooks.PostToolUse", "hooks.PermissionRequest", "hooks.SessionEnd"]).union(settings.keys))
+        XCTAssertEqual(Set(overrides(Codex.arguments(["-c", "hooks={}"], flw: flw)).keys), Set(settings.keys).union(["hooks"]))
     }
 
     func testArgumentsAfterDoubleDashAreNotOptions() {
         let user = ["exec", "--", "-c", "hooks.Stop=[]"]
         let arguments = Codex.arguments(user, flw: flw)
         XCTAssertEqual(Array(arguments.suffix(4)), user)
-        XCTAssertEqual(arguments.count, Codex.hookEvents.count * 2 + 4)
+        XCTAssertEqual(arguments.count, (settings.count + Codex.hookEvents.count) * 2 + 4)
     }
 }
 

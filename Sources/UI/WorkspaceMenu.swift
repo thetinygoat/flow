@@ -40,8 +40,8 @@ final class WorkspaceMenu: NSObject, NSMenuDelegate {
             menu.removeItem(at: fixedItemCount)
         }
         guard let contents = contents() else { return }
-        add(contents.workspaces, action: selectWorkspace, modifiers: .command)
-        add(contents.tabs, action: selectTab, modifiers: .control)
+        add(contents.workspaces, action: selectWorkspace, modifiers: .command, nineIsLast: true)
+        add(contents.tabs, action: selectTab, modifiers: .control, nineIsLast: false)
     }
 
     /// AppKit does not refill the menu before matching key equivalents,
@@ -52,15 +52,24 @@ final class WorkspaceMenu: NSObject, NSMenuDelegate {
         return false
     }
 
-    private func add(_ entries: Entries, action: Selector, modifiers: NSEvent.ModifierFlags) {
+    private func add(_ entries: Entries, action: Selector, modifiers: NSEvent.ModifierFlags, nineIsLast: Bool) {
         guard !entries.names.isEmpty else { return }
         menu.addItem(.separator())
         for (index, name) in entries.names.enumerated() {
-            let item = menu.addItem(withTitle: name, action: action, keyEquivalent: index < 9 ? "\(index + 1)" : "")
+            let key = Self.keyEquivalent(at: index, of: entries.names.count, nineIsLast: nineIsLast)
+            let item = menu.addItem(withTitle: name, action: action, keyEquivalent: key)
             item.keyEquivalentModifierMask = modifiers
             item.target = target
             item.tag = index
             item.state = index == entries.selected ? .on : .off
         }
+    }
+
+    /// ⌘9 is Ghostty's last-tab binding, which Flow turns into the last
+    /// workspace, so the menu puts it on the last one rather than the ninth.
+    static func keyEquivalent(at index: Int, of count: Int, nineIsLast: Bool) -> String {
+        guard nineIsLast else { return index < 9 ? "\(index + 1)" : "" }
+        if index < 8 { return "\(index + 1)" }
+        return index == count - 1 ? "9" : ""
     }
 }

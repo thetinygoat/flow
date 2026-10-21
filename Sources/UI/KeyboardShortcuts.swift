@@ -16,7 +16,8 @@ enum KeyboardShortcuts {
     static let all: [Section] = [
         Section(title: "Workspaces", shortcuts: [
             Shortcut(title: "New workspace", keys: ["⌘", "N"]),
-            Shortcut(title: "Switch workspace", keys: ["⌘", "1–9"]),
+            Shortcut(title: "Switch workspace", keys: ["⌘", "1–8"]),
+            Shortcut(title: "Last workspace", keys: ["⌘", "9"]),
             Shortcut(title: "Previous workspace", keys: ["⇧", "⌘", "["]),
             Shortcut(title: "Next workspace", keys: ["⇧", "⌘", "]"]),
             Shortcut(title: "Rename workspace", keys: ["⇧", "⌘", "R"]),

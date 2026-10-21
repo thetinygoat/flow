@@ -23,20 +23,25 @@ final class WorkspaceMenuTests: XCTestCase {
         return menu
     }
 
-    func testListsEveryWorkspaceAndTabWithShortcutsOnTheFirstNine() {
+    func testListsEveryWorkspaceAndTabWithNineOnTheLastWorkspace() {
         let names = (1...11).map { "w\($0)" }
         let menu = makeMenu(.init(workspaces: .init(names: names, selected: 10), tabs: .init(names: ["a", "b"], selected: 0)))
         menu.menuNeedsUpdate(menu.menu)
 
         let workspaces = menu.menu.items.filter { $0.action == #selector(Receiver.selectWorkspace(_:)) }
         XCTAssertEqual(workspaces.map(\.title), names)
-        XCTAssertEqual(workspaces.map(\.keyEquivalent), (1...9).map { "\($0)" } + ["", ""])
+        XCTAssertEqual(workspaces.map(\.keyEquivalent), (1...8).map { "\($0)" } + ["", "", "9"])
         XCTAssertEqual(workspaces.map(\.state), Array(repeating: .off, count: 10) + [.on])
 
         let tabs = menu.menu.items.filter { $0.action == #selector(Receiver.selectTab(_:)) }
         XCTAssertEqual(tabs.map(\.title), ["a", "b"])
         XCTAssertEqual(tabs.map(\.keyEquivalentModifierMask), [.control, .control])
         XCTAssertEqual(tabs.map(\.state), [.on, .off])
+    }
+
+    func testTabsKeepNineOnTheNinth() {
+        XCTAssertEqual((0..<11).map { WorkspaceMenu.keyEquivalent(at: $0, of: 11, nineIsLast: false) }, (1...9).map { "\($0)" } + ["", ""])
+        XCTAssertEqual((0..<3).map { WorkspaceMenu.keyEquivalent(at: $0, of: 3, nineIsLast: true) }, ["1", "2", "3"], "a short list keeps its numbers")
     }
 
     func testRebuildingKeepsTheFixedItemsOnce() {

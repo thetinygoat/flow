@@ -147,11 +147,11 @@ final class GitStatusMonitor {
             // Paths are filtered where they arrive, off the main thread; a build
             // can report thousands at a time.
             state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
-                let relevant = paths.filter(repository.isRelevant)
-                guard !relevant.isEmpty else { return }
+                guard paths.contains(where: repository.isRelevant) else { return }
+                let headChanged = paths.contains(repository.gitDir + "/HEAD")
                 DispatchQueue.main.async {
-                    guard let self, let state else { return }
-                    self.handle(relevant, in: state)
+                    guard let self, let state, self.isCurrent(state) else { return }
+                    self.handle(headChanged: headChanged, in: state)
                 }
             }
             watched[repository] = state
@@ -165,8 +165,12 @@ final class GitStatusMonitor {
         return GitStatus(branch: branch, isDirty: state.isDirty ?? false)
     }
 
-    private func handle(_ relevant: [String], in state: Watched) {
-        if relevant.contains(state.repository.gitDir + "/HEAD") {
+    private func isCurrent(_ state: Watched) -> Bool {
+        watched[state.repository] === state
+    }
+
+    private func handle(headChanged: Bool, in state: Watched) {
+        if headChanged {
             let branch = state.repository.branch
             if branch != state.branch {
                 state.branch = branch
@@ -184,7 +188,7 @@ final class GitStatusMonitor {
         guard !state.isScheduled else { return }
         state.isScheduled = true
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0, state.nextCheck.timeIntervalSinceNow)) { [weak self, weak state] in
-            guard let self, let state, self.watched[state.repository] === state else { return }
+            guard let self, let state, self.isCurrent(state) else { return }
             state.isScheduled = false
             self.check(state)
         }
@@ -200,6 +204,7 @@ final class GitStatusMonitor {
             DispatchQueue.main.async {
                 state.isChecking = false
                 self.finishedChecks += 1
+                guard self.isCurrent(state) else { return }
                 state.nextCheck = Date() + Self.delay(after: duration)
                 let changed = state.isDirty != status?.isDirty || state.gitBranch != status?.branch
                 state.isDirty = status?.isDirty
@@ -233,9 +238,12 @@ final class GitStatusMonitor {
     static func read(_ directory: String) -> GitStatus? {
         guard let keys = git(["-C", directory, "config", "--list", "--null", "--name-only"]) else { return nil }
         let arguments = ["-C", directory, "--no-optional-locks", "-c", "core.fsmonitor=false",
-                         "status", "--porcelain=v1", "--branch", "--ignore-submodules=all"]
-        return git(arguments, config: filterOverrides(keys.split(separator: "\0").map(String.init)))
-            .flatMap(GitStatus.init(porcelain:))
+                         "status", "--porcelain=v1", "--branch", "--ignore-submodules=all",
+                         "--no-ahead-behind", "--no-renames"]
+        var parser = GitStatusParser()
+        guard git(arguments, config: filterOverrides(keys.split(separator: "\0").map(String.init)),
+                  consume: { parser.append($0) }) != nil else { return nil }
+        return parser.status
     }
 
     /// Settings that switch off every filter named in `keys`. A filter name can
@@ -269,19 +277,19 @@ final class GitStatusMonitor {
         return ["/opt/homebrew/bin/git", "/usr/local/bin/git"].first(where: isExecutable)
     }
 
-    private static func git(_ arguments: [String], config: [(key: String, value: String)] = []) -> String? {
+    private static func git(_ arguments: [String], config: [(key: String, value: String)] = [], consume: ((Data) -> Void)? = nil) -> String? {
         var environment = ProcessInfo.processInfo.environment
         environment["GIT_CONFIG_COUNT"] = String(config.count)
         for (index, setting) in config.enumerated() {
             environment["GIT_CONFIG_KEY_\(index)"] = setting.key
             environment["GIT_CONFIG_VALUE_\(index)"] = setting.value
         }
-        return executable.flatMap { output(of: $0, arguments, environment: environment) }
+        return executable.flatMap { output(of: $0, arguments, environment: environment, consume: consume) }
     }
 
     /// Standard output of a successful run, or nil. A run that outlasts the
     /// timeout is stopped and counts as failed.
-    private static func output(of executable: String, _ arguments: [String], environment: [String: String]? = nil) -> String? {
+    private static func output(of executable: String, _ arguments: [String], environment: [String: String]? = nil, consume: ((Data) -> Void)? = nil) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -299,7 +307,17 @@ final class GitStatusMonitor {
         }
         let deadline = DispatchWorkItem { process.terminate() }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let data: Data
+        if let consume {
+            while true {
+                let chunk = output.fileHandleForReading.readData(ofLength: 64 * 1024)
+                guard !chunk.isEmpty else { break }
+                consume(chunk)
+            }
+            data = Data()
+        } else {
+            data = output.fileHandleForReading.readDataToEndOfFile()
+        }
         exited.wait()
         deadline.cancel()
         guard process.terminationReason == .exit, process.terminationStatus == 0 else { return nil }
@@ -345,11 +363,14 @@ private final class FileEvents {
 extension GitStatus {
     /// Parses `git status --porcelain=v1 --branch` output.
     init?(porcelain text: String) {
-        var lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-        guard let header = lines.first, header.hasPrefix("## ") else { return nil }
-        lines.removeFirst()
+        var parser = GitStatusParser()
+        parser.append(Data(text.utf8))
+        guard let status = parser.status else { return nil }
+        self = status
+    }
 
-        // "## main...origin/main [ahead 1]" or "## HEAD (no branch)" or "## No commits yet on main"
+    static func branch(fromHeader header: String) -> String? {
+        guard header.hasPrefix("## ") else { return nil }
         var branch = String(header.dropFirst(3))
         if let range = branch.range(of: "...") {
             branch = String(branch[..<range.lowerBound])
@@ -360,6 +381,41 @@ extension GitStatus {
         if branch.hasPrefix("HEAD ") {
             branch = "detached"
         }
-        self.init(branch: branch, isDirty: !lines.isEmpty)
+        return branch
+    }
+}
+
+/// The sidebar needs the branch and a dirty bit, regardless of how many files changed.
+struct GitStatusParser {
+    private var header = Data()
+    private var hasHeader = false
+    private var isDirty = false
+    private var invalid = false
+
+    mutating func append(_ data: Data) {
+        guard !invalid else { return }
+        var remainder = data[...]
+        if !hasHeader {
+            if let newline = remainder.firstIndex(of: 10) {
+                header.append(contentsOf: remainder[..<newline])
+                hasHeader = true
+                remainder = remainder[remainder.index(after: newline)...]
+            } else {
+                header.append(remainder)
+                remainder = Data()
+            }
+            if header.count > 64 * 1024 {
+                header.removeAll()
+                invalid = true
+                return
+            }
+        }
+        isDirty = isDirty || remainder.contains { $0 != 10 }
+    }
+
+    var status: GitStatus? {
+        guard !invalid, let text = String(data: header, encoding: .utf8),
+              let branch = GitStatus.branch(fromHeader: text) else { return nil }
+        return GitStatus(branch: branch, isDirty: isDirty)
     }
 }

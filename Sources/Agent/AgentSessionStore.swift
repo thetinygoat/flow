@@ -1,7 +1,7 @@
 import Foundation
 
 /// What each terminal's coding agent is doing, built from the events `flw`
-/// sends. Observers get `onChange` after every change.
+/// sends. Indicator observers are notified only when the visible state changes.
 @MainActor
 final class AgentSessionStore {
     enum State: Equatable {
@@ -22,6 +22,13 @@ final class AgentSessionStore {
 
     /// One applied event, with the terminal's session before and after it.
     struct Update {
+        var alerts: Bool {
+            switch kind {
+            case .needsInput, .turnEnded, .attention: true
+            case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: false
+            }
+        }
+
         var surface: UUID
         var kind: AgentEvent.Kind
         var previous: Session?
@@ -35,7 +42,7 @@ final class AgentSessionStore {
     }
 
     private(set) var sessions: [UUID: Session] = [:]
-    var onChange: (() -> Void)?
+    var onChange: ((UUID) -> Void)?
     var onUpdate: ((Update) -> Void)?
     private let isLive: (UUID) -> Bool
     private let isVisible: (UUID) -> Bool
@@ -67,7 +74,7 @@ final class AgentSessionStore {
             logger.notice("agent event \(event.kind.rawValue, privacy: .public) ignored: older than the last one for terminal \(surface.uuidString, privacy: .public)")
             return
         }
-        logger.notice("agent event \(event.kind.rawValue, privacy: .public) from \(event.agent, privacy: .public) for terminal \(surface.uuidString, privacy: .public)")
+        logger.debug("agent event \(event.kind.rawValue, privacy: .public) from \(event.agent, privacy: .public) for terminal \(surface.uuidString, privacy: .public)")
 
         // A session that ended, or was never announced, is started afresh by
         // whatever the agent says next, in case its sessionStarted was missed.
@@ -98,19 +105,21 @@ final class AgentSessionStore {
         }
         sessions[surface] = session
         onUpdate?(Update(surface: surface, kind: event.kind, previous: previous, session: session))
-        onChange?()
+        if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) {
+            onChange?(surface)
+        }
     }
 
     func markSeen(_ surface: UUID) {
         guard var session = sessions[surface], session.finishedUnseen || session.attention != nil else { return }
+        let previous = AgentIndicator(session)
         session.finishedUnseen = false
         session.attention = nil
         sessions[surface] = session
-        onChange?()
+        if previous != AgentIndicator(session) { onChange?(surface) }
     }
 
     func remove(_ surface: UUID) {
-        guard sessions.removeValue(forKey: surface) != nil else { return }
-        onChange?()
+        sessions.removeValue(forKey: surface)
     }
 }

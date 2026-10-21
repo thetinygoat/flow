@@ -16,10 +16,13 @@ final class WindowContentViewController: NSViewController {
     private var contentAfterSidebar: NSLayoutConstraint!
     private var contentAtEdge: NSLayoutConstraint!
     private var widthAtDragStart: CGFloat = 0
+    private var hasPendingWidth = false
+    private let defaults: UserDefaults
 
-    init(sidebar: NSViewController, content: NSViewController) {
+    init(sidebar: NSViewController, content: NSViewController, defaults: UserDefaults = .standard) {
         self.sidebar = sidebar
         self.content = content
+        self.defaults = defaults
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -27,22 +30,14 @@ final class WindowContentViewController: NSViewController {
         fatalError("init(coder:) is not supported")
     }
 
-    private var width: CGFloat {
-        get {
-            let saved = UserDefaults.standard.double(forKey: Self.widthKey)
-            return saved > 0 ? min(max(saved, Self.widthRange.lowerBound), Self.widthRange.upperBound) : 240
-        }
-        set {
-            let clamped = min(max(newValue, Self.widthRange.lowerBound), Self.widthRange.upperBound)
-            UserDefaults.standard.set(Double(clamped), forKey: Self.widthKey)
-            sidebarWidth.constant = clamped
-        }
+    private static func clampedWidth(_ width: CGFloat) -> CGFloat {
+        min(max(width, widthRange.lowerBound), widthRange.upperBound)
     }
 
     var isSidebarHidden: Bool {
         get { sidebar.view.isHidden }
         set {
-            UserDefaults.standard.set(newValue, forKey: Self.hiddenKey)
+            defaults.set(newValue, forKey: Self.hiddenKey)
             sidebar.view.isHidden = newValue
             handle.isHidden = newValue
             // The sidebar keeps its width while hidden, so its own layout is
@@ -61,7 +56,8 @@ final class WindowContentViewController: NSViewController {
             view.addSubview(child)
         }
 
-        sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: width)
+        let savedWidth = defaults.double(forKey: Self.widthKey)
+        sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: Self.clampedWidth(savedWidth > 0 ? savedWidth : 240))
         contentAfterSidebar = content.view.leadingAnchor.constraint(equalTo: sidebar.view.trailingAnchor)
         contentAtEdge = content.view.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         NSLayoutConstraint.activate([
@@ -85,9 +81,36 @@ final class WindowContentViewController: NSViewController {
         }
         handle.onDrag = { [weak self] distance in
             guard let self else { return }
-            width = widthAtDragStart + distance
+            let width = Self.clampedWidth(widthAtDragStart + distance)
+            guard width != sidebarWidth.constant else { return }
+            sidebarWidth.constant = width
+            hasPendingWidth = true
         }
-        isSidebarHidden = UserDefaults.standard.bool(forKey: Self.hiddenKey)
+        handle.onEnd = { [weak self] in
+            self?.savePendingWidth()
+        }
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(saveWidthBeforeTerminating(_:)), name: NSApplication.willTerminateNotification, object: nil)
+        isSidebarHidden = defaults.bool(forKey: Self.hiddenKey)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func viewWillDisappear() {
+        savePendingWidth()
+        super.viewWillDisappear()
+    }
+
+    @objc private func saveWidthBeforeTerminating(_ notification: Notification) {
+        savePendingWidth()
+    }
+
+    private func savePendingWidth() {
+        guard hasPendingWidth else { return }
+        defaults.set(Double(sidebarWidth.constant), forKey: Self.widthKey)
+        hasPendingWidth = false
     }
 
     func toggleSidebar() {
@@ -99,6 +122,7 @@ final class WindowContentViewController: NSViewController {
 private final class SidebarResizeHandle: NSView {
     var onBegin: (() -> Void)?
     var onDrag: ((CGFloat) -> Void)?
+    var onEnd: (() -> Void)?
     private var start: CGFloat = 0
 
     override func resetCursorRects() {
@@ -116,5 +140,9 @@ private final class SidebarResizeHandle: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         onDrag?(event.locationInWindow.x - start)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        onEnd?()
     }
 }

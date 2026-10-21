@@ -10,7 +10,7 @@ final class TerminalScrollbar: NSScrollView {
     /// Called with the scrollback row the user dragged to, counted from the top.
     var onScrollToRow: ((Int) -> Void)?
     var cellHeight: CGFloat = 0 {
-        didSet { sync() }
+        didSet { if cellHeight != oldValue { sync() } }
     }
 
     private var total = 0
@@ -34,7 +34,9 @@ final class TerminalScrollbar: NSScrollView {
                 self?.isLiveScrolling = true
             },
             center.addObserver(forName: NSScrollView.didEndLiveScrollNotification, object: self, queue: .main) { [weak self] _ in
-                self?.isLiveScrolling = false
+                guard let self else { return }
+                self.isLiveScrolling = false
+                if self.offset == self.lastSentRow { self.sync() }
             },
             center.addObserver(forName: NSScrollView.didLiveScrollNotification, object: self, queue: .main) { [weak self] _ in
                 self?.liveScrolled()
@@ -66,6 +68,7 @@ final class TerminalScrollbar: NSScrollView {
     }
 
     func update(total: Int, offset: Int, visibleRows: Int) {
+        guard total != self.total || offset != self.offset || visibleRows != self.visibleRows else { return }
         let rowsBelowBefore = self.total - self.offset - self.visibleRows
         self.total = total
         self.offset = offset
@@ -82,14 +85,19 @@ final class TerminalScrollbar: NSScrollView {
         guard let documentView else { return }
         let height = contentSize.height
         guard cellHeight > 0, total > 0 else {
-            documentView.frame = NSRect(x: 0, y: 0, width: contentSize.width, height: height)
+            let frame = NSRect(x: 0, y: 0, width: contentSize.width, height: height)
+            if documentView.frame != frame { documentView.frame = frame }
             return
         }
         let padding = max(0, height - CGFloat(visibleRows) * cellHeight)
-        documentView.frame = NSRect(x: 0, y: 0, width: contentSize.width, height: CGFloat(total) * cellHeight + padding)
+        let frame = NSRect(x: 0, y: 0, width: contentSize.width, height: CGFloat(total) * cellHeight + padding)
+        if documentView.frame != frame { documentView.frame = frame }
         guard !isLiveScrolling else { return }
-        contentView.scroll(to: NSPoint(x: 0, y: CGFloat(total - offset - visibleRows) * cellHeight))
-        reflectScrolledClipView(contentView)
+        let origin = NSPoint(x: 0, y: CGFloat(total - offset - visibleRows) * cellHeight)
+        if contentView.bounds.origin != origin {
+            contentView.scroll(to: origin)
+            reflectScrolledClipView(contentView)
+        }
         lastSentRow = offset
     }
 

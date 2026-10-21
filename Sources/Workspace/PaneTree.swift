@@ -52,8 +52,18 @@ final class PaneNode<Leaf: PaneLeaf> {
     }
 
     var leaves: [Leaf] {
-        if let leaf { return [leaf] }
-        return (first?.leaves ?? []) + (second?.leaves ?? [])
+        var result: [Leaf] = []
+        appendLeaves(to: &result)
+        return result
+    }
+
+    private func appendLeaves(to result: inout [Leaf]) {
+        if let leaf {
+            result.append(leaf)
+        } else {
+            first?.appendLeaves(to: &result)
+            second?.appendLeaves(to: &result)
+        }
     }
 
     func node(for leaf: Leaf) -> PaneNode? {

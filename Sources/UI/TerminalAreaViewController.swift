@@ -55,6 +55,11 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
         tabBar.isHidden = tabs.count < 2
     }
 
+    func updateAgentIndicator(for tab: TerminalTab) {
+        guard let index = workspace?.tabs.firstIndex(where: { $0 === tab }) else { return }
+        tabBar.updateIndicator(agentIndicator(tab), at: index)
+    }
+
     func focusSelectedSurface() {
         guard let surface = workspace?.selectedTab?.focusedSurface else { return }
         view.window?.makeFirstResponder(surface)

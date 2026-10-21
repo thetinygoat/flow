@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
-    private var lastSaved: Session?
+    private let sessionWriter = SessionWriter()
     private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
     private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
@@ -67,8 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         agentSessions = AgentSessionStore(
             isLive: { [weak self] id in self?.surface(withID: id) != nil },
             isVisible: { [weak self] id in self?.isInView(id) == true })
-        agentSessions.onChange = { [weak self] in
-            self?.windows.forEach { $0.controller.agentsDidChange() }
+        agentSessions.onChange = { [weak self] id in
+            guard let (window, surface) = self?.surface(withID: id),
+                  let (workspace, tab) = window.store.workspace(containing: surface) else { return }
+            window.controller.agentsDidChange(in: workspace, tab: tab)
         }
         agentSessions.onUpdate = { [weak self] update in
             self?.notify(update)
@@ -123,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         pendingSave?.cancel()
-        save()
+        sessionWriter.flush(session())
         agentSounds.silence()
         agentListener?.stop()
     }
@@ -246,10 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func save() {
-        let session = session()
-        guard session != lastSaved else { return }
-        session.save()
-        lastSaved = session
+        sessionWriter.save(session())
     }
 
     // MARK: Menu actions
@@ -321,6 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func notify(_ update: AgentSessionStore.Update) {
+        guard update.alerts else { return }
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"

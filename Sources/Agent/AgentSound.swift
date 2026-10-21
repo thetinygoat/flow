@@ -20,7 +20,7 @@ enum AgentSound: Equatable, Hashable {
             isVisible ? nil : .finished
         case .attention:
             isVisible || update.session.attention.nonEmpty == nil ? nil : .finished
-        default:
+        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown:
             nil
         }
     }

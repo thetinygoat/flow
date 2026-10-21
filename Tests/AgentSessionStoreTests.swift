@@ -11,7 +11,7 @@ final class AgentSessionStoreTests: XCTestCase {
     override func setUp() async throws {
         let live = surface
         store = AgentSessionStore(isLive: { $0 == live }, isVisible: { [unowned self] _ in self.visible })
-        store.onChange = { [unowned self] in self.changes += 1 }
+        store.onChange = { [unowned self] _ in self.changes += 1 }
         store.onUpdate = { [unowned self] in self.updates.append($0) }
     }
 
@@ -136,9 +136,9 @@ final class AgentSessionStoreTests: XCTestCase {
         let before = changes
         store.remove(surface)
         XCTAssertNil(session)
-        XCTAssertEqual(changes, before + 1)
+        XCTAssertEqual(changes, before)
         store.remove(surface)
-        XCTAssertEqual(changes, before + 1)
+        XCTAssertEqual(changes, before)
     }
 
     func testAnEventOlderThanTheLastOneIsIgnored() {
@@ -197,5 +197,34 @@ final class AgentSessionStoreTests: XCTestCase {
         send(.sessionStarted, session: "new", at: early)
         XCTAssertEqual(session?.sessionID, "new")
         XCTAssertEqual(session?.state, .idle)
+    }
+}
+
+@MainActor
+final class AgentRefreshTests: XCTestCase {
+    func testRepeatedWorkingEventsKeepDetailsWithoutRefreshingIndicators() {
+        let id = UUID()
+        let store = AgentSessionStore(isLive: { $0 == id })
+        var changes: [UUID] = []
+        var updates: [AgentSessionStore.Update] = []
+        store.onChange = { changes.append($0) }
+        store.onUpdate = { updates.append($0) }
+        func send(_ kind: AgentEvent.Kind, detail: String? = nil) {
+            store.apply(AgentEvent(agent: "test", kind: kind, surfaceID: id, workspaceID: nil,
+                                   cwd: "/", at: Date(), detail: detail))
+        }
+        send(.sessionStarted)
+        send(.turnStarted)
+        for index in 0..<100 { send(.working, detail: "tool\(index)") }
+        send(.attention, detail: "look here")
+        XCTAssertEqual(changes, [id])
+        XCTAssertEqual(updates.count, 103)
+        XCTAssertEqual(store.sessions[id]?.detail, "tool99")
+        XCTAssertEqual(store.sessions[id]?.attention, "look here")
+        send(.needsInput)
+        send(.working)
+        send(.turnEnded)
+        store.markSeen(id)
+        XCTAssertEqual(changes, Array(repeating: id, count: 5))
     }
 }

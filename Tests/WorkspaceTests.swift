@@ -66,6 +66,39 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(workspace.tabs(closing: .this, from: TestTab(leaf: FakeLeaf("elsewhere"))).count, 0)
     }
 
+    func testDerivedNameCacheFollowsDirectoryFocusAndTabChanges() {
+        var lookups: [String] = []
+        let workspace = WorkspaceModel<FakeLeaf>(resolveName: { path in
+            lookups.append(path)
+            return path.folderName
+        })
+        let first = FakeLeaf(workingDirectory: "/first")
+        let second = FakeLeaf(workingDirectory: "/second")
+        let tab = TestTab(leaf: first)
+        tab.panes.split(first, direction: .right, with: second)
+        workspace.add(tab)
+        for _ in 0..<20 { XCTAssertEqual(workspace.name, "first") }
+        XCTAssertEqual(lookups, ["/first"])
+        tab.focus(second)
+        XCTAssertEqual(workspace.name, "second")
+        second.workingDirectory = "/changed"
+        XCTAssertEqual(workspace.name, "changed")
+        workspace.customName = "mine"
+        second.workingDirectory = "/renamed"
+        XCTAssertEqual(workspace.name, "mine")
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed"])
+        workspace.customName = nil
+        XCTAssertEqual(workspace.name, "renamed")
+        let other = TestTab(leaf: FakeLeaf(workingDirectory: "/other"))
+        workspace.add(other)
+        XCTAssertEqual(workspace.name, "other")
+        workspace.select(tab)
+        XCTAssertEqual(workspace.name, "renamed")
+        workspace.invalidateDerivedName()
+        XCTAssertEqual(workspace.name, "renamed")
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other", "/renamed", "/renamed"])
+    }
+
     func testNameFollowsDirectoryUntilRenamed() {
         let workspace = WorkspaceModel<FakeLeaf>()
         XCTAssertEqual(workspace.name, "~")
@@ -160,6 +193,22 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertNil(store.workspace(containing: FakeLeaf()))
     }
 
+    func testStoreFindsTheWorkspaceAndTabForAnUnselectedPane() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let tab = TestTab(leaf: FakeLeaf())
+        let leaf = FakeLeaf()
+        tab.panes.split(tab.panes.leaves[0], direction: .right, with: leaf)
+        workspace.add(tab)
+        workspace.add(TestTab(leaf: FakeLeaf()))
+        store.addWorkspace().add(TestTab(leaf: FakeLeaf()))
+
+        let found = store.workspace(containing: leaf)
+        XCTAssertTrue(found?.0 === workspace)
+        XCTAssertTrue(found?.1 === tab)
+        XCTAssertNil(store.workspace(containing: FakeLeaf()))
+    }
+
     func testStoreNotifiesOnChange() {
         let store = TestStore()
         var changes = 0
@@ -169,6 +218,22 @@ final class WorkspaceTests: XCTestCase {
         store.notifyChanged()
         store.remove(workspace)
         XCTAssertEqual(changes, 4)
+    }
+
+    func testSelectingCurrentWorkspacePublishesItsNewlySelectedTab() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let first = TestTab(leaf: FakeLeaf())
+        let second = TestTab(leaf: FakeLeaf())
+        workspace.add(first)
+        workspace.add(second)
+        var published: TestTab?
+        store.onChange = { published = store.selected?.selectedTab }
+
+        workspace.select(first)
+        store.select(workspace)
+
+        XCTAssertTrue(published === first)
     }
 
     func testMovingWorkspacesPreservesSelectionAndNotifies() {

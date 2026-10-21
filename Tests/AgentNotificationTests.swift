@@ -16,6 +16,17 @@ final class AgentNotificationTests: XCTestCase {
         AgentNotification.make(for: update, title: "~/Code/flow", isVisible: isVisible)
     }
 
+    func testAlertClassificationMatchesNotificationAndSoundEligibility() {
+        let kinds: [AgentEvent.Kind] = [.sessionStarted, .turnStarted, .working, .needsInput,
+                                       .turnEnded, .sessionEnded, .attention, .unknown]
+        for kind in kinds {
+            let event = update(kind, state: .working, attention: "look here")
+            let canNotify = event.alerts
+            XCTAssertEqual(canNotify, notification(event) != nil, "\(kind)")
+            XCTAssertEqual(canNotify, AgentSound.make(for: event, isVisible: false) != nil, "\(kind)")
+        }
+    }
+
     func testWaitingNamesTheReasonWhenItKnowsIt() {
         XCTAssertEqual(notification(update(.needsInput, state: .waiting, detail: "permission_prompt")),
                        AgentNotification(title: "~/Code/flow", body: "Needs permission"))

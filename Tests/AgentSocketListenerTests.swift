@@ -61,6 +61,35 @@ final class AgentSocketListenerTests: XCTestCase {
         XCTAssertEqual(received, sent)
     }
 
+    func testCompletedOversizedLineIsRejectedBeforeDecoding() throws {
+        let url = directory.appendingPathComponent("agent.sock")
+        var received: [AgentEvent] = []
+        let delivered = expectation(description: "valid event delivered")
+        let listener = AgentSocketListener(url: url) { event in
+            received.append(event)
+            if event.kind == .turnEnded { delivered.fulfill() }
+        }
+        try listener.start()
+        defer { listener.stop() }
+        let prefix = "{\"kind\":\"working\",\"detail\":\""
+        let suffix = "\"}"
+        let padding = Self.lineLimit - prefix.utf8.count - suffix.utf8.count + 1
+        let oversized = Data((prefix + String(repeating: "x", count: padding) + suffix + "\n").utf8)
+        let first = try XCTUnwrap(UnixSocket.connect(to: url.path))
+        XCTAssertTrue(UnixSocket.write(oversized, to: first))
+        UnixSocket.awaitClose(first)
+        close(first)
+        let event = AgentEvent(agent: "test", kind: .turnEnded, surfaceID: UUID(), workspaceID: nil, cwd: "/", at: Date())
+        let second = try XCTUnwrap(UnixSocket.connect(to: url.path))
+        XCTAssertTrue(UnixSocket.write(try event.line(), to: second))
+        UnixSocket.awaitClose(second)
+        close(second)
+        wait(for: [delivered], timeout: 2)
+        XCTAssertEqual(received.map(\.kind), [.turnEnded])
+    }
+
+    private static let lineLimit = AgentSocketListener.maximumLineLength
+
     func testStopRemovesTheSocketFile() throws {
         let url = directory.appendingPathComponent("agent.sock")
         let listener = AgentSocketListener(url: url) { _ in }

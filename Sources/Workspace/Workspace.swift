@@ -61,14 +61,27 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var customName: String?
     private(set) var tabs: [TabModel<Leaf>] = []
     private(set) var selectedTab: TabModel<Leaf>?
+    private var derivedName: (directory: String, name: String)?
+    private let resolveName: (String) -> String
 
-    init(id: UUID = UUID(), customName: String? = nil) {
+    init(id: UUID = UUID(), customName: String? = nil,
+         resolveName: @escaping (String) -> String = { WorkspaceModel<Leaf>.name(forDirectory: $0) }) {
         self.id = id
         self.customName = customName
+        self.resolveName = resolveName
     }
 
     var name: String {
-        customName ?? selectedTab?.focusedLeaf.workingDirectory.map { Self.name(forDirectory: $0) } ?? "~"
+        if let customName { return customName }
+        guard let directory = selectedTab?.focusedLeaf.workingDirectory else { return "~" }
+        if let derivedName, derivedName.directory == directory { return derivedName.name }
+        let name = resolveName(directory)
+        derivedName = (directory, name)
+        return name
+    }
+
+    func invalidateDerivedName() {
+        derivedName = nil
     }
 
     /// Inside a repository the workspace is named after it, so it keeps its
@@ -113,11 +126,14 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     }
 }
 
-/// All workspaces plus which one is selected. Observers get `onChange` after every mutation.
+/// All workspaces plus which one is selected. Observers get `onChange` after
+/// each mutation, or once at the end of the outermost nonempty batch.
 final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var workspaces: [WorkspaceModel<Leaf>] = []
     private(set) var selected: WorkspaceModel<Leaf>?
     var onChange: (() -> Void)?
+    private var batchDepth = 0
+    private var hasPendingChange = false
 
     /// The new workspace goes right after the selected one, next to the work
     /// it was opened from, and becomes the selected one.
@@ -127,7 +143,7 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         let index = selected.flatMap { selected in workspaces.firstIndex { $0 === selected } }.map { $0 + 1 } ?? workspaces.endIndex
         workspaces.insert(workspace, at: index)
         selected = workspace
-        onChange?()
+        notifyChanged()
         return workspace
     }
 
@@ -137,12 +153,12 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         if selected === workspace {
             selected = workspaces.isEmpty ? nil : workspaces[min(index, workspaces.count - 1)]
         }
-        onChange?()
+        notifyChanged()
     }
 
     func select(_ workspace: WorkspaceModel<Leaf>) {
         selected = workspace
-        onChange?()
+        notifyChanged()
     }
 
     @discardableResult
@@ -153,7 +169,7 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         guard source != destination else { return true }
         workspaces.remove(at: source)
         workspaces.insert(workspace, at: destination)
-        onChange?()
+        notifyChanged()
         return true
     }
 
@@ -165,6 +181,20 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     }
 
     func notifyChanged() {
+        guard batchDepth == 0 else {
+            hasPendingChange = true
+            return
+        }
         onChange?()
+    }
+
+    func performBatch(_ changes: () -> Void) {
+        batchDepth += 1
+        changes()
+        batchDepth -= 1
+        if batchDepth == 0, hasPendingChange {
+            hasPendingChange = false
+            notifyChanged()
+        }
     }
 }

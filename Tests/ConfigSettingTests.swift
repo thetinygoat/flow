@@ -26,7 +26,6 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(string(Option.copyOnSelect.key), Option.copyOnSelect.defaultValue)
         XCTAssertEqual(get(Option.mouseHideWhileTyping.key, true), Option.mouseHideWhileTyping.defaultValue)
         XCTAssertEqual(get(Option.autoSecureInput.key, false), Option.autoSecureInput.defaultValue)
-        XCTAssertEqual(get(Option.secureInputIndication.key, false), Option.secureInputIndication.defaultValue)
         XCTAssertEqual(config.notifyOnCommandFinish, Option.notifyOnCommandFinish.defaultValue)
         XCTAssertEqual(config.notifyOnCommandFinishAction, Option.notifyOnCommandFinishAction.defaultValue)
         XCTAssertEqual(config.notifyOnCommandFinishAfter, Option.notifyOnCommandFinishAfter.defaultValue)

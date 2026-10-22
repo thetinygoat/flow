@@ -42,13 +42,13 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                Toggle("Secure keyboard entry", isOn: $secureKeyboardEntry)
-                Toggle("Enable at password prompts", isOn: store.binding(Option.autoSecureInput))
-                Toggle("Show lock icon when enabled", isOn: store.binding(Option.secureInputIndication))
-            } header: {
-                Text("Secure Input")
+                Picker("Secure keyboard entry", selection: secureInput) {
+                    Text("Off").tag(SecureInputChoice.off)
+                    Text("At password prompts").tag(SecureInputChoice.passwordPrompts)
+                    Text("Always").tag(SecureInputChoice.always)
+                }
             } footer: {
-                Text("Prevents other apps from reading keyboard input to Flow.")
+                Text("Prevents other apps from reading keyboard input to Flow. At password prompts: only while a program such as sudo or ssh asks for a password.")
                     .settingsFooter()
             }
 
@@ -78,6 +78,18 @@ struct GeneralSettingsView: View {
         store.set(Option.command, command.trimmingCharacters(in: .whitespaces))
     }
 
+    private var secureInput: Binding<SecureInputChoice> {
+        Binding(
+            get: {
+                if secureKeyboardEntry { return .always }
+                return store.value(Option.autoSecureInput) ? .passwordPrompts : .off
+            },
+            set: { choice in
+                secureKeyboardEntry = choice == .always
+                store.set(Option.autoSecureInput, choice != .off)
+            })
+    }
+
     /// A command that is one of the installed shells shows as that shell;
     /// anything else is a custom command.
     private var shell: Binding<ShellChoice> {
@@ -96,6 +108,12 @@ struct GeneralSettingsView: View {
                 }
             })
     }
+}
+
+/// Always is the app-wide secure keyboard entry; password prompts is
+/// Ghostty's automatic secure input.
+private enum SecureInputChoice: Hashable {
+    case off, passwordPrompts, always
 }
 
 private enum ShellChoice: Hashable {

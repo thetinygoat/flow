@@ -79,7 +79,6 @@ enum Option {
     static let copyOnSelect = ConfigSetting<String>("copy-on-select", default: "true")
     static let mouseHideWhileTyping = ConfigSetting<Bool>("mouse-hide-while-typing", default: false)
     static let autoSecureInput = ConfigSetting<Bool>("macos-auto-secure-input", default: true)
-    static let secureInputIndication = ConfigSetting<Bool>("macos-secure-input-indication", default: true)
     static let notifyOnCommandFinish = ConfigSetting<CommandFinish.When>(
         key: "notify-on-command-finish", defaultValue: .never, parse: CommandFinish.When.init(rawValue:), format: \.rawValue)
     static let notifyOnCommandFinishAction = ConfigSetting<CommandFinish.Actions>(

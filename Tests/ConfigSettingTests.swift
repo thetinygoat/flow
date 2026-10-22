@@ -25,6 +25,7 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(string(Option.confirmClose.key), Option.confirmClose.defaultValue)
         XCTAssertEqual(string(Option.copyOnSelect.key), Option.copyOnSelect.defaultValue)
         XCTAssertEqual(get(Option.mouseHideWhileTyping.key, true), Option.mouseHideWhileTyping.defaultValue)
+        XCTAssertEqual(get(Option.shellIntegrationFeatures.key, CUnsignedInt(0)), 0b100101, "cursor, title and path")
         XCTAssertEqual(get(Option.autoSecureInput.key, false), Option.autoSecureInput.defaultValue)
         XCTAssertEqual(config.notifyOnCommandFinish, Option.notifyOnCommandFinish.defaultValue)
         XCTAssertEqual(config.notifyOnCommandFinishAction, Option.notifyOnCommandFinishAction.defaultValue)
@@ -47,6 +48,16 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(CommandFinish.Actions(config: "false"), [])
         XCTAssertNil(CommandFinish.Actions(config: "shout"))
         XCTAssertEqual(CommandFinish.Actions([.notify]).config, "no-bell,notify")
+    }
+
+    func testShellIntegrationFeaturesKeepOtherSwitches() {
+        let setting = Option.shellIntegrationFeatures
+        var features = try! XCTUnwrap(setting.parse("sudo,no-title"))
+        XCTAssertEqual(features.on, ["cursor", "sudo", "path"])
+        features.on.remove("cursor")
+        XCTAssertEqual(setting.format(features), "no-cursor,sudo,no-title")
+        XCTAssertEqual(setting.parse("false")?.on, [])
+        XCTAssertNil(setting.parse("teleport"))
     }
 
     func testThemeIsOneThemeOrALightAndDarkPair() {

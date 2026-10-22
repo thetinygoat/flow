@@ -62,14 +62,22 @@ struct AppearanceSettingsView: View {
                 Toggle("Thicken text", isOn: store.binding(Option.fontThicken))
             }
 
-            Section("Cursor") {
-                Picker("Shape", selection: store.binding(Option.cursorStyle)) {
+            Section {
+                Picker("Shape", selection: cursorShape) {
+                    Text("Automatic").tag(Self.automaticCursor)
+                    Divider()
                     Text("Block").tag("block")
                     Text("Bar").tag("bar")
                     Text("Underline").tag("underline")
                     Text("Hollow block").tag("block_hollow")
                 }
                 Toggle("Blink", isOn: store.binding(Option.cursorBlink))
+                    .disabled(cursorShape.wrappedValue == Self.automaticCursor)
+            } header: {
+                Text("Cursor")
+            } footer: {
+                Text("Automatic: blinking bar at shell prompts. Switching to or from Automatic applies to new terminals.")
+                    .settingsFooter()
             }
 
             Section("Window") {
@@ -103,6 +111,28 @@ struct AppearanceSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private static let automaticCursor = "automatic"
+
+    /// Automatic leaves the prompt's cursor to shell integration; any other
+    /// shape turns that off so the shape holds at the prompt too.
+    private var cursorShape: Binding<String> {
+        Binding(
+            get: {
+                store.value(Option.shellIntegrationFeatures).on.contains("cursor") ? Self.automaticCursor : store.value(Option.cursorStyle)
+            },
+            set: { shape in
+                var features = store.value(Option.shellIntegrationFeatures)
+                if shape == Self.automaticCursor {
+                    features.on.insert("cursor")
+                    store.set(Option.cursorStyle, Option.cursorStyle.defaultValue)
+                } else {
+                    features.on.remove("cursor")
+                    store.set(Option.cursorStyle, shape)
+                }
+                store.set(Option.shellIntegrationFeatures, features)
+            })
     }
 
     /// The installed monospaced fonts, and the configured font even if it is

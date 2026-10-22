@@ -60,6 +60,43 @@ enum ConfigDuration {
     }
 }
 
+/// A Ghostty option made of named switches, such as `no-cursor,sudo`. Ghostty
+/// starts from its defaults and each name turns a switch on, or off with a
+/// `no-` prefix; `true` and `false` set them all.
+struct ConfigFlags: Equatable {
+    let names: [String]
+    var on: Set<String>
+
+    func parse(_ text: String) -> ConfigFlags? {
+        var flags = self
+        switch text {
+        case "true": flags.on = Set(names); return flags
+        case "false": flags.on = []; return flags
+        default: break
+        }
+        for part in text.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            let negated = part.hasPrefix("no-")
+            let name = negated ? String(part.dropFirst(3)) : part
+            guard names.contains(name) else { return nil }
+            if negated { flags.on.remove(name) } else { flags.on.insert(name) }
+        }
+        return flags
+    }
+
+    /// Only the switches that differ from `defaults`, which is all Ghostty needs.
+    func format(from defaults: ConfigFlags) -> String {
+        names.filter { on.contains($0) != defaults.on.contains($0) }
+            .map { on.contains($0) ? $0 : "no-" + $0 }
+            .joined(separator: ",")
+    }
+}
+
+extension ConfigSetting where Value == ConfigFlags {
+    init(_ key: String, default defaultValue: ConfigFlags) {
+        self.init(key: key, defaultValue: defaultValue, parse: defaultValue.parse, format: { $0.format(from: defaultValue) })
+    }
+}
+
 /// The options the Settings window shows.
 enum Option {
     static let fontFamily = "font-family"
@@ -77,6 +114,10 @@ enum Option {
     static let command = ConfigSetting<String>("command", default: "")
     static let confirmClose = ConfigSetting<String>("confirm-close-surface", default: "true")
     static let copyOnSelect = ConfigSetting<String>("copy-on-select", default: "true")
+    /// The `cursor` switch has the shell set a blinking bar at its prompt,
+    /// which overrides `cursor-style` and `cursor-style-blink` there.
+    static let shellIntegrationFeatures = ConfigSetting<ConfigFlags>("shell-integration-features", default: ConfigFlags(
+        names: ["cursor", "sudo", "title", "ssh-env", "ssh-terminfo", "path"], on: ["cursor", "title", "path"]))
     static let mouseHideWhileTyping = ConfigSetting<Bool>("mouse-hide-while-typing", default: false)
     static let autoSecureInput = ConfigSetting<Bool>("macos-auto-secure-input", default: true)
     static let notifyOnCommandFinish = ConfigSetting<CommandFinish.When>(

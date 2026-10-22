@@ -11,10 +11,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         self.store = store
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
-        tabs.addTabViewItem(Self.pane("General", symbol: "gearshape", GeneralSettingsView(store: store, updater: updater)))
-        tabs.addTabViewItem(Self.pane("Appearance", symbol: "paintpalette", AppearanceSettingsView(store: store)))
-        tabs.addTabViewItem(Self.pane("Notifications", symbol: "bell.badge", NotificationsSettingsView(store: store)))
-        tabs.addTabViewItem(Self.pane("Advanced", symbol: "gearshape.2", AdvancedSettingsView(store: store, reload: reload)))
+        tabs.addTabViewItem(Self.pane("General", symbol: "gearshape", height: 640, GeneralSettingsView(store: store, updater: updater)))
+        tabs.addTabViewItem(Self.pane("Appearance", symbol: "paintpalette", height: 680, AppearanceSettingsView(store: store)))
+        tabs.addTabViewItem(Self.pane("Notifications", symbol: "bell.badge", height: 600, NotificationsSettingsView(store: store)))
+        tabs.addTabViewItem(Self.pane("Advanced", symbol: "gearshape.2", height: 360, AdvancedSettingsView(store: store, reload: reload)))
         let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.toolbarStyle = .preference
@@ -27,8 +27,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         fatalError("init(coder:) is not supported")
     }
 
-    private static func pane(_ title: String, symbol: String, _ view: some View) -> NSTabViewItem {
-        let controller = NSHostingController(rootView: view.frame(width: width, height: 560))
+    /// The window takes each pane's size as it is picked, from the hosting
+    /// controller's preferred content size.
+    private static func pane(_ title: String, symbol: String, height: CGFloat, _ view: some View) -> NSTabViewItem {
+        let controller = NSHostingController(rootView: view.frame(width: width, height: height))
+        controller.sizingOptions = .preferredContentSize
+        controller.title = title
         let item = NSTabViewItem(viewController: controller)
         item.label = title
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)

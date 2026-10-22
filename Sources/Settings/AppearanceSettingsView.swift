@@ -26,23 +26,18 @@ struct AppearanceSettingsView: View {
     var body: some View {
         Form {
             Section("Colors") {
-                if theme.wrappedValue.followsAppearance {
-                    ThemePicker(title: "Light mode", selection: theme.light, allowsDefault: false)
-                    ThemePicker(title: "Dark mode", selection: theme.dark, allowsDefault: false)
-                } else {
-                    ThemePicker(title: "Theme", selection: Binding(
-                        get: { theme.wrappedValue.light },
-                        set: { theme.wrappedValue = ThemeChoice(light: $0, dark: $0) }), allowsDefault: true)
-                }
-                Toggle("Separate dark mode theme", isOn: Binding(
-                    get: { theme.wrappedValue.followsAppearance },
-                    set: { different in
-                        // Most chosen themes are dark, so the current one is kept for dark mode.
-                        let current = theme.wrappedValue
-                        theme.wrappedValue = different
-                            ? ThemeChoice(light: Themes.light, dark: current.light == Themes.light ? Themes.dark : current.light ?? Themes.dark)
-                            : ThemeChoice(light: current.dark, dark: current.dark)
-                    }))
+                ThemePicker(title: "Light mode", selection: Binding(
+                    get: { theme.wrappedValue.light },
+                    set: { light in
+                        let choice = theme.wrappedValue
+                        theme.wrappedValue = ThemeChoice(light: light, dark: choice.followsAppearance ? choice.dark : light)
+                    }), none: "Default")
+                ThemePicker(title: "Dark mode", selection: Binding(
+                    get: { theme.wrappedValue.followsAppearance ? theme.wrappedValue.dark : nil },
+                    set: { dark in
+                        let light = theme.wrappedValue.light
+                        theme.wrappedValue = ThemeChoice(light: light, dark: dark ?? light)
+                    }), none: "Same as light mode")
                 ThemePreview(choice: theme.wrappedValue)
             }
 
@@ -118,17 +113,16 @@ struct AppearanceSettingsView: View {
     }
 }
 
+/// A theme picker whose first choice, nil, is named by `none`.
 private struct ThemePicker: View {
     let title: String
     @Binding var selection: String?
-    let allowsDefault: Bool
+    let none: String
 
     var body: some View {
         Picker(title, selection: $selection) {
-            if allowsDefault {
-                Text("Default").tag(String?.none)
-                Divider()
-            }
+            Text(none).tag(String?.none)
+            Divider()
             ForEach(choices, id: \.self) { name in
                 Text(name).tag(Optional(name))
             }
@@ -173,6 +167,7 @@ private struct ThemePreview: View {
                         Text(label).font(.caption2).foregroundStyle(Color(nsColor: colors.foreground).opacity(0.6))
                     }
                 }
+                .frame(height: 14)
                 .padding(.top, 4)
             }
             .font(.system(size: 11, design: .monospaced))

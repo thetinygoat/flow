@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 setenv(key, value, 1)
             }
         }
+        ConfigFile.createIfMissing()
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -358,13 +359,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openConfig() {
-        let url = URL(fileURLWithPath: GhosttyConfig.editablePath)
+        let url = ConfigFile.url
         if !FileManager.default.fileExists(atPath: url.path) {
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            FileManager.default.createFile(atPath: url.path, contents: nil)
+            FileManager.default.createFile(atPath: url.path, contents: Data(ConfigFile.header.utf8))
         }
-        // Ghostty config files have no extension, so they are opened as plain
-        // text rather than with whatever claims extensionless files.
+        // Config files have no extension, so they are opened as plain text
+        // rather than with whatever claims extensionless files.
         guard let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else {
             NSWorkspace.shared.open(url)
             return

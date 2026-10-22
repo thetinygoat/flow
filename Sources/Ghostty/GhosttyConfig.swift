@@ -5,18 +5,14 @@ enum GhosttyError: Error {
     case apiFailed
 }
 
-/// Owns one `ghostty_config_t`, loaded from the user's Ghostty config files.
+/// Owns one `ghostty_config_t`, loaded from Flow's config file.
 final class GhosttyConfig {
     let cValue: ghostty_config_t
 
-    /// Loads the user's Ghostty config files, or the single file named by the
-    /// FLOW_CONFIG environment variable when set.
-    init() throws {
+    init(file: URL = ConfigFile.url) throws {
         guard let config = ghostty_config_new() else { throw GhosttyError.apiFailed }
-        if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
-            ghostty_config_load_file(config, override)
-        } else {
-            ghostty_config_load_default_files(config)
+        if FileManager.default.fileExists(atPath: file.path) {
+            ghostty_config_load_file(config, file.path)
         }
         ghostty_config_load_recursive_files(config)
         ghostty_config_finalize(config)
@@ -96,19 +92,6 @@ final class GhosttyConfig {
     /// Shows a lock on the terminal while secure input is on.
     var secureInputIndication: Bool {
         value(for: "macos-secure-input-indication", default: true)
-    }
-
-    /// The file Settings opens.
-    static var editablePath: String {
-        if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
-            return override
-        }
-        if let url = ConfigFile.firstWithSettings(among: ConfigFile.candidates) {
-            return url.path
-        }
-        let path = ghostty_config_open_path()
-        defer { ghostty_string_free(path) }
-        return String(decoding: UnsafeRawBufferPointer(start: path.ptr, count: Int(path.len)), as: UTF8.self)
     }
 
     private func color(for key: String) -> NSColor? {

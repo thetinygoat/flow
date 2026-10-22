@@ -52,18 +52,16 @@ struct GeneralSettingsView: View {
                     .settingsFooter()
             }
 
-            Section {
+            Section("Updates") {
                 Toggle("Check for updates automatically", isOn: $checksForUpdates)
                     .onChange(of: checksForUpdates) { updater.automaticallyChecksForUpdates = checksForUpdates }
-                LabeledContent("") {
+                LabeledContent {
                     Button("Check Now") { updater.checkForUpdates() }
                         .disabled(!updater.canCheckForUpdates)
+                } label: {
+                    Text("Last checked")
+                    Text(updater.lastUpdateCheckDate?.formatted(.relative(presentation: .named)) ?? "Never")
                 }
-            } header: {
-                Text("Updates")
-            } footer: {
-                Text("Update checks are Flow's only network access.")
-                    .settingsFooter()
             }
         }
         .formStyle(.grouped)

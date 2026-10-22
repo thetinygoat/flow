@@ -8,44 +8,39 @@ struct AdvancedSettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Config file") {
+                LabeledContent {
+                    HStack {
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([store.file])
+                        }
+                        Button("Open in Editor") {
+                            store.saveNow()
+                            ConfigFile.openInEditor()
+                        }
+                    }
+                } label: {
+                    Text("Config file")
                     Text(store.file.path.abbreviatingHome)
                         .textSelection(.enabled)
                         .truncationMode(.middle)
-                        .lineLimit(1)
-                }
-                HStack {
-                    Spacer()
-                    Button("Show in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([store.file])
-                    }
-                    Button("Open in Editor") {
-                        store.saveNow()
-                        ConfigFile.openInEditor()
-                    }
                 }
             } footer: {
-                Text("Settings in this window are saved to this file. All Ghostty options are supported. Lines added by hand and comments are preserved. Reload with ⇧⌘, after editing.")
+                Text("Settings in this window are saved to this file. All Ghostty options are supported. Lines added by hand and comments are preserved.")
                     .settingsFooter()
             }
 
-            Section {
-                if store.problems.isEmpty {
-                    Label("No problems", systemImage: "checkmark.circle")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(store.problems, id: \.self) { problem in
-                        Label(problem, systemImage: "exclamationmark.triangle.fill")
-                            .symbolRenderingMode(.multicolor)
-                            .textSelection(.enabled)
-                    }
-                }
-                HStack {
-                    Spacer()
+            Section("Problems") {
+                LabeledContent {
                     Button("Reload Config", action: reload)
+                } label: {
+                    Text(store.problems.isEmpty ? "No problems" : store.problems.count == 1 ? "1 problem" : "\(store.problems.count) problems")
+                    Text("Reload after editing the file (⇧⌘,).")
                 }
-            } header: {
-                Text("Problems")
+                ForEach(store.problems, id: \.self) { problem in
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .symbolRenderingMode(.multicolor)
+                        .textSelection(.enabled)
+                }
             }
         }
         .formStyle(.grouped)

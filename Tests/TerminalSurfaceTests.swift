@@ -133,6 +133,26 @@ final class TerminalSurfaceTests: XCTestCase {
         }
     }
 
+    func testRunningTerminalTakesUpReloadedConfig() throws {
+        try withRuntime { runtime in
+            let view = terminal(runtime)
+            let window = window()
+            defer { window.contentView = nil; window.close() }
+            window.contentView = view
+            let surface = try XCTUnwrap(view.surface)
+            var changes = 0
+            runtime.onConfigChange = { changes += 1 }
+
+            let path = try XCTUnwrap(ProcessInfo.processInfo.environment["FLOW_CONFIG"])
+            try "shell-integration = none\nfont-size = 24\nscrollbar = never\n".write(toFile: path, atomically: true, encoding: .utf8)
+            runtime.reloadConfig()
+
+            XCTAssertEqual(ghostty_surface_inherited_config(surface, GHOSTTY_SURFACE_CONTEXT_SPLIT).font_size, 24)
+            XCTAssertTrue(try XCTUnwrap(view.subviews.first { $0 is TerminalScrollbar }).isHidden)
+            XCTAssertEqual(changes, 1)
+        }
+    }
+
     func testRestoreStartsOnlyDisplayedPanesAndPreservesUnopenedLayout() throws {
         try withRuntime { runtime in
             let a = UUID(), b = UUID(), c = UUID(), d = UUID()

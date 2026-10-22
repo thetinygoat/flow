@@ -113,14 +113,16 @@ final class GhosttyRuntime {
         surfaces.add(surface)
     }
 
+    /// libghostty passes the new config on to every terminal and then reports
+    /// it back as a config change, which is when the windows take it up.
+    /// Updating the terminals again here would give each one the config twice.
     func reloadConfig() {
         guard let newConfig = try? GhosttyConfig() else { return }
         config = newConfig
-        ghostty_app_update_config(app, newConfig.cValue)
         for surface in surfaces.allObjects {
-            surface.updateConfig(newConfig)
+            surface.configDidChange(newConfig)
         }
-        onConfigChange?()
+        ghostty_app_update_config(app, newConfig.cValue)
     }
 
     // MARK: Actions
@@ -291,8 +293,8 @@ final class GhosttyRuntime {
             guard let window = surface?.window else { return false }
             window.zoom(nil)
 
-        // A new app config arrives when the light or dark theme takes effect;
-        // Flow's own window colors follow it.
+        // A new app config arrives after each reload and when the light or
+        // dark theme takes effect; Flow's own window colors follow it.
         case GHOSTTY_ACTION_CONFIG_CHANGE where surface == nil:
             config = GhosttyConfig(copying: action.action.config_change.config)
             onConfigChange?()

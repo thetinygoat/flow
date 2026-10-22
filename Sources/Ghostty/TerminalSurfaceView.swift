@@ -226,10 +226,10 @@ final class TerminalSurfaceView: NSView {
         return ghostty_surface_needs_confirm_quit(surface)
     }
 
-    func updateConfig(_ config: GhosttyConfig) {
-        guard let surface else { return }
+    /// Flow's own parts of a terminal; libghostty updates the rest.
+    func configDidChange(_ config: GhosttyConfig) {
+        guard surface != nil else { return }
         scrollbar.isHidden = !config.showsScrollbar
-        ghostty_surface_update_config(surface, config.cValue)
     }
 
     /// Runs a keybinding action by name, e.g. `copy_to_clipboard` or `scroll_to_top`.

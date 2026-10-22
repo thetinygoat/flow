@@ -1,9 +1,10 @@
 import XCTest
 
 final class RuntimeWakeupTests: XCTestCase {
-    func testConcurrentBurstRequiresOneTick() {
+    func testConcurrentBurstPreservesEveryTick() {
         let queue = DispatchQueue(label: "runtime-wakeup-test")
         let ticked = expectation(description: "runtime ticked")
+        ticked.expectedFulfillmentCount = 10_000
         var ticks = 0
         let wakeup = RuntimeWakeup(queue: queue) {
             ticks += 1
@@ -13,14 +14,14 @@ final class RuntimeWakeupTests: XCTestCase {
             DispatchQueue.concurrentPerform(iterations: 10_000) { _ in wakeup.schedule() }
         }
         wait(for: [ticked], timeout: 2)
-        queue.sync { XCTAssertEqual(ticks, 1) }
+        queue.sync { XCTAssertEqual(ticks, 10_000) }
         withExtendedLifetime(wakeup) {}
     }
 
     func testWakeupsDuringTickAreNotLost() {
         let queue = DispatchQueue(label: "runtime-wakeup-test")
         let ticked = expectation(description: "runtime ticks again")
-        ticked.expectedFulfillmentCount = 2
+        ticked.expectedFulfillmentCount = 10_001
         var ticks = 0
         var wakeup: RuntimeWakeup!
         wakeup = RuntimeWakeup(queue: queue) {
@@ -32,7 +33,7 @@ final class RuntimeWakeupTests: XCTestCase {
         }
         wakeup.schedule()
         wait(for: [ticked], timeout: 2)
-        queue.sync { XCTAssertEqual(ticks, 2) }
+        queue.sync { XCTAssertEqual(ticks, 10_001) }
         wakeup = nil
     }
 
@@ -50,6 +51,29 @@ final class RuntimeWakeupTests: XCTestCase {
         wakeup.schedule()
         wait(for: [second], timeout: 2)
         XCTAssertEqual(ticks, 2)
+        withExtendedLifetime(wakeup) {}
+    }
+
+    func testBurstYieldsToOtherQueuedWork() {
+        let queue = DispatchQueue(label: "runtime-wakeup-test")
+        let completed = expectation(description: "burst completed")
+        let interleaved = expectation(description: "other work ran")
+        var ticks = 0
+        let wakeup = RuntimeWakeup(queue: queue) {
+            ticks += 1
+            if ticks == 1 {
+                queue.async {
+                    XCTAssertLessThan(ticks, 10_000)
+                    interleaved.fulfill()
+                }
+            }
+            if ticks == 10_000 { completed.fulfill() }
+        }
+        queue.sync {
+            for _ in 0..<10_000 { wakeup.schedule() }
+        }
+        wait(for: [completed, interleaved], timeout: 2)
+        queue.sync { XCTAssertEqual(ticks, 10_000) }
         withExtendedLifetime(wakeup) {}
     }
 

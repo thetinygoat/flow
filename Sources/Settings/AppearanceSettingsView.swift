@@ -82,22 +82,14 @@ struct AppearanceSettingsView: View {
 
             Section("Window") {
                 LabeledContent("Background opacity") {
-                    SavedOnReleaseSlider(value: store.binding(Option.backgroundOpacity), range: 0.2...1) {
-                        Image(systemName: "circle.dotted")
-                    } maximumLabel: {
-                        Image(systemName: "circle.fill")
-                    }
+                    SavedOnReleaseSlider(value: store.binding(Option.backgroundOpacity), range: 0.2...1)
                 }
                 Toggle("Background blur", isOn: store.binding(Option.backgroundBlur))
                     .disabled(store.value(Option.backgroundOpacity) >= 1)
                 LabeledContent("Dim unfocused panes") {
                     SavedOnReleaseSlider(value: Binding(
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
-                        set: { store.set(Option.unfocusedSplitOpacity, ((1 - $0) * 100).rounded() / 100) }), range: 0...0.85) {
-                        Text("None").font(.caption)
-                    } maximumLabel: {
-                        Text("Strong").font(.caption)
-                    }
+                        set: { store.set(Option.unfocusedSplitOpacity, ((1 - $0) * 100).rounded() / 100) }), range: 0...0.85)
                 }
                 Toggle("Show scroll bar", isOn: Binding(
                     get: { store.value(Option.scrollbar) != "never" },
@@ -138,29 +130,29 @@ struct AppearanceSettingsView: View {
 }
 
 /// A theme picker whose first choice, nil, is named by `none`.
-/// A slider that moves its own copy of the value and saves it once, when the
-/// drag ends. Saving at every step would rebuild the whole pane, theme and font
-/// menus included, many times a second.
-private struct SavedOnReleaseSlider<EndLabel: View>: View {
+/// A percentage slider that moves its own copy of the value and saves it
+/// once, when the drag ends. Saving at every step would rebuild the whole
+/// pane, theme and font menus included, many times a second.
+private struct SavedOnReleaseSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
-    @ViewBuilder let minimumLabel: () -> EndLabel
-    @ViewBuilder let maximumLabel: () -> EndLabel
     @State private var draft: Double?
 
     var body: some View {
-        Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range) {
-            EmptyView()
-        } minimumValueLabel: {
-            minimumLabel()
-        } maximumValueLabel: {
-            maximumLabel()
-        } onEditingChanged: { editing in
-            guard !editing, let draft else { return }
-            value = draft
-            self.draft = nil
+        HStack {
+            Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range) {
+                EmptyView()
+            } onEditingChanged: { editing in
+                guard !editing, let draft else { return }
+                value = draft
+                self.draft = nil
+            }
+            .labelsHidden()
+            Text((draft ?? value).formatted(.percent.precision(.fractionLength(0))))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 40, alignment: .trailing)
         }
-        .labelsHidden()
     }
 }
 

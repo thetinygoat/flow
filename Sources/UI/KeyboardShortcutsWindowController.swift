@@ -51,7 +51,7 @@ final class KeyboardShortcutsWindowController: NSWindowController {
         columns.alignment = .top
         columns.spacing = columnSpacing
 
-        let note = NSTextField(wrappingLabelWithString: "Ghostty keybindings in your config file also work in Flow.")
+        let note = NSTextField(wrappingLabelWithString: "Ghostty keybindings in the config file also work in Flow.")
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         note.textColor = .tertiaryLabelColor
 

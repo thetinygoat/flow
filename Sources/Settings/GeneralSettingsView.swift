@@ -12,33 +12,33 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Shell", text: $command, prompt: Text("Your login shell"))
+                TextField("Shell", text: $command, prompt: Text("Login shell"))
                     .focused($editingCommand)
                     .onSubmit(saveCommand)
                     .onChange(of: editingCommand) { if !editingCommand { saveCommand() } }
             } footer: {
-                Text("What new terminals run. Leave it empty to use your login shell.")
+                Text("Command run in new terminals. Empty uses the login shell.")
                     .settingsFooter()
             }
 
             Section("Terminals") {
-                Toggle("Ask before closing a terminal that is running something", isOn: Binding(
+                Toggle("Confirm closing terminals with running processes", isOn: Binding(
                     get: { store.value(Option.confirmClose) != "false" },
                     set: { store.set(Option.confirmClose, $0 ? "true" : "false") }))
-                Toggle("Copy text when you select it", isOn: Binding(
+                Toggle("Copy on select", isOn: Binding(
                     get: { store.value(Option.copyOnSelect) == "clipboard" },
                     set: { store.set(Option.copyOnSelect, $0 ? "clipboard" : "true") }))
-                Toggle("Hide the pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
+                Toggle("Hide mouse pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
             }
 
             Section {
                 Toggle("Secure keyboard entry", isOn: $secureKeyboardEntry)
-                Toggle("Turn on secure input at password prompts", isOn: store.binding(Option.autoSecureInput))
-                Toggle("Show a lock while secure input is on", isOn: store.binding(Option.secureInputIndication))
+                Toggle("Enable at password prompts", isOn: store.binding(Option.autoSecureInput))
+                Toggle("Show lock icon when enabled", isOn: store.binding(Option.secureInputIndication))
             } header: {
                 Text("Secure Input")
             } footer: {
-                Text("Secure input stops other apps from reading what you type in Flow.")
+                Text("Prevents other apps from reading keyboard input to Flow.")
                     .settingsFooter()
             }
 
@@ -52,7 +52,7 @@ struct GeneralSettingsView: View {
             } header: {
                 Text("Updates")
             } footer: {
-                Text("Checking for updates is the only time Flow goes online.")
+                Text("Update checks are Flow's only network access.")
                     .settingsFooter()
             }
         }

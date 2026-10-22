@@ -12,41 +12,41 @@ struct NotificationsSettingsView: View {
 
     var body: some View {
         Form {
-            Section("When an agent needs you") {
-                Toggle("Show a notification", isOn: $needsInputNotification)
+            Section("Agent needs input") {
+                Toggle("Notification", isOn: $needsInputNotification)
                 SoundPicker(selection: $needsInputSound)
             }
 
             Section {
-                Toggle("Show a notification", isOn: $finishedNotification)
+                Toggle("Notification", isOn: $finishedNotification)
                 SoundPicker(selection: $finishedSound)
             } header: {
-                Text("When an agent finishes")
+                Text("Agent finished")
             } footer: {
-                Text("Flow alerts you only about agents in terminals you can't see.")
+                Text("Only for agents in terminals that are not visible.")
                     .settingsFooter()
             }
 
             Section {
-                Picker("Alert me", selection: store.binding(Option.notifyOnCommandFinish)) {
+                Picker("Notify", selection: store.binding(Option.notifyOnCommandFinish)) {
                     Text("Never").tag(CommandFinish.When.never)
-                    Text("When I can't see the terminal").tag(CommandFinish.When.unfocused)
+                    Text("When the terminal is not visible").tag(CommandFinish.When.unfocused)
                     Text("Always").tag(CommandFinish.When.always)
                 }
                 Group {
-                    LabeledContent("For commands that take") {
+                    LabeledContent("Minimum duration") {
                         Stepper(value: Binding(
                             get: { Int(store.value(Option.notifyOnCommandFinishAfter).components.seconds) },
                             set: { store.set(Option.notifyOnCommandFinishAfter, .seconds($0)) }), in: 1...3600) {
-                            Text(store.value(Option.notifyOnCommandFinishAfter).formatted(.units(allowed: [.minutes, .seconds], width: .wide)) + " or longer")
+                            Text(store.value(Option.notifyOnCommandFinishAfter).formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
                         }
                     }
-                    Toggle("Show a notification", isOn: action(.notify))
-                    Toggle("Play a sound", isOn: action(.bell))
+                    Toggle("Notification", isOn: action(.notify))
+                    Toggle("Bell", isOn: action(.bell))
                 }
                 .disabled(store.value(Option.notifyOnCommandFinish) == .never)
             } header: {
-                Text("When a command finishes")
+                Text("Command finished")
             }
         }
         .formStyle(.grouped)

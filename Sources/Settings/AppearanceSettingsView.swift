@@ -34,10 +34,10 @@ struct AppearanceSettingsView: View {
                         get: { theme.wrappedValue.light },
                         set: { theme.wrappedValue = ThemeChoice(light: $0, dark: $0) }), allowsDefault: true)
                 }
-                Toggle("Use a different theme in dark mode", isOn: Binding(
+                Toggle("Separate dark mode theme", isOn: Binding(
                     get: { theme.wrappedValue.followsAppearance },
                     set: { different in
-                        // Most themes people pick are dark, so theirs stays on for dark mode.
+                        // Most chosen themes are dark, so the current one is kept for dark mode.
                         let current = theme.wrappedValue
                         theme.wrappedValue = different
                             ? ThemeChoice(light: Themes.light, dark: current.light == Themes.light ? Themes.dark : current.light ?? Themes.dark)
@@ -78,9 +78,9 @@ struct AppearanceSettingsView: View {
             }
 
             Section("Window") {
-                LabeledContent("Opacity") {
+                LabeledContent("Background opacity") {
                     Slider(value: store.binding(Option.backgroundOpacity), in: 0.2...1) {
-                        Text("Opacity")
+                        Text("Background opacity")
                     } minimumValueLabel: {
                         Image(systemName: "circle.dotted")
                     } maximumValueLabel: {
@@ -88,7 +88,7 @@ struct AppearanceSettingsView: View {
                     }
                     .labelsHidden()
                 }
-                Toggle("Blur behind the window", isOn: store.binding(Option.backgroundBlur))
+                Toggle("Background blur", isOn: store.binding(Option.backgroundBlur))
                     .disabled(store.value(Option.backgroundOpacity) >= 1)
                 LabeledContent("Dim unfocused panes") {
                     Slider(value: Binding(
@@ -102,7 +102,7 @@ struct AppearanceSettingsView: View {
                     }
                     .labelsHidden()
                 }
-                Toggle("Show the scroll bar", isOn: Binding(
+                Toggle("Show scroll bar", isOn: Binding(
                     get: { store.value(Option.scrollbar) != "never" },
                     set: { store.set(Option.scrollbar, $0 ? "system" : "never") }))
             }

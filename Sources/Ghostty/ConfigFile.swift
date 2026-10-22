@@ -32,8 +32,8 @@ enum ConfigFile {
     }
 
     static let header = """
-        # Flow's settings. The Settings window changes the lines it manages and
-        # keeps the rest of this file as you wrote it. Any Ghostty option works here.
+        # Flow settings. The Settings window rewrites the lines it manages; all
+        # other lines are preserved. All Ghostty options are supported.
 
         """
 

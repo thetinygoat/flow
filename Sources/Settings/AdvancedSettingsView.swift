@@ -25,13 +25,13 @@ struct AdvancedSettingsView: View {
                     }
                 }
             } footer: {
-                Text("The settings in this window are saved to this file. Every Ghostty option works in it, and the lines you add yourself are kept as you wrote them. Reload with ⇧⌘, after editing it.")
+                Text("Settings in this window are saved to this file. All Ghostty options are supported. Lines added by hand and comments are preserved. Reload with ⇧⌘, after editing.")
                     .settingsFooter()
             }
 
             Section {
                 if store.problems.isEmpty {
-                    Label("No problems found", systemImage: "checkmark.circle")
+                    Label("No problems", systemImage: "checkmark.circle")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(store.problems, id: \.self) { problem in

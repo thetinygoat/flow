@@ -33,17 +33,23 @@ final class GhosttyRuntime {
     private let surfaces = NSHashTable<TerminalSurfaceView>.weakObjects()
     private var observers: [NSObjectProtocol] = []
     private var appearanceObserver: NSKeyValueObservation?
+    private var wakeup: RuntimeWakeup?
     private(set) var colorScheme = GHOSTTY_COLOR_SCHEME_LIGHT
 
     init() throws {
         config = try GhosttyConfig()
+
+        wakeup = RuntimeWakeup { [weak self] in
+            guard let app = self?.app else { return }
+            ghostty_app_tick(app)
+        }
 
         var runtimeConfig = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
             supports_selection_clipboard: true,
             wakeup_cb: { userdata in
                 let runtime = Unmanaged<GhosttyRuntime>.fromOpaque(userdata!).takeUnretainedValue()
-                DispatchQueue.main.async { ghostty_app_tick(runtime.app) }
+                runtime.wakeup?.schedule()
             },
             action_cb: { app, target, action in
                 GhosttyRuntime.dispatch(app: app!, target: target, action: action)

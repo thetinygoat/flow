@@ -91,7 +91,11 @@ final class TerminalSurfaceView: NSView {
     private var lastPerformKeyEvent: TimeInterval?
     private var leftButtonPressed = false
     private var eventMonitor: Any?
-    private var windowObservers: [NSObjectProtocol] = []
+    private lazy var windowObserver = TerminalWindowObserver(
+        screenChanged: { [weak self] in self?.updateDisplay() },
+        focusChanged: { [weak self] in self?.updateFocus() },
+        occlusionChanged: { [weak self] in self?.updateOcclusion() })
+    private var secureInputObserver: NSObjectProtocol?
     private var searchBar: SearchBarView?
     private let linkPreview = LinkPreviewView()
     private var searchDebounce: Timer?
@@ -110,27 +114,9 @@ final class TerminalSurfaceView: NSView {
             self?.handleLocalEvent(event) ?? event
         }
         let center = NotificationCenter.default
-        windowObservers = [
-            center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] notification in
-                guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
-                self.updateDisplay()
-            },
-            center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] notification in
-                guard let self, notification.object as? NSWindow === self.window else { return }
-                self.updateFocus()
-            },
-            center.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] notification in
-                guard let self, notification.object as? NSWindow === self.window else { return }
-                self.updateFocus()
-            },
-            center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] notification in
-                guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
-                self.updateOcclusion()
-            },
-            center.addObserver(forName: SecureInput.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-                self?.updateSecureInputBadge()
-            },
-        ]
+        secureInputObserver = center.addObserver(forName: SecureInput.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.updateSecureInputBadge()
+        }
 
         surface = configuration.withCValue(view: self) { config in
             ghostty_surface_new(runtime.app, &config)
@@ -199,7 +185,7 @@ final class TerminalSurfaceView: NSView {
     deinit {
         titleTimer?.invalidate()
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
-        windowObservers.forEach(NotificationCenter.default.removeObserver)
+        if let secureInputObserver { NotificationCenter.default.removeObserver(secureInputObserver) }
         searchDebounce?.invalidate()
         if passwordInput { SecureInput.shared.removeScoped(ObjectIdentifier(self)) }
         if let surface { ghostty_surface_free(surface) }
@@ -244,6 +230,7 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        windowObserver.observe(window)
         updateOcclusion()
         // Being detached while first responder loses focus without a
         // resignFirstResponder call, so the state is re-derived here.

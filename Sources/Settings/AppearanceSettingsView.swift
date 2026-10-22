@@ -76,7 +76,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Cursor")
             } footer: {
-                Text("Automatic: blinking bar at shell prompts. Switching to or from Automatic applies to new terminals.")
+                Text("Automatic: the shell sets a blinking bar at its prompt. Switching to or from Automatic affects terminals opened after the change; other shape and blink changes apply immediately.")
                     .settingsFooter()
             }
 

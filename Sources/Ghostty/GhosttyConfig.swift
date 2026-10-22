@@ -9,9 +9,10 @@ enum GhosttyError: Error {
 final class GhosttyConfig {
     let cValue: ghostty_config_t
 
-    init(file: URL = ConfigFile.url) throws {
+    /// Without a file, the config holds Ghostty's defaults.
+    init(file: URL? = ConfigFile.url) throws {
         guard let config = ghostty_config_new() else { throw GhosttyError.apiFailed }
-        if FileManager.default.fileExists(atPath: file.path) {
+        if let file, FileManager.default.fileExists(atPath: file.path) {
             ghostty_config_load_file(config, file.path)
         }
         ghostty_config_load_recursive_files(config)
@@ -45,6 +46,19 @@ final class GhosttyConfig {
 
     var backgroundColor: NSColor {
         color(for: "background") ?? .windowBackgroundColor
+    }
+
+    var foregroundColor: NSColor {
+        color(for: "foreground") ?? .textColor
+    }
+
+    /// The first 16 colors of the palette, which programs use for their text.
+    var palette: [NSColor] {
+        var palette = ghostty_config_palette_s()
+        guard read("palette", into: &palette) else { return [] }
+        return withUnsafeBytes(of: palette.colors) { buffer in
+            buffer.bindMemory(to: ghostty_config_color_s.self).prefix(16).map(NSColor.init)
+        }
     }
 
     /// How strongly unfocused panes are dimmed, 0 to 1. Ghostty's setting is
@@ -97,7 +111,7 @@ final class GhosttyConfig {
     private func color(for key: String) -> NSColor? {
         var color = ghostty_config_color_s()
         guard read(key, into: &color) else { return nil }
-        return NSColor(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
+        return NSColor(color)
     }
 
     private func value<T>(for key: String, default defaultValue: T) -> T {
@@ -114,5 +128,11 @@ final class GhosttyConfig {
         (0..<ghostty_config_diagnostics_count(cValue)).map { index in
             String(cString: ghostty_config_get_diagnostic(cValue, UInt32(index)).message)
         }
+    }
+}
+
+private extension NSColor {
+    convenience init(_ color: ghostty_config_color_s) {
+        self.init(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
     }
 }

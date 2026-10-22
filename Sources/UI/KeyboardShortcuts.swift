@@ -47,7 +47,7 @@ enum KeyboardShortcuts {
             Shortcut(title: "Reset text size", keys: ["⌘", "0"]),
         ]),
         Section(title: "Settings", shortcuts: [
-            Shortcut(title: "Open your config", keys: ["⌘", ","]),
+            Shortcut(title: "Open Settings", keys: ["⌘", ","]),
             Shortcut(title: "Reload your config", keys: ["⇧", "⌘", ","]),
         ]),
     ]

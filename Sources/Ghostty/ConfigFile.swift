@@ -1,4 +1,5 @@
-import Foundation
+import AppKit
+import UniformTypeIdentifiers
 
 /// Flow's config file. It uses Ghostty's syntax, so every Ghostty option works
 /// in it, but Flow reads only this file and not Ghostty's own config.
@@ -65,5 +66,24 @@ enum ConfigFile {
             document.anchorIncludes(at: file.deletingLastPathComponent())
             return "\n# Imported from \(file.path.abbreviatingHome)\n" + document.text
         }.joined()
+    }
+}
+
+extension ConfigFile {
+    /// Opens the config file in the user's text editor, creating it first if
+    /// it was removed.
+    static func openInEditor() {
+        let url = url
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: url.path, contents: Data(header.utf8))
+        }
+        // The file has no extension, so it is opened as plain text rather
+        // than with whatever claims extensionless files.
+        guard let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
     }
 }

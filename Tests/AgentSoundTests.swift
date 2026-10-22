@@ -50,8 +50,20 @@ final class AgentSoundTests: XCTestCase {
         XCTAssertTrue(throttle.allows(.finished, at: start.addingTimeInterval(0.5)))
     }
 
-    func testTheSoundsExist() {
-        XCTAssertNotNil(NSSound(named: AgentSound.needsInput.name))
-        XCTAssertNotNil(NSSound(named: AgentSound.finished.name))
+    func testTheDefaultSoundsExist() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        Preferences.register(in: defaults)
+        for sound in [AgentSound.needsInput, .finished] {
+            let name = try XCTUnwrap(defaults.string(forKey: sound.soundPreference))
+            XCTAssertNotNil(NSSound(named: name))
+            XCTAssertTrue(Preferences.sounds.contains(name))
+        }
+    }
+
+    func testEventsBelongToTheAlertTheirSoundPlays() {
+        XCTAssertEqual(AgentSound(alerting: .needsInput), .needsInput)
+        XCTAssertEqual(AgentSound(alerting: .turnEnded), .finished)
+        XCTAssertEqual(AgentSound(alerting: .attention), .finished)
+        XCTAssertNil(AgentSound(alerting: .working))
     }
 }

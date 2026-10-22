@@ -170,6 +170,10 @@ targets:
       - path: Sources/Agent
       - path: Sources/Workspace/GitStatus.swift
       - path: Sources/Ghostty
+      - path: Sources/Settings/ConfigSetting.swift
+      - path: Sources/Settings/Preferences.swift
+      - path: Sources/Settings/SettingsStore.swift
+      - path: Sources/Settings/Themes.swift
       - path: Sources/ServiceProvider.swift
       - path: Sources/UI/ClipboardConfirmation.swift
       - path: Sources/UI/LinkPreviewView.swift

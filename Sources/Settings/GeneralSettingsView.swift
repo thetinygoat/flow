@@ -6,19 +6,29 @@ struct GeneralSettingsView: View {
     let updater: SPUUpdater
     @AppStorage(Preferences.secureKeyboardEntry) private var secureKeyboardEntry = false
     @State private var command = ""
+    @State private var choosesCustomCommand = false
     @State private var checksForUpdates = false
     @FocusState private var editingCommand: Bool
 
     var body: some View {
         Form {
             Section {
-                TextField("Shell", text: $command, prompt: Text("Login shell"))
-                    .focused($editingCommand)
-                    .onSubmit(saveCommand)
-                    .onChange(of: editingCommand) { if !editingCommand { saveCommand() } }
-            } footer: {
-                Text("Command run in new terminals. Empty uses the login shell.")
-                    .settingsFooter()
+                Picker("Shell", selection: shell) {
+                    Text("Login shell (\(Shells.login.lastPathComponent))").tag(ShellChoice.login)
+                    Divider()
+                    ForEach(Shells.installed, id: \.self) { path in
+                        Text(path).tag(ShellChoice.shell(path))
+                    }
+                    Divider()
+                    Text("Custom…").tag(ShellChoice.custom)
+                }
+                if shell.wrappedValue == .custom {
+                    TextField("Command", text: $command, prompt: Text("/usr/bin/env nu"))
+                        .textFieldStyle(.roundedBorder)
+                        .focused($editingCommand)
+                        .onSubmit(saveCommand)
+                        .onChange(of: editingCommand) { if !editingCommand { saveCommand() } }
+                }
             }
 
             Section("Terminals") {
@@ -66,6 +76,43 @@ struct GeneralSettingsView: View {
 
     private func saveCommand() {
         store.set(Option.command, command.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// A command that is one of the installed shells shows as that shell;
+    /// anything else is a custom command.
+    private var shell: Binding<ShellChoice> {
+        Binding(
+            get: {
+                let command = store.value(Option.command)
+                if choosesCustomCommand || (!command.isEmpty && !Shells.installed.contains(command)) { return .custom }
+                return command.isEmpty ? .login : .shell(command)
+            },
+            set: { choice in
+                choosesCustomCommand = choice == .custom
+                switch choice {
+                case .login: store.set(Option.command, "")
+                case .shell(let path): store.set(Option.command, path)
+                case .custom: editingCommand = true
+                }
+            })
+    }
+}
+
+private enum ShellChoice: Hashable {
+    case login, shell(String), custom
+}
+
+enum Shells {
+    /// The shells listed in /etc/shells that exist.
+    static let installed: [String] = {
+        let list = (try? String(contentsOfFile: "/etc/shells", encoding: .utf8)) ?? ""
+        return list.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") && FileManager.default.isExecutableFile(atPath: $0) }
+    }()
+
+    static var login: URL {
+        let path = getpwuid(getuid())?.pointee.pw_shell.map { String(cString: $0) } ?? "/bin/zsh"
+        return URL(fileURLWithPath: path)
     }
 }
 

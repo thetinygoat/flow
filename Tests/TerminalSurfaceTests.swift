@@ -81,6 +81,29 @@ final class TerminalSurfaceTests: XCTestCase {
         }
     }
 
+    func testDeferredDimmingIsAppliedWhenTerminalStarts() throws {
+        try withRuntime { runtime in
+            for clearBeforeStarting in [false, true] {
+                let view = terminal(runtime)
+                let color = NSColor.black.withAlphaComponent(0.2)
+                view.setDimColor(color)
+                if clearBeforeStarting { view.setDimColor(nil) }
+                XCTAssertNil(view.surface)
+                XCTAssertTrue(view.subviews.isEmpty)
+
+                let window = window()
+                defer { window.contentView = nil; window.close() }
+                window.contentView = view
+                let overlay = try XCTUnwrap(view.subviews.first)
+                XCTAssertEqual(overlay.isHidden, clearBeforeStarting)
+                XCTAssertEqual(overlay.layer?.backgroundColor, clearBeforeStarting ? nil : color.cgColor)
+                view.setDimColor(nil)
+                XCTAssertTrue(overlay.isHidden)
+                XCTAssertNil(overlay.layer?.backgroundColor)
+            }
+        }
+    }
+
     func testUnattachedTerminalDoesNotRender() throws {
         try withRuntime { runtime in
             var config = TerminalSurfaceConfiguration()
@@ -130,6 +153,8 @@ final class TerminalSurfaceTests: XCTestCase {
             @MainActor func started() -> Set<UUID> { Set(views.filter { $0.surface != nil }.map(\.id)) }
             XCTAssertEqual(started(), [])
             XCTAssertEqual(store.snapshot(), saved)
+            XCTAssertEqual(store.workspaces[0].tabs.map(\.title), ["/", "/tmp"])
+            XCTAssertEqual(store.workspaces[1].tabs.map(\.title), ["/"])
 
             let window = window()
             let panes = PaneTreeView()

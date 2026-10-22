@@ -1,6 +1,21 @@
 import XCTest
 
 final class WorkspaceTests: XCTestCase {
+    func testTabTitleUsesDirectoryUntilTheShellSetsATitle() {
+        let leaf = FakeLeaf(workingDirectory: NSHomeDirectory() + "/Code/flow")
+        let tab = TestTab(leaf: leaf)
+        XCTAssertEqual(tab.title, "~/Code/flow")
+        leaf.title = "Running tests"
+        XCTAssertEqual(tab.title, "Running tests")
+        leaf.title = ""
+        leaf.workingDirectory = "/tmp"
+        XCTAssertEqual(tab.title, "/tmp")
+        leaf.workingDirectory = ""
+        XCTAssertEqual(tab.title, "Terminal")
+        leaf.workingDirectory = nil
+        XCTAssertEqual(tab.title, "Terminal")
+    }
+
     func testRemovingSelectedTabSelectsNeighbor() {
         let workspace = WorkspaceModel<FakeLeaf>()
         let tabs = (0..<3).map { _ in TestTab(leaf: FakeLeaf()) }

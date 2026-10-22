@@ -85,6 +85,7 @@ final class TerminalSurfaceView: NSView {
     private var isFirstResponder = false
 
     private var cursor: NSCursor = .iBeam
+    private var dimColor: NSColor?
     private lazy var dimOverlay = PassthroughView()
     private lazy var scrollbar = TerminalScrollbar()
     private lazy var secureInputBadge = NSImageView(image: NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Secure keyboard entry is on")!)
@@ -153,7 +154,7 @@ final class TerminalSurfaceView: NSView {
         updateTrackingAreas()
 
         dimOverlay.wantsLayer = true
-        dimOverlay.isHidden = true
+        setDimColor(dimColor)
         dimOverlay.frame = bounds
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
@@ -198,6 +199,7 @@ final class TerminalSurfaceView: NSView {
 
     /// Tints the pane to show it is not the focused split. Pass nil to clear.
     func setDimColor(_ color: NSColor?) {
+        dimColor = color
         guard surface != nil else { return }
         dimOverlay.layer?.backgroundColor = color?.cgColor
         dimOverlay.isHidden = color == nil

@@ -59,7 +59,7 @@ final class TerminalWindowObserverTests: XCTestCase {
             screenChanged: { callbacks += 1 }, focusChanged: { callbacks += 1 },
             occlusionChanged: { callbacks += 1 })
         observer?.observe(window)
-        weak var released = observer
+        weak let released = observer
         observer = nil
         XCTAssertNil(released)
         center.post(name: NSWindow.didBecomeKeyNotification, object: window)

@@ -7,7 +7,6 @@ final class TerminalWindowObserver {
     private let screenChanged: () -> Void
     private let focusChanged: () -> Void
     private let occlusionChanged: () -> Void
-    private weak var window: NSWindow?
     private var observers: [NSObjectProtocol] = []
 
     init(center: NotificationCenter = .default, screenChanged: @escaping () -> Void,
@@ -21,7 +20,6 @@ final class TerminalWindowObserver {
     func observe(_ window: NSWindow?) {
         observers.forEach(center.removeObserver)
         observers.removeAll()
-        self.window = window
         guard let window else { return }
         let handlers: [(Notification.Name, () -> Void)] = [
             (NSWindow.didChangeScreenNotification, screenChanged),
@@ -30,8 +28,7 @@ final class TerminalWindowObserver {
             (NSWindow.didChangeOcclusionStateNotification, occlusionChanged),
         ]
         observers = handlers.map { name, handler in
-            center.addObserver(forName: name, object: window, queue: .main) { [weak self] notification in
-                guard let self, let window = self.window, notification.object as? NSWindow === window else { return }
+            center.addObserver(forName: name, object: window, queue: .main) { _ in
                 handler()
             }
         }

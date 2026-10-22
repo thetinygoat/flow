@@ -8,6 +8,7 @@ struct GeneralSettingsView: View {
     @State private var command = ""
     @State private var choosesCustomCommand = false
     @State private var checksForUpdates = false
+    @State private var lastUpdateCheck: Date?
     @FocusState private var editingCommand: Bool
 
     var body: some View {
@@ -60,7 +61,7 @@ struct GeneralSettingsView: View {
                         .disabled(!updater.canCheckForUpdates)
                 } label: {
                     Text("Last checked")
-                    Text(updater.lastUpdateCheckDate?.formatted(.relative(presentation: .named)) ?? "Never")
+                    Text(lastUpdateCheck?.formatted(.relative(presentation: .named)) ?? "Never")
                 }
             }
         }
@@ -70,6 +71,7 @@ struct GeneralSettingsView: View {
             checksForUpdates = updater.automaticallyChecksForUpdates
         }
         .onChange(of: store.value(Option.command)) { command = store.value(Option.command) }
+        .onReceive(updater.publisher(for: \.lastUpdateCheckDate)) { lastUpdateCheck = $0 }
     }
 
     private func saveCommand() {

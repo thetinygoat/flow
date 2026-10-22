@@ -49,7 +49,7 @@ struct GeneralSettingsView: View {
                     Text("Always").tag(SecureInputChoice.always)
                 }
             } footer: {
-                Text("Prevents other apps from reading keyboard input to Flow. At password prompts: only while a program such as sudo or ssh asks for a password.")
+                Text("Blocks other apps from reading keystrokes typed into Flow.")
                     .settingsFooter()
             }
 

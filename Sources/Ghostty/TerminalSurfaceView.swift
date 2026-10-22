@@ -49,6 +49,8 @@ final class TerminalSurfaceView: NSView {
     weak var delegate: TerminalSurfaceViewDelegate?
     private(set) weak var runtime: GhosttyRuntime?
     private(set) var surface: ghostty_surface_t?
+    /// Unopened restored panes need their identity and directory, but no shell or renderer.
+    private var pendingConfiguration: TerminalSurfaceConfiguration?
     /// The directory the shell was started in, until the shell reports its own.
     let initialWorkingDirectory: String?
 
@@ -83,9 +85,10 @@ final class TerminalSurfaceView: NSView {
     private var isFirstResponder = false
 
     private var cursor: NSCursor = .iBeam
-    private let dimOverlay = PassthroughView()
-    private let scrollbar = TerminalScrollbar()
-    private let secureInputBadge = NSImageView(image: NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Secure keyboard entry is on")!)
+    private var dimColor: NSColor?
+    private lazy var dimOverlay = PassthroughView()
+    private lazy var scrollbar = TerminalScrollbar()
+    private lazy var secureInputBadge = NSImageView(image: NSImage(systemSymbolName: "lock.fill", accessibilityDescription: "Secure keyboard entry is on")!)
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
     private var lastPerformKeyEvent: TimeInterval?
@@ -93,16 +96,23 @@ final class TerminalSurfaceView: NSView {
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
     private var searchBar: SearchBarView?
-    private let linkPreview = LinkPreviewView()
+    private lazy var linkPreview = LinkPreviewView()
     private var searchDebounce: Timer?
 
     override var acceptsFirstResponder: Bool { true }
 
-    init(runtime: GhosttyRuntime, id: UUID = UUID(), configuration: TerminalSurfaceConfiguration = .init()) {
+    init(runtime: GhosttyRuntime, id: UUID = UUID(), configuration: TerminalSurfaceConfiguration = .init(), startImmediately: Bool = true) {
         self.id = id
         self.runtime = runtime
         self.initialWorkingDirectory = configuration.workingDirectory
+        self.pendingConfiguration = configuration
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        if startImmediately { start() }
+    }
+
+    private func start() {
+        guard let configuration = pendingConfiguration, let runtime else { return }
+        pendingConfiguration = nil
 
         // Command key-ups never reach the responder chain, and a click on an
         // unfocused surface should move focus without also reaching the shell.
@@ -136,6 +146,7 @@ final class TerminalSurfaceView: NSView {
             ghostty_surface_new(runtime.app, &config)
         }
         if let surface {
+            ghostty_surface_set_occlusion(surface, false)
             ghostty_surface_set_focus(surface, false)
             ghostty_surface_set_color_scheme(surface, runtime.colorScheme)
         }
@@ -143,7 +154,7 @@ final class TerminalSurfaceView: NSView {
         updateTrackingAreas()
 
         dimOverlay.wantsLayer = true
-        dimOverlay.isHidden = true
+        setDimColor(dimColor)
         dimOverlay.frame = bounds
         dimOverlay.autoresizingMask = [.width, .height]
         addSubview(dimOverlay)
@@ -188,6 +199,8 @@ final class TerminalSurfaceView: NSView {
 
     /// Tints the pane to show it is not the focused split. Pass nil to clear.
     func setDimColor(_ color: NSColor?) {
+        dimColor = color
+        guard surface != nil else { return }
         dimOverlay.layer?.backgroundColor = color?.cgColor
         dimOverlay.isHidden = color == nil
     }
@@ -228,8 +241,8 @@ final class TerminalSurfaceView: NSView {
     }
 
     func updateConfig(_ config: GhosttyConfig) {
-        scrollbar.isHidden = !config.showsScrollbar
         guard let surface else { return }
+        scrollbar.isHidden = !config.showsScrollbar
         ghostty_surface_update_config(surface, config.cValue)
     }
 
@@ -244,13 +257,13 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if window != nil { start() }
+        updateDisplay()
         updateOcclusion()
         // Being detached while first responder loses focus without a
         // resignFirstResponder call, so the state is re-derived here.
         isFirstResponder = window?.firstResponder === self
         updateFocus()
-        guard window != nil else { return }
-        updateDisplay()
     }
 
     /// Hidden surfaces (other tabs, other workspaces, covered windows) tell

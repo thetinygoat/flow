@@ -32,7 +32,9 @@ final class TabModel<Leaf: PaneLeaf> {
     }
 
     var title: String {
-        focusedLeaf.title.isEmpty ? "Terminal" : focusedLeaf.title
+        if !focusedLeaf.title.isEmpty { return focusedLeaf.title }
+        guard let directory = focusedLeaf.workingDirectory, !directory.isEmpty else { return "Terminal" }
+        return directory.abbreviatingHome
     }
 
     func focus(_ leaf: Leaf) {

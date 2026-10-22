@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 
 protocol TerminalWindowDelegate: AnyObject {
-    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID) -> TerminalSurfaceView
+    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView
     func terminalWindowDidChange(_ window: TerminalWindow)
     func terminalWindowWillClose(_ window: TerminalWindow)
 }
@@ -45,7 +45,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     }
 
     func restore(_ saved: Session.Window) {
-        store.restore(saved) { makeSurface(id: $0, in: $1, workspace: $2) }
+        store.restore(saved) { makeSurface(id: $0, in: $1, workspace: $2, startImmediately: false) }
     }
 
     // MARK: Lookup
@@ -160,8 +160,8 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.terminalArea.focusSelectedSurface()
     }
 
-    private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID) -> TerminalSurfaceView {
-        delegate!.terminalWindow(self, makeSurface: id, in: directory, workspace: workspace)
+    private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID, startImmediately: Bool = true) -> TerminalSurfaceView {
+        delegate!.terminalWindow(self, makeSurface: id, in: directory, workspace: workspace, startImmediately: startImmediately)
     }
 
     private func addTab(to workspace: Workspace) {

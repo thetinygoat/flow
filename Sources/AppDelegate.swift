@@ -299,12 +299,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyWindow?.selectTab(at: sender.tag)
     }
 
-    private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID) -> TerminalSurfaceView {
+    private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
         configuration.environment = AgentEnvironment.variables(
             surface: id, workspace: workspace, socket: agentSocket.path, flw: Self.flwPath, shims: AgentShims.root())
-        let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration)
+        let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration, startImmediately: startImmediately)
         surface.delegate = self
         return surface
     }
@@ -606,8 +606,8 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 // MARK: - Windows and terminals
 
 extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
-    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID) -> TerminalSurfaceView {
-        makeSurface(id: id, workingDirectory: directory, workspace: workspace)
+    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
+        makeSurface(id: id, workingDirectory: directory, workspace: workspace, startImmediately: startImmediately)
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {

@@ -157,19 +157,24 @@ targets:
     dependencies:
       - target: flw
         embed: false
+      - framework: Vendor/GhosttyKit.xcframework
+        embed: false
+      - sdk: Carbon.framework
     sources:
       - path: Tests
       - path: Sources/Logger.swift
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift
+      - path: Sources/Workspace/TerminalModel.swift
       - path: Sources/Agent
       - path: Sources/Workspace/GitStatus.swift
-      - path: Sources/Ghostty/ConfigFile.swift
-      - path: Sources/Ghostty/CommandFinish.swift
+      - path: Sources/Ghostty
       - path: Sources/ServiceProvider.swift
-      - path: Sources/Ghostty/DropText.swift
-      - path: Sources/Ghostty/LinkTarget.swift
+      - path: Sources/UI/ClipboardConfirmation.swift
+      - path: Sources/UI/LinkPreviewView.swift
+      - path: Sources/UI/SearchBarView.swift
+      - path: Sources/UI/PaneTreeView.swift
       - path: Sources/UI/TerminalScrollbar.swift
       - path: Sources/UI/WindowContentViewController.swift
       - path: Sources/UI/WorkspaceMenu.swift

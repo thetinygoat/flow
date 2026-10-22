@@ -40,6 +40,8 @@ Flow updates itself.
 
 Each project gets its own workspace in the sidebar, with its own tabs and split panes. Flow reopens everything as you left it.
 
+After a relaunch, restored terminals start when you first view them. Once started, they keep running when you switch to another tab or workspace.
+
 Drag workspaces up or down in the sidebar to reorder them. Flow remembers their order when you reopen it.
 
 | Shortcut                              | Action           |
@@ -102,7 +104,7 @@ To build without opening Xcode, run `xcodebuild -scheme flow -configuration Debu
 xcodebuild test -scheme flow -destination 'platform=macOS'
 ```
 
-The tests compile the model sources directly and don't launch the app.
+The tests cover the models and terminal lifecycle without launching the app.
 
 ### Layout
 

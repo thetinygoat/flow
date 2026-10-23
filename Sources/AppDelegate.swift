@@ -124,10 +124,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         windows.forEach { $0.show() }
         NSApp.activate()
-        if let directory = ProcessInfo.processInfo.environment["FLOW_TEMP_SNAPSHOT"] {
-            showSettings()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { TempSnapshot.run(self.settingsWindow.window!, into: directory) }
-        }
         pendingDirectories?.forEach { openWorkspace(in: $0, newWindow: false) }
         pendingDirectories = nil
 

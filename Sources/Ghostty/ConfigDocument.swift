@@ -46,16 +46,22 @@ struct ConfigDocument: Equatable {
         lines.insert(contentsOf: replacement, at: position)
     }
 
-    /// Ghostty finds a relative `config-file` next to the file that names it,
-    /// so a document moved to another directory needs those made absolute.
-    mutating func anchorIncludes(at directory: URL) {
-        let includes = values(for: "config-file").map { value in
-            let optional = value.hasPrefix("?")
-            let path = optional ? String(value.dropFirst()) : value
-            guard !path.hasPrefix("/"), !path.hasPrefix("~") else { return value }
-            return (optional ? "?" : "") + directory.appendingPathComponent(path).path
+    /// Options whose value is a file, which Ghostty finds relative to the
+    /// file that sets them.
+    static let pathKeys = ["config-file", "custom-shader", "background-image", "bell-audio-path"]
+
+    /// A document moved to another directory needs its relative paths made
+    /// absolute to keep pointing at the same files.
+    mutating func anchorPaths(at directory: URL) {
+        for key in Self.pathKeys {
+            let values = values(for: key)
+            guard !values.isEmpty else { continue }
+            setValues(values.map { value in
+                guard var path = ConfigPath(value), path.isRelative else { return value }
+                path.path = path.resolved(from: directory).path
+                return path.value
+            }, for: key)
         }
-        setValues(includes, for: "config-file")
     }
 
     /// The key and value of a line that sets something, read the way Ghostty
@@ -75,5 +81,39 @@ struct ConfigDocument: Equatable {
 
     private static func format(_ value: String) -> String {
         value.isEmpty || value != value.trimmingCharacters(in: .whitespaces) ? "\"\(value)\"" : value
+    }
+}
+
+/// A path option's value, read the way Ghostty reads it: a leading `?` makes
+/// the file optional, then quotes around the path are dropped. Only `~/` is
+/// expanded; any other relative path starts from the file that sets it.
+struct ConfigPath: Equatable {
+    var path: String
+    var optional: Bool
+
+    init?(_ value: String) {
+        var value = Substring(value)
+        optional = value.hasPrefix("?")
+        if optional { value = value.dropFirst() }
+        if value.count >= 2, value.hasPrefix("\""), value.hasSuffix("\"") {
+            value = value.dropFirst().dropLast()
+        }
+        guard !value.isEmpty else { return nil }
+        path = String(value)
+    }
+
+    var value: String {
+        (optional ? "?" : "") + path
+    }
+
+    var isRelative: Bool {
+        !path.hasPrefix("/") && !path.hasPrefix("~/")
+    }
+
+    func resolved(from directory: URL) -> URL {
+        if path.hasPrefix("~/") {
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(String(path.dropFirst(2)))
+        }
+        return path.hasPrefix("/") ? URL(fileURLWithPath: path) : directory.appendingPathComponent(path)
     }
 }

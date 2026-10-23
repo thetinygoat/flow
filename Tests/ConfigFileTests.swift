@@ -34,9 +34,34 @@ final class ConfigFileTests: XCTestCase {
     }
 
     func testMakesRelativeIncludesAbsolute() throws {
-        let ghostty = try file("ghostty/config", "config-file = ?keys\nconfig-file = /etc/theme\nconfig-file = ~/colors\n")
+        let ghostty = try file("ghostty/config", "config-file = ?keys\nconfig-file = /etc/theme\nconfig-file = ~/colors\nconfig-file = ?\"more\"\n")
         let includes = ConfigDocument(ConfigFile.imported(from: [ghostty])).values(for: "config-file")
-        XCTAssertEqual(includes, ["?" + directory.appendingPathComponent("ghostty/keys").path, "/etc/theme", "~/colors"])
+        XCTAssertEqual(includes, [
+            "?" + directory.appendingPathComponent("ghostty/keys").path, "/etc/theme", "~/colors",
+            "?" + directory.appendingPathComponent("ghostty/more").path,
+        ])
+    }
+
+    func testMakesOtherRelativePathsAbsolute() throws {
+        let ghostty = try file("ghostty/config", "custom-shader = shaders/crt.glsl\nbackground-image = /pictures/sky.png\nbell-audio-path = ?ding.wav\n")
+        let document = ConfigDocument(ConfigFile.imported(from: [ghostty]))
+        XCTAssertEqual(document["custom-shader"], directory.appendingPathComponent("ghostty/shaders/crt.glsl").path)
+        XCTAssertEqual(document["background-image"], "/pictures/sky.png")
+        XCTAssertEqual(document["bell-audio-path"], "?" + directory.appendingPathComponent("ghostty/ding.wav").path)
+    }
+
+    func testImportsAFileThatIsNotUTF8() throws {
+        let ghostty = directory.appendingPathComponent("latin1")
+        try Data("# caf\u{E9}\nfont-size = 14\n".data(using: .isoLatin1)!).write(to: ghostty)
+        XCTAssertEqual(ConfigDocument(ConfigFile.imported(from: [ghostty]))["font-size"], "14")
+    }
+
+    func testRefusesToReplaceALinkLoop() throws {
+        let a = directory.appendingPathComponent("a"), b = directory.appendingPathComponent("b")
+        try FileManager.default.createSymbolicLink(atPath: a.path, withDestinationPath: "b")
+        try FileManager.default.createSymbolicLink(atPath: b.path, withDestinationPath: "a")
+        XCTAssertThrowsError(try ConfigFile.write("x", to: a))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: a.path), "b")
     }
 
     func testCreatesConfigOnceFromGhosttySettings() throws {

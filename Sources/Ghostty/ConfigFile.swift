@@ -58,6 +58,11 @@ enum ConfigFile {
     /// yet, so a config kept with someone's dotfiles stays a link to them.
     static func write(_ text: String, to url: URL) throws {
         let target = writeTarget(for: url)
+        // Writing to a link that still points on, as in a loop, would replace
+        // it with a plain file.
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: target.path)) != nil {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path, NSLocalizedDescriptionKey: "Too many symbolic links lead to \(url.path)"])
+        }
         try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
         try text.write(to: target, atomically: true, encoding: .utf8)
     }
@@ -74,12 +79,15 @@ enum ConfigFile {
     /// The settings in the given files, each under a note of where it came
     /// from. Files holding only comments, such as the template Ghostty writes
     /// on its first launch, are left out.
+    ///
+    /// libghostty reads bytes rather than UTF-8, so a file with other text in
+    /// it, usually in a comment, is still imported, with that text replaced.
     static func imported(from files: [URL]) -> String {
         files.compactMap { file -> String? in
-            guard let contents = try? String(contentsOf: file, encoding: .utf8) else { return nil }
-            var document = ConfigDocument(contents)
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            var document = ConfigDocument(String(decoding: data, as: UTF8.self))
             guard !document.isEmpty else { return nil }
-            document.anchorIncludes(at: file.deletingLastPathComponent())
+            document.anchorPaths(at: file.deletingLastPathComponent())
             return "\n# Imported from \(file.path.abbreviatingHome)\n" + document.text
         }.joined()
     }
@@ -93,10 +101,8 @@ extension ConfigFile {
         var seen: Set<String> = [url.standardizedFileURL.path]
         func visit(_ document: ConfigDocument, in directory: URL) {
             for value in document.values(for: "config-file") {
-                let path = value.hasPrefix("?") ? String(value.dropFirst()) : value
-                let expanded = (path as NSString).expandingTildeInPath
-                let include = expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : directory.appendingPathComponent(expanded)
-                guard seen.insert(include.standardizedFileURL.path).inserted,
+                guard let include = ConfigPath(value)?.resolved(from: directory),
+                      seen.insert(include.standardizedFileURL.path).inserted,
                       let text = try? String(contentsOf: include, encoding: .utf8) else { continue }
                 let included = ConfigDocument(text)
                 found.append((include, included))

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AppearanceSettingsView: View {
@@ -82,19 +83,18 @@ struct AppearanceSettingsView: View {
 
             Section("Window") {
                 LabeledContent("Background opacity") {
-                    SavedOnReleaseSlider(value: store.binding(Option.backgroundOpacity), range: 0.2...1)
+                    SavedOnReleaseSlider(title: "Background opacity", value: store.binding(Option.backgroundOpacity), range: 0.2...1)
                 }
-                LabeledContent("Background blur") {
-                    SavedOnReleaseSlider(value: store.binding(Option.backgroundBlur), range: 0...50, step: 1) { radius in
-                        radius == 0 ? "Off" : radius.formatted(.number.precision(.fractionLength(0)))
-                    }
-                }
-                .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
                 LabeledContent("Dim unfocused panes") {
-                    SavedOnReleaseSlider(value: Binding(
+                    SavedOnReleaseSlider(title: "Dim unfocused panes", value: Binding(
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
                         set: { store.set(Option.unfocusedSplitOpacity, ((1 - $0) * 100).rounded() / 100) }), range: 0...0.85)
                 }
+                // Ghostty's whole range for the blur radius.
+                LabeledContent("Background blur") {
+                    SavedOnReleaseSlider(title: "Background blur", value: store.binding(Option.backgroundBlur), range: 0...255, step: 1, format: nil)
+                }
+                .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
                 Toggle("Show scroll bar", isOn: Binding(
                     get: { store.value(Option.scrollbar) != "never" },
                     set: { store.set(Option.scrollbar, $0 ? "system" : "never") }))
@@ -127,31 +127,69 @@ struct AppearanceSettingsView: View {
 /// drag ends. Saving at every step would rebuild the whole pane, theme and
 /// font menus included, many times a second.
 private struct SavedOnReleaseSlider: View {
+    let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
+    /// The value is rounded to this when saved.
     var step: Double = 0.01
-    var format: (Double) -> String = { $0.formatted(.percent.precision(.fractionLength(0))) }
+    var format: ((Double) -> String)? = { $0.formatted(.percent.precision(.fractionLength(0))) }
     @State private var draft: Double?
 
     var body: some View {
         HStack {
-            Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range, step: step) {
-                EmptyView()
-            } onEditingChanged: { editing in
-                commit(editing)
+            AppKitSlider(title: title, value: draft ?? value, range: range) { newValue, finished in
+                draft = newValue
+                guard finished else { return }
+                value = (newValue / step).rounded() * step
+                draft = nil
             }
-            .labelsHidden()
-            Text(format(draft ?? value))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(width: 40, alignment: .trailing)
+            if let format {
+                Text(format(((draft ?? value) / step).rounded() * step))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, alignment: .trailing)
+            }
+        }
+    }
+}
+
+/// An AppKit slider, which draws no tick marks. It reports each value while
+/// dragging, and says when a change is finished: the mouse was released, or
+/// the value was set from the keyboard or accessibility.
+private struct AppKitSlider: NSViewRepresentable {
+    let title: String
+    let value: Double
+    let range: ClosedRange<Double>
+    let onChange: (Double, _ finished: Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound,
+                              target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        slider.isContinuous = true
+        slider.setAccessibilityLabel(title)
+        return slider
+    }
+
+    func updateNSView(_ slider: NSSlider, context: Context) {
+        context.coordinator.onChange = onChange
+        slider.minValue = range.lowerBound
+        slider.maxValue = range.upperBound
+        if slider.doubleValue != value {
+            slider.doubleValue = value
         }
     }
 
-    private func commit(_ editing: Bool) {
-        guard !editing, let draft else { return }
-        value = draft
-        self.draft = nil
+    final class Coordinator: NSObject {
+        var onChange: (Double, Bool) -> Void = { _, _ in }
+
+        @objc func changed(_ slider: NSSlider) {
+            let dragging = [.leftMouseDown, .leftMouseDragged].contains(NSApp.currentEvent?.type)
+            onChange(slider.doubleValue, !dragging)
+        }
     }
 }
 

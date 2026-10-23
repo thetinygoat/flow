@@ -33,10 +33,10 @@ struct AdvancedSettingsView: View {
                 LabeledContent {
                     Button("Reload Config", action: reload)
                 } label: {
-                    Text(store.problems.isEmpty ? "No problems" : store.problems.count == 1 ? "1 problem" : "\(store.problems.count) problems")
+                    Text(problems.isEmpty ? "No problems" : problems.count == 1 ? "1 problem" : "\(problems.count) problems")
                     Text("Reload after editing the file (⇧⌘,).")
                 }
-                ForEach(store.problems, id: \.self) { problem in
+                ForEach(problems, id: \.self) { problem in
                     Label(problem, systemImage: "exclamationmark.triangle.fill")
                         .symbolRenderingMode(.multicolor)
                         .textSelection(.enabled)
@@ -44,5 +44,9 @@ struct AdvancedSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var problems: [String] {
+        store.problems + store.overrides
     }
 }

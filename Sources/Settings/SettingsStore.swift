@@ -13,6 +13,9 @@ final class SettingsStore {
     private(set) var problems: [String] = []
     /// Why the last save failed, until one succeeds.
     private(set) var saveError: String?
+    /// Settings this window shows that an included file overrides, so a
+    /// change made here would not take effect.
+    private(set) var overrides: [String] = []
 
     /// Runs after each write, to load the new file into the terminals.
     @ObservationIgnored var onSave: () -> Void = {}
@@ -26,6 +29,7 @@ final class SettingsStore {
         self.file = file
         savedText = Self.read(file)
         document = ConfigDocument(savedText)
+        findOverrides()
     }
 
     func value<Value>(_ setting: ConfigSetting<Value>) -> Value {
@@ -58,6 +62,15 @@ final class SettingsStore {
         guard text != savedText else { return }
         savedText = text
         document = ConfigDocument(text)
+        findOverrides()
+    }
+
+    private func findOverrides() {
+        overrides = ConfigFile.includes(of: document, at: file).flatMap { include in
+            Option.keys.filter { !include.document.values(for: $0).isEmpty }.map { key in
+                "\(key) is set in \(include.url.path.abbreviatingHome), which overrides the value in this window"
+            }
+        }
     }
 
     func saveNow() {
@@ -101,6 +114,7 @@ final class SettingsStore {
             try ConfigFile.write(text, to: file)
             savedText = text
             saveError = nil
+            findOverrides()
         } catch {
             saveError = error.localizedDescription
             logger.error("could not save \(self.file.path, privacy: .public): \(error, privacy: .public)")

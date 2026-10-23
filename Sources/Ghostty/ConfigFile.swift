@@ -86,6 +86,27 @@ enum ConfigFile {
 }
 
 extension ConfigFile {
+    /// The files a config includes through `config-file`, and theirs in turn.
+    /// Ghostty loads them after the file that names them, so their settings win.
+    static func includes(of document: ConfigDocument, at url: URL) -> [(url: URL, document: ConfigDocument)] {
+        var found: [(url: URL, document: ConfigDocument)] = []
+        var seen: Set<String> = [url.standardizedFileURL.path]
+        func visit(_ document: ConfigDocument, in directory: URL) {
+            for value in document.values(for: "config-file") {
+                let path = value.hasPrefix("?") ? String(value.dropFirst()) : value
+                let expanded = (path as NSString).expandingTildeInPath
+                let include = expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : directory.appendingPathComponent(expanded)
+                guard seen.insert(include.standardizedFileURL.path).inserted,
+                      let text = try? String(contentsOf: include, encoding: .utf8) else { continue }
+                let included = ConfigDocument(text)
+                found.append((include, included))
+                visit(included, in: include.deletingLastPathComponent())
+            }
+        }
+        visit(document, in: url.deletingLastPathComponent())
+        return found
+    }
+
     /// Opens the config file in the user's text editor, creating it first if
     /// it was removed.
     static func openInEditor() {

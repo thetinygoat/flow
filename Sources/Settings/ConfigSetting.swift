@@ -139,4 +139,11 @@ enum Option {
     static let notifyOnCommandFinishAction = ConfigSetting<CommandFinish.Actions>(
         key: "notify-on-command-finish-action", defaultValue: .bell, parse: CommandFinish.Actions.init(config:), format: \.config)
     static let notifyOnCommandFinishAfter = ConfigSetting<Duration>("notify-on-command-finish-after", default: .seconds(5))
+
+    static let keys = [
+        fontFamily, theme, fontSize.key, fontThicken.key, cursorStyle.key, cursorBlink.key, backgroundOpacity.key,
+        backgroundBlur.key, unfocusedSplitOpacity.key, scrollbar.key, command.key, confirmClose.key, copyOnSelect.key,
+        shellIntegrationFeatures.key, mouseHideWhileTyping.key, autoSecureInput.key, notifyOnCommandFinish.key,
+        notifyOnCommandFinishAction.key, notifyOnCommandFinishAfter.key,
+    ]
 }

@@ -59,6 +59,17 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "font-size = 15\ntheme = Nord\ncursor-style = bar\n")
     }
 
+    func testListsSettingsAnIncludedFileOverrides() throws {
+        let file = directory.appendingPathComponent("config")
+        try "config-file = ?extra\nfont-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        try "font-size = 16\nconfig-file = more\nkeybind = cmd+k=clear_screen\n".write(to: directory.appendingPathComponent("extra"), atomically: true, encoding: .utf8)
+        try "theme = Nord\nconfig-file = extra\n".write(to: directory.appendingPathComponent("more"), atomically: true, encoding: .utf8)
+        let store = SettingsStore(file: file)
+        XCTAssertEqual(store.overrides.count, 2)
+        XCTAssertTrue(store.overrides[0].hasPrefix("font-size is set in "))
+        XCTAssertTrue(store.overrides[1].hasPrefix("theme is set in "))
+    }
+
     func testReportsASaveThatFails() throws {
         let readOnly = directory.appendingPathComponent("locked")
         try FileManager.default.createDirectory(at: readOnly, withIntermediateDirectories: true)

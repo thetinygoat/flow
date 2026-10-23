@@ -47,6 +47,7 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.parse("1d 2h"), .seconds(93600))
         XCTAssertEqual(ConfigDuration.parse("250us"), .microseconds(250))
         XCTAssertNil(ConfigDuration.parse("soon"))
+        XCTAssertEqual(ConfigDuration.parse("0"), .zero)
         XCTAssertEqual(ConfigDuration.format(.seconds(90)), "90s")
         XCTAssertEqual(ConfigDuration.format(.seconds(120)), "2m")
     }

@@ -20,9 +20,9 @@ enum Preferences {
     }
 
     /// The sounds macOS offers for alerts, which agent alerts can play.
-    static var sounds: [String] {
+    static let sounds: [String] = {
         let directory = URL(fileURLWithPath: "/System/Library/Sounds")
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return files.map { $0.deletingPathExtension().lastPathComponent }.sorted()
-    }
+    }()
 }

@@ -57,6 +57,7 @@ enum ConfigDuration {
     static func parse(_ text: String) -> Duration? {
         var remaining = Substring(text.filter { !$0.isWhitespace })
         guard !remaining.isEmpty else { return nil }
+        if remaining == "0" { return .zero }
         var total = Duration.zero
         while !remaining.isEmpty {
             let digits = remaining.prefix(while: \.isNumber)

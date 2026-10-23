@@ -65,19 +65,18 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
-                Picker("Shape", selection: cursorShape) {
-                    Text("Automatic").tag(Self.automaticCursor)
-                    Divider()
+                Picker("Shape", selection: store.binding(Option.cursorStyle)) {
                     Text("Block").tag("block")
                     Text("Bar").tag("bar")
                     Text("Underline").tag("underline")
                     Text("Hollow block").tag("block_hollow")
                 }
                 Toggle("Blink", isOn: store.binding(Option.cursorBlink))
+                Toggle("Bar at shell prompts", isOn: shellSetsCursor)
             } header: {
                 Text("Cursor")
             } footer: {
-                Text("Automatic: the shell sets a blinking bar at its prompt; shape and blink apply elsewhere. Switching to or from Automatic affects terminals opened after the change; other changes apply immediately.")
+                Text("Bar at shell prompts: the shell shows a blinking bar at its prompt instead of this shape. It affects terminals opened after the change; shape and blink apply immediately.")
                     .settingsFooter()
             }
 
@@ -90,7 +89,7 @@ struct AppearanceSettingsView: View {
                         radius == 0 ? "Off" : radius.formatted(.number.precision(.fractionLength(0)))
                     }
                 }
-                .disabled(store.value(Option.backgroundOpacity) >= 1)
+                .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
                 LabeledContent("Dim unfocused panes") {
                     SavedOnReleaseSlider(value: Binding(
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
@@ -104,24 +103,14 @@ struct AppearanceSettingsView: View {
         .formStyle(.grouped)
     }
 
-    private static let automaticCursor = "automatic"
-
-    /// Automatic leaves the prompt's cursor to shell integration; any other
-    /// shape turns that off so the shape holds at the prompt too.
-    private var cursorShape: Binding<String> {
+    /// Shell integration's `cursor` switch, which overrides the shape and
+    /// blink at the prompt.
+    private var shellSetsCursor: Binding<Bool> {
         Binding(
-            get: {
-                store.value(Option.shellIntegrationFeatures).on.contains("cursor") ? Self.automaticCursor : store.value(Option.cursorStyle)
-            },
-            set: { shape in
+            get: { store.value(Option.shellIntegrationFeatures).on.contains("cursor") },
+            set: { on in
                 var features = store.value(Option.shellIntegrationFeatures)
-                if shape == Self.automaticCursor {
-                    features.on.insert("cursor")
-                    store.set(Option.cursorStyle, Option.cursorStyle.defaultValue)
-                } else {
-                    features.on.remove("cursor")
-                    store.set(Option.cursorStyle, shape)
-                }
+                if on { features.on.insert("cursor") } else { features.on.remove("cursor") }
                 store.set(Option.shellIntegrationFeatures, features)
             })
     }

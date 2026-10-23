@@ -16,14 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
     private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
-    private lazy var settings: SettingsStore = {
+    /// Made when Settings first opens, so the config is not read for it before.
+    private var loadedSettings: SettingsStore?
+    private var settings: SettingsStore {
+        if let loadedSettings { return loadedSettings }
         let settings = SettingsStore()
         settings.onSave = { [weak self] in self?.reloadConfig() }
+        loadedSettings = settings
         return settings
-    }()
+    }
     private lazy var settingsWindow = SettingsWindowController(store: settings, updater: updater.updater) { [weak self] in
-        self?.settings.saveNow()
-        self?.reloadConfig()
+        guard let self, !settings.saveNow() else { return }
+        reloadConfig()
     }
     private let notifications = DesktopNotifications()
     private let agentSounds = AgentSounds()
@@ -62,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for window in self.windows {
                 window.controller.applyAppearance(config: self.runtime.config, app: self.runtime.app)
             }
-            self.settings.reload(problems: self.runtime.config.diagnostics)
+            self.loadedSettings?.reload(problems: self.runtime.config.diagnostics)
         }
         notifications.isInView = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return false }
@@ -142,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        settings.saveNow()
+        loadedSettings?.saveNow()
         pendingSave?.cancel()
         sessionWriter.flush(session())
         agentSounds.silence()

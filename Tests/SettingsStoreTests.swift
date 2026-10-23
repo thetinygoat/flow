@@ -70,6 +70,45 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.overrides[1].hasPrefix("theme is set in "))
     }
 
+    func testLeavesAFileItCannotReadAlone() throws {
+        let file = directory.appendingPathComponent("config")
+        let contents = Data("# caf\u{E9}\nfont-size = 12\n".data(using: .isoLatin1)!)
+        try contents.write(to: file)
+        let store = SettingsStore(file: file)
+        XCTAssertNotNil(store.readError)
+        store.set(Option.cursorStyle, "bar")
+        XCTAssertFalse(store.saveNow())
+        XCTAssertEqual(try Data(contentsOf: file), contents)
+        XCTAssertNotNil(store.fileError)
+    }
+
+    func testRetriesAFailedSave() throws {
+        let locked = directory.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        let file = locked.appendingPathComponent("config")
+        try "font-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        let store = SettingsStore(file: file)
+        store.set(Option.fontSize, 15)
+        XCTAssertFalse(store.saveNow())
+        XCTAssertNotNil(store.saveError)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        try "font-size = 12\ntheme = Nord\n".write(to: file, atomically: true, encoding: .utf8)
+        store.reload(problems: [])
+        XCTAssertEqual(store.value(Option.fontSize), 15)
+        XCTAssertTrue(store.saveNow())
+        XCTAssertNil(store.saveError)
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "font-size = 15\ntheme = Nord\n")
+    }
+
+    func testDoesNotReportIncludedFallbackFonts() throws {
+        let file = directory.appendingPathComponent("config")
+        try "config-file = fonts\nfont-family = Iosevka\n".write(to: file, atomically: true, encoding: .utf8)
+        try "font-family = Symbols Nerd Font\n".write(to: directory.appendingPathComponent("fonts"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(SettingsStore(file: file).overrides, [])
+    }
+
     func testReportsASaveThatFails() throws {
         let readOnly = directory.appendingPathComponent("locked")
         try FileManager.default.createDirectory(at: readOnly, withIntermediateDirectories: true)

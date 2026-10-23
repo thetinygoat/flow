@@ -56,14 +56,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 }
 
-/// Shown on every pane while the config file cannot be written, since the
-/// controls would otherwise seem to work.
+/// Shown on every pane while the config file cannot be read or written, since
+/// the controls would otherwise seem to work.
 private struct SaveErrorBanner: View {
     let store: SettingsStore
 
     var body: some View {
-        if let error = store.saveError {
-            Label("Could not save the config file: \(error)", systemImage: "exclamationmark.triangle.fill")
+        if let error = store.fileError {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
                 .symbolRenderingMode(.multicolor)
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)

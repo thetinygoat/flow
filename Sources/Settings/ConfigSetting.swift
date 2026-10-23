@@ -120,9 +120,11 @@ enum Option {
     static let cursorStyle = ConfigSetting<String>("cursor-style", default: "block")
     static let cursorBlink = ConfigSetting<Bool>("cursor-style-blink", default: true)
     static let backgroundOpacity = ConfigSetting<Double>("background-opacity", default: 1)
-    static let backgroundBlur = ConfigSetting<Bool>(
-        key: "background-blur", defaultValue: false,
-        parse: { $0 == "false" || $0 == "0" ? false : true }, format: { $0 ? "true" : "false" })
+    /// A blur radius; Ghostty reads `true` as 20 and `false` as none.
+    static let backgroundBlur = ConfigSetting<Double>(
+        key: "background-blur", defaultValue: 0,
+        parse: { text in ConfigBool.parse(text).map { $0 ? 20 : 0 } ?? Int(text).map(Double.init) },
+        format: { String(Int($0)) })
     static let unfocusedSplitOpacity = ConfigSetting<Double>("unfocused-split-opacity", default: 0.7)
     static let scrollbar = ConfigSetting<String>("scrollbar", default: "system")
     static let command = ConfigSetting<String>("command", default: "")

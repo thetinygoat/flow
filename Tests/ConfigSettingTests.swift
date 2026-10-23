@@ -1,3 +1,4 @@
+import AppKit
 import GhosttyKit
 import XCTest
 
@@ -50,6 +51,33 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.format(.seconds(120)), "2m")
     }
 
+    func testBlurIsARadius() {
+        XCTAssertEqual(Option.backgroundBlur.parse("true"), 20)
+        XCTAssertEqual(Option.backgroundBlur.parse("f"), 0)
+        XCTAssertEqual(Option.backgroundBlur.parse("30"), 30)
+        XCTAssertEqual(Option.backgroundBlur.format(30), "30")
+    }
+
+    /// The theme standing in for Ghostty's own colors in a light and dark
+    /// pair has to keep matching them.
+    func testGhosttysDefaultColorsHaveANamedTheme() throws {
+        XCTAssertEqual(Self.initialized, GHOSTTY_SUCCESS)
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Vendor/GhosttyResources/ghostty/themes/\(Themes.ghosttyDefault)")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), file.path)
+        let theme = try GhosttyConfig(file: file)
+        let defaults = try GhosttyConfig(file: nil)
+        XCTAssertEqual(theme.backgroundColor, defaults.backgroundColor)
+        XCTAssertEqual(theme.foregroundColor, defaults.foregroundColor)
+        // The theme rounds a few palette channels differently, by one step.
+        XCTAssertEqual(theme.palette.count, defaults.palette.count)
+        for (themed, original) in zip(theme.palette, defaults.palette) {
+            for channel in [\NSColor.redComponent, \.greenComponent, \.blueComponent] {
+                XCTAssertEqual(themed[keyPath: channel], original[keyPath: channel], accuracy: 1.5 / 255)
+            }
+        }
+    }
+
     func testBooleansTakeGhosttysSpellings() {
         XCTAssertEqual(Option.fontThicken.parse("t"), true)
         XCTAssertEqual(Option.fontThicken.parse("1"), true)
@@ -80,6 +108,7 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ThemeChoice("light:Builtin Light, dark:Nord"), ThemeChoice(light: "Builtin Light", dark: "Nord"))
         XCTAssertEqual(ThemeChoice(nil), ThemeChoice(light: nil, dark: nil))
         XCTAssertEqual(ThemeChoice(light: "A", dark: "B").value, "light:A,dark:B")
+        XCTAssertEqual(ThemeChoice(light: nil, dark: "B").value, "light:\(Themes.ghosttyDefault),dark:B")
         XCTAssertEqual(ThemeChoice(light: "A", dark: "A").value, "A")
         XCTAssertNil(ThemeChoice(light: nil, dark: nil).value)
     }

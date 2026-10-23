@@ -26,15 +26,16 @@ struct ThemeChoice: Equatable {
 
     var followsAppearance: Bool { light != dark }
 
+    /// Ghostty's pair needs a name on both sides, so its own colors are
+    /// named by the theme that matches them.
     var value: String? {
         guard followsAppearance else { return light }
-        return "light:\(light ?? Themes.light),dark:\(dark ?? Themes.dark)"
+        return "light:\(light ?? Themes.ghosttyDefault),dark:\(dark ?? Themes.ghosttyDefault)"
     }
 }
 
 enum Themes {
-    static let light = "Builtin Light"
-    static let dark = "Builtin Dark"
+    static let ghosttyDefault = "Ghostty Default Style Dark"
 
     /// The themes Ghostty finds by name: the user's own, then the ones Flow
     /// ships with.

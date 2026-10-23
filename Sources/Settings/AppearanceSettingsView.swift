@@ -11,9 +11,11 @@ struct AppearanceSettingsView: View {
     private var fontFamily: Binding<String> {
         Binding(get: { store.values(for: Option.fontFamily).first ?? "" },
                 set: { family in
+                    // Later families are fallbacks for characters the first
+                    // lacks, so only the first is replaced or removed.
                     var families = store.values(for: Option.fontFamily)
                     if family.isEmpty {
-                        families = []
+                        families = Array(families.dropFirst())
                     } else if families.isEmpty {
                         families = [family]
                     } else {
@@ -72,11 +74,10 @@ struct AppearanceSettingsView: View {
                     Text("Hollow block").tag("block_hollow")
                 }
                 Toggle("Blink", isOn: store.binding(Option.cursorBlink))
-                    .disabled(cursorShape.wrappedValue == Self.automaticCursor)
             } header: {
                 Text("Cursor")
             } footer: {
-                Text("Automatic: the shell sets a blinking bar at its prompt. Switching to or from Automatic affects terminals opened after the change; other shape and blink changes apply immediately.")
+                Text("Automatic: the shell sets a blinking bar at its prompt; shape and blink apply elsewhere. Switching to or from Automatic affects terminals opened after the change; other changes apply immediately.")
                     .settingsFooter()
             }
 
@@ -84,8 +85,12 @@ struct AppearanceSettingsView: View {
                 LabeledContent("Background opacity") {
                     SavedOnReleaseSlider(value: store.binding(Option.backgroundOpacity), range: 0.2...1)
                 }
-                Toggle("Background blur", isOn: store.binding(Option.backgroundBlur))
-                    .disabled(store.value(Option.backgroundOpacity) >= 1)
+                LabeledContent("Background blur") {
+                    SavedOnReleaseSlider(value: store.binding(Option.backgroundBlur), range: 0...50, step: 1) { radius in
+                        radius == 0 ? "Off" : radius.formatted(.number.precision(.fractionLength(0)))
+                    }
+                }
+                .disabled(store.value(Option.backgroundOpacity) >= 1)
                 LabeledContent("Dim unfocused panes") {
                     SavedOnReleaseSlider(value: Binding(
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
@@ -129,33 +134,39 @@ struct AppearanceSettingsView: View {
     }
 }
 
-/// A theme picker whose first choice, nil, is named by `none`.
-/// A percentage slider that moves its own copy of the value and saves it
-/// once, when the drag ends. Saving at every step would rebuild the whole
-/// pane, theme and font menus included, many times a second.
+/// A slider that moves its own copy of the value and saves it once, when the
+/// drag ends. Saving at every step would rebuild the whole pane, theme and
+/// font menus included, many times a second.
 private struct SavedOnReleaseSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
+    var step: Double = 0.01
+    var format: (Double) -> String = { $0.formatted(.percent.precision(.fractionLength(0))) }
     @State private var draft: Double?
 
     var body: some View {
         HStack {
-            Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range) {
+            Slider(value: Binding(get: { draft ?? value }, set: { draft = $0 }), in: range, step: step) {
                 EmptyView()
             } onEditingChanged: { editing in
-                guard !editing, let draft else { return }
-                value = draft
-                self.draft = nil
+                commit(editing)
             }
             .labelsHidden()
-            Text((draft ?? value).formatted(.percent.precision(.fractionLength(0))))
+            Text(format(draft ?? value))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(width: 40, alignment: .trailing)
         }
     }
+
+    private func commit(_ editing: Bool) {
+        guard !editing, let draft else { return }
+        value = draft
+        self.draft = nil
+    }
 }
 
+/// A theme picker whose first choice, nil, is named by `none`.
 private struct ThemePicker: View {
     let title: String
     @Binding var selection: String?

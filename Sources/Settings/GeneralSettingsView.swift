@@ -8,7 +8,11 @@ struct GeneralSettingsView: View {
     @State private var command = ""
     @State private var choosesCustomCommand = false
     @State private var checksForUpdates = false
+    @State private var canCheckForUpdates = false
     @State private var lastUpdateCheck: Date?
+    /// What copy on select goes back to when turned off, since the file may
+    /// have said `false` or nothing.
+    @State private var copyOnSelectOff = Option.copyOnSelect.defaultValue
     @FocusState private var editingCommand: Bool
 
     var body: some View {
@@ -33,12 +37,17 @@ struct GeneralSettingsView: View {
             }
 
             Section("Terminals") {
-                Toggle("Confirm closing terminals with running processes", isOn: Binding(
-                    get: { store.value(Option.confirmClose) != "false" },
-                    set: { store.set(Option.confirmClose, $0 ? "true" : "false") }))
+                Picker("Confirm closing terminals", selection: store.binding(Option.confirmClose)) {
+                    Text("Never").tag("false")
+                    Text("With a running process").tag("true")
+                    Text("Always").tag("always")
+                }
                 Toggle("Copy on select", isOn: Binding(
                     get: { store.value(Option.copyOnSelect) == "clipboard" },
-                    set: { store.set(Option.copyOnSelect, $0 ? "clipboard" : "true") }))
+                    set: { on in
+                        if on { copyOnSelectOff = store.value(Option.copyOnSelect) }
+                        store.set(Option.copyOnSelect, on ? "clipboard" : copyOnSelectOff)
+                    }))
                 Toggle("Hide mouse pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
             }
 
@@ -54,11 +63,12 @@ struct GeneralSettingsView: View {
             }
 
             Section("Updates") {
-                Toggle("Check for updates automatically", isOn: $checksForUpdates)
-                    .onChange(of: checksForUpdates) { updater.automaticallyChecksForUpdates = checksForUpdates }
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { checksForUpdates },
+                    set: { updater.automaticallyChecksForUpdates = $0 }))
                 LabeledContent {
                     Button("Check Now") { updater.checkForUpdates() }
-                        .disabled(!updater.canCheckForUpdates)
+                        .disabled(!canCheckForUpdates)
                 } label: {
                     Text("Last checked")
                     Text(lastUpdateCheck?.formatted(.relative(presentation: .named)) ?? "Never")
@@ -68,10 +78,11 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             command = store.value(Option.command)
-            checksForUpdates = updater.automaticallyChecksForUpdates
         }
         .onChange(of: store.value(Option.command)) { command = store.value(Option.command) }
         .onReceive(updater.publisher(for: \.lastUpdateCheckDate)) { lastUpdateCheck = $0 }
+        .onReceive(updater.publisher(for: \.automaticallyChecksForUpdates)) { checksForUpdates = $0 }
+        .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheckForUpdates = $0 }
     }
 
     private func saveCommand() {

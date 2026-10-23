@@ -28,6 +28,7 @@ final class SettingsStore {
     /// The changes not yet written, kept until a write succeeds and replayed
     /// onto the file whenever it is found changed on disk.
     @ObservationIgnored private var pendingChanges: [(inout ConfigDocument) -> Void] = []
+    @ObservationIgnored private var themeCache: (theme: String?, documents: [ConfigDocument]) = (nil, [])
 
     init(file: URL = ConfigFile.url) {
         self.file = file
@@ -43,7 +44,28 @@ final class SettingsStore {
     }
 
     func value<Value>(_ setting: ConfigSetting<Value>) -> Value {
-        document[setting.key].flatMap(setting.parse) ?? setting.defaultValue
+        document[setting.key].flatMap(setting.parse) ?? inherited(setting)
+    }
+
+    /// What applies when the file leaves an option out: the theme's value,
+    /// since a theme file can set any option, or else Ghostty's default.
+    private func inherited<Value>(_ setting: ConfigSetting<Value>) -> Value {
+        themeDocuments.lazy.compactMap { $0[setting.key].flatMap(setting.parse) }.first ?? setting.defaultValue
+    }
+
+    /// The files of the light and dark themes, which Ghostty loads before
+    /// this file, so a line here wins over them.
+    private var themeDocuments: [ConfigDocument] {
+        let theme = document[Option.theme]
+        if themeCache.theme != theme {
+            let choice = ThemeChoice(theme)
+            let names = Array(Set([choice.light, choice.dark].compactMap { $0 })).sorted()
+            let documents = names.compactMap(Themes.file(named:)).compactMap { url in
+                (try? String(contentsOf: url, encoding: .utf8)).map(ConfigDocument.init)
+            }
+            themeCache = (theme, documents)
+        }
+        return themeCache.documents
     }
 
     /// True when the file sets the option to something this window cannot
@@ -52,9 +74,12 @@ final class SettingsStore {
         document[setting.key].map { setting.parse($0) == nil } ?? false
     }
 
-    /// Setting an option to its default removes it from the file.
+    /// Setting an option to what applies without it removes it from the file;
+    /// anything else is written, even Ghostty's default when a theme sets
+    /// another value.
     func set<Value>(_ setting: ConfigSetting<Value>, _ value: Value) {
-        update { $0[setting.key] = value == setting.defaultValue ? nil : setting.format(value) }
+        let removable = value == inherited(setting)
+        update { $0[setting.key] = removable ? nil : setting.format(value) }
     }
 
     func binding<Value>(_ setting: ConfigSetting<Value>) -> Binding<Value> {

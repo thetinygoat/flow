@@ -183,6 +183,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(SettingsStore(file: file).overrides, [])
     }
 
+    func testAThemesValueShowsAndADefaultChoiceOverridesIt() throws {
+        let theme = directory.appendingPathComponent("glassy")
+        try "background = #000000\nbackground-opacity = 0.5\n".write(to: theme, atomically: true, encoding: .utf8)
+        let file = directory.appendingPathComponent("config")
+        try "theme = \(theme.path)\n".write(to: file, atomically: true, encoding: .utf8)
+        let store = SettingsStore(file: file)
+        XCTAssertEqual(store.value(Option.backgroundOpacity), 0.5)
+
+        store.set(Option.backgroundOpacity, 1)
+        XCTAssertEqual(store.values(for: Option.backgroundOpacity.key), ["1"])
+        store.set(Option.backgroundOpacity, 0.5)
+        XCTAssertEqual(store.values(for: Option.backgroundOpacity.key), [])
+    }
+
     func testDoesNotReportIncludedFallbackFonts() throws {
         let file = directory.appendingPathComponent("config")
         try "config-file = fonts\nfont-family = Iosevka\n".write(to: file, atomically: true, encoding: .utf8)

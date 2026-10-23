@@ -50,6 +50,13 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(document["bell-audio-path"], "?" + directory.appendingPathComponent("ghostty/ding.wav").path)
     }
 
+    func testDropsAByteOrderMarkSoTheFirstSettingSurvives() throws {
+        let ghostty = try file("bom", "\u{FEFF}font-size = 14\n")
+        let imported = ConfigFile.imported(from: [ghostty])
+        XCTAssertFalse(imported.contains("\u{FEFF}"))
+        XCTAssertEqual(ConfigDocument(imported)["font-size"], "14")
+    }
+
     func testImportsAFileThatIsNotUTF8() throws {
         let ghostty = directory.appendingPathComponent("latin1")
         try Data("# caf\u{E9}\nfont-size = 14\n".data(using: .isoLatin1)!).write(to: ghostty)

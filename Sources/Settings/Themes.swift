@@ -49,6 +49,17 @@ enum Themes {
         return Array(Set(names)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }()
 
+    /// The file Ghostty loads for a theme: a path as given, otherwise the
+    /// user's theme of that name before the bundled one.
+    static func file(named theme: String) -> URL? {
+        if theme.hasPrefix("/") { return URL(fileURLWithPath: theme) }
+        let home = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
+        return [home.appendingPathComponent("ghostty/themes"), Bundle.main.resourceURL?.appendingPathComponent("ghostty/themes")]
+            .compactMap { $0?.appendingPathComponent(theme) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
     private static var previews: [String: Colors] = [:]
 
     struct Colors {
@@ -69,6 +80,33 @@ enum Themes {
         let colors = Colors(background: config.backgroundColor, foreground: config.foregroundColor, palette: config.palette)
         previews[key] = colors
         return colors
+    }
+}
+
+/// The `font-family` list as Ghostty uses it. An empty value clears the
+/// families before it. Of the rest, the first is the font when it is one the
+/// picker offers; the others, such as symbol or emoji fonts, are fallbacks
+/// tried after it.
+enum FontFamilies {
+    static func font(in values: [String], choices: Set<String>) -> String? {
+        active(values).first.flatMap { choices.contains($0) ? $0 : nil }
+    }
+
+    /// Nil is Ghostty's own font, which follows any fallbacks.
+    static func setting(_ font: String?, in values: [String], choices: Set<String>) -> [String] {
+        let reset = values.lastIndex(of: "").map { $0 + 1 } ?? 0
+        var families = Array(values[reset...])
+        if let first = families.first, choices.contains(first) {
+            families.removeFirst()
+        }
+        if let font {
+            families.insert(font, at: 0)
+        }
+        return values[..<reset] + families
+    }
+
+    private static func active(_ values: [String]) -> ArraySlice<String> {
+        values.lastIndex(of: "").map { values[($0 + 1)...] } ?? values[...]
     }
 }
 

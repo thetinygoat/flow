@@ -100,6 +100,19 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigPath("a")?.resolved(from: URL(fileURLWithPath: "/tmp")).path, "/tmp/a")
     }
 
+    func testTheFontIsTheFirstActiveFamilyThePickerOffers() {
+        let choices: Set = ["Menlo", "Monaco"]
+        XCTAssertEqual(FontFamilies.font(in: ["Menlo", "Apple Color Emoji"], choices: choices), "Menlo")
+        XCTAssertNil(FontFamilies.font(in: ["Apple Color Emoji"], choices: choices))
+        XCTAssertEqual(FontFamilies.font(in: ["Monaco", "", "Menlo"], choices: choices), "Menlo")
+
+        let toDefault = FontFamilies.setting(nil, in: ["Menlo", "Apple Color Emoji"], choices: choices)
+        XCTAssertEqual(toDefault, ["Apple Color Emoji"])
+        XCTAssertEqual(FontFamilies.setting("Menlo", in: toDefault, choices: choices), ["Menlo", "Apple Color Emoji"])
+        XCTAssertEqual(FontFamilies.setting("Monaco", in: ["Monaco", "", "Menlo"], choices: choices), ["Monaco", "", "Monaco"])
+        XCTAssertEqual(FontFamilies.setting("Menlo", in: [], choices: choices), ["Menlo"])
+    }
+
     func testBooleansTakeGhosttysSpellings() {
         XCTAssertEqual(Option.fontThicken.parse("t"), true)
         XCTAssertEqual(Option.fontThicken.parse("1"), true)

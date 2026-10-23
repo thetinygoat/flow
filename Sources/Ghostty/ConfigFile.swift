@@ -85,7 +85,11 @@ enum ConfigFile {
     static func imported(from files: [URL]) -> String {
         files.compactMap { file -> String? in
             guard let data = try? Data(contentsOf: file) else { return nil }
-            var document = ConfigDocument(String(decoding: data, as: UTF8.self))
+            // Ghostty skips a byte order mark only at the very start of a
+            // file, and these files are combined below a header.
+            var text = String(decoding: data, as: UTF8.self)
+            if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+            var document = ConfigDocument(text)
             guard !document.isEmpty else { return nil }
             document.anchorPaths(at: file.deletingLastPathComponent())
             return "\n# Imported from \(file.path.abbreviatingHome)\n" + document.text

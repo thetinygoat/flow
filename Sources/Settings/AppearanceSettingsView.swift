@@ -10,20 +10,13 @@ struct AppearanceSettingsView: View {
     }
 
     private var fontFamily: Binding<String> {
-        Binding(get: { store.values(for: Option.fontFamily).first ?? "" },
-                set: { family in
-                    // Later families are fallbacks for characters the first
-                    // lacks, so only the first is replaced or removed.
-                    var families = store.values(for: Option.fontFamily)
-                    if family.isEmpty {
-                        families = Array(families.dropFirst())
-                    } else if families.isEmpty {
-                        families = [family]
-                    } else {
-                        families[0] = family
-                    }
-                    store.setValues(families, for: Option.fontFamily)
-                })
+        let choices = Set(Fonts.monospaced)
+        return Binding(
+            get: { FontFamilies.font(in: store.values(for: Option.fontFamily), choices: choices) ?? "" },
+            set: { family in
+                let families = FontFamilies.setting(family.isEmpty ? nil : family, in: store.values(for: Option.fontFamily), choices: choices)
+                store.setValues(families, for: Option.fontFamily)
+            })
     }
 
     var body: some View {
@@ -48,7 +41,7 @@ struct AppearanceSettingsView: View {
                 Picker("Font", selection: fontFamily) {
                     Text("Default (JetBrains Mono)").tag("")
                     Divider()
-                    ForEach(fontChoices, id: \.self) { family in
+                    ForEach(Fonts.monospaced, id: \.self) { family in
                         Text(family).tag(family)
                     }
                 }
@@ -111,18 +104,11 @@ struct AppearanceSettingsView: View {
                 store.set(Option.shellIntegrationFeatures, features)
             })
     }
-
-    /// The installed monospaced fonts, and the configured font even if it is
-    /// missing, so the picker can show it.
-    private var fontChoices: [String] {
-        let current = fontFamily.wrappedValue
-        return current.isEmpty || Fonts.monospaced.contains(current) ? Fonts.monospaced : [current] + Fonts.monospaced
-    }
 }
 
 /// A percentage slider that moves its own copy of the value and saves it
-/// once, when the drag ends. Saving at every step would rebuild the whole pane, theme and
-/// font menus included, many times a second.
+/// once, when the drag ends. Saving at every step would rebuild the whole
+/// pane, theme and font menus included, many times a second.
 private struct SavedOnReleaseSlider: View {
     let title: String
     @Binding var value: Double

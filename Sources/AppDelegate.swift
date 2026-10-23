@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        settings.saveNow()
         pendingSave?.cancel()
         sessionWriter.flush(session())
         agentSounds.silence()
@@ -282,11 +283,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func closePane() {
+        if closesOtherKeyWindow() { return }
         currentWindow?.closeFocusedPane()
     }
 
     @objc func closeTab() {
+        if closesOtherKeyWindow() { return }
         currentWindow?.closeSelectedTab()
+    }
+
+    /// ⌘W in Settings, About or Keyboard Shortcuts closes that window, not a
+    /// pane of the terminal window behind it.
+    private func closesOtherKeyWindow() -> Bool {
+        guard let window = NSApp.keyWindow, keyWindow == nil else { return false }
+        window.performClose(nil)
+        return true
     }
 
     @objc private func splitRight() {

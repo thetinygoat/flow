@@ -32,6 +32,12 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(config.notifyOnCommandFinishAfter, Option.notifyOnCommandFinishAfter.defaultValue)
     }
 
+    func testNumbersUseADecimalPointInEveryLocale() {
+        XCTAssertEqual(Option.backgroundOpacity.format(0.85), "0.85")
+        XCTAssertEqual(Option.fontSize.format(13.5), "13.5")
+        XCTAssertEqual(Option.fontSize.format(14), "14")
+    }
+
     func testDurationsReadAndWriteLikeGhostty() {
         XCTAssertEqual(ConfigDuration.parse("5s"), .seconds(5))
         XCTAssertEqual(ConfigDuration.parse("1m 30s"), .seconds(90))

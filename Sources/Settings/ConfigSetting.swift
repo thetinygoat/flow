@@ -16,8 +16,11 @@ extension ConfigSetting where Value == Bool {
 }
 
 extension ConfigSetting where Value == Double {
+    /// Ghostty reads numbers with a decimal point whatever the user's locale.
     init(_ key: String, default defaultValue: Double) {
-        self.init(key: key, defaultValue: defaultValue, parse: { Double($0) }, format: { $0.formatted(.number.grouping(.never).precision(.fractionLength(0...2))) })
+        self.init(key: key, defaultValue: defaultValue, parse: { Double($0) }, format: {
+            $0.formatted(.number.grouping(.never).precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US_POSIX")))
+        })
     }
 }
 

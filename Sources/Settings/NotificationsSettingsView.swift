@@ -23,7 +23,7 @@ struct NotificationsSettingsView: View {
             } header: {
                 Text("Agent finished")
             } footer: {
-                Text("Only for agents in terminals that are not visible.")
+                Text("Agent alerts are only for terminals that are not visible.")
                     .settingsFooter()
             }
 

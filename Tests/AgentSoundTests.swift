@@ -54,16 +54,36 @@ final class AgentSoundTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
         Preferences.register(in: defaults)
         for sound in [AgentSound.needsInput, .finished] {
-            let name = try XCTUnwrap(defaults.string(forKey: sound.soundPreference))
+            let name = try XCTUnwrap(defaults.string(forKey: AgentAlert.soundPreference(sound)))
             XCTAssertNotNil(NSSound(named: name))
             XCTAssertTrue(Preferences.sounds.contains(name))
         }
     }
 
-    func testEventsBelongToTheAlertTheirSoundPlays() {
-        XCTAssertEqual(AgentSound(alerting: .needsInput), .needsInput)
-        XCTAssertEqual(AgentSound(alerting: .turnEnded), .finished)
-        XCTAssertEqual(AgentSound(alerting: .attention), .finished)
-        XCTAssertNil(AgentSound(alerting: .working))
+    func testAlertsFollowTheSettings() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        Preferences.register(in: defaults)
+        let waiting = update(.needsInput, state: .waiting, detail: "permission_prompt")
+        let finished = update(.turnEnded, state: .idle)
+
+        var alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, defaults: defaults)
+        XCTAssertEqual(alert.sound?.name, "Ping")
+        XCTAssertNotNil(alert.notification)
+
+        defaults.set("", forKey: Preferences.needsInputSound)
+        defaults.set(false, forKey: Preferences.needsInputNotification)
+        alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, defaults: defaults)
+        XCTAssertNil(alert.sound)
+        XCTAssertNil(alert.notification)
+
+        defaults.set("Basso", forKey: Preferences.finishedSound)
+        alert = AgentAlert.make(for: finished, title: "t", isVisible: false, defaults: defaults)
+        XCTAssertEqual(alert.sound?.name, "Basso")
+        XCTAssertNotNil(alert.notification)
+
+        defaults.set(false, forKey: Preferences.finishedNotification)
+        let attention = update(.attention, state: .working, attention: "look here")
+        XCTAssertNil(AgentAlert.make(for: attention, title: "t", isVisible: false, defaults: defaults).notification)
+        XCTAssertEqual(AgentAlert.make(for: finished, title: "t", isVisible: true, defaults: defaults), AgentAlert())
     }
 }

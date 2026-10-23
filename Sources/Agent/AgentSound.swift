@@ -5,24 +5,6 @@ import Foundation
 enum AgentSound: Equatable, Hashable {
     case needsInput, finished
 
-    /// The alert an event belongs to, which the user picks a sound and
-    /// notifications for in Settings.
-    init?(alerting kind: AgentEvent.Kind) {
-        switch kind {
-        case .needsInput: self = .needsInput
-        case .turnEnded, .attention: self = .finished
-        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: return nil
-        }
-    }
-
-    var soundPreference: String {
-        self == .needsInput ? Preferences.needsInputSound : Preferences.finishedSound
-    }
-
-    var notificationPreference: String {
-        self == .needsInput ? Preferences.needsInputNotification : Preferences.finishedNotification
-    }
-
     static func make(for update: AgentSessionStore.Update, isVisible: Bool) -> AgentSound? {
         switch update.kind {
         case .needsInput:

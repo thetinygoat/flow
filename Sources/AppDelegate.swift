@@ -353,14 +353,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
-        let isVisible = window.isInView(surface)
-        let defaults = UserDefaults.standard
-        if let sound = AgentSound.make(for: update, isVisible: isVisible),
-           let name = defaults.string(forKey: sound.soundPreference), !name.isEmpty {
-            agentSounds.play(sound, named: name)
+        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), defaults: .standard)
+        if let sound = alert.sound {
+            agentSounds.play(sound.kind, named: sound.name)
         }
-        guard let alert = AgentSound(alerting: update.kind), defaults.bool(forKey: alert.notificationPreference),
-              let notification = AgentNotification.make(for: update, title: title, isVisible: isVisible) else { return }
+        guard let notification = alert.notification else { return }
         notifications.post(title: notification.title, body: notification.body, subtitle: "", from: surface.id, replacing: "agent", silent: true)
     }
 

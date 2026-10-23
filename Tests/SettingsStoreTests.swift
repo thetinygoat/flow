@@ -48,6 +48,33 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: real, encoding: .utf8), "font-size = 15\n")
     }
 
+    func testKeepsEditsMadeElsewhereWhileASaveIsWaiting() throws {
+        let file = directory.appendingPathComponent("config")
+        try "font-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        let store = SettingsStore(file: file)
+        store.set(Option.fontSize, 15)
+        try "font-size = 12\ntheme = Nord\n".write(to: file, atomically: true, encoding: .utf8)
+        store.set(Option.cursorStyle, "bar")
+        store.saveNow()
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "font-size = 15\ntheme = Nord\ncursor-style = bar\n")
+    }
+
+    func testReportsASaveThatFails() throws {
+        let readOnly = directory.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: readOnly, withIntermediateDirectories: true)
+        let file = readOnly.appendingPathComponent("config")
+        try "".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnly.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readOnly.path) }
+        let store = SettingsStore(file: file)
+        var saves = 0
+        store.onSave = { saves += 1 }
+        store.set(Option.fontSize, 15)
+        store.saveNow()
+        XCTAssertNotNil(store.saveError)
+        XCTAssertEqual(saves, 0)
+    }
+
     func testKeepsEditsMadeElsewhere() throws {
         let file = directory.appendingPathComponent("config")
         try "font-size = 12\n".write(to: file, atomically: true, encoding: .utf8)

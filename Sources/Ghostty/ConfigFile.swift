@@ -51,8 +51,24 @@ enum ConfigFile {
 
     static func create(at url: URL, importing ghosttyFiles: [URL]) throws {
         guard !FileManager.default.fileExists(atPath: url.path) else { return }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try (header + imported(from: ghosttyFiles)).write(to: url, atomically: true, encoding: .utf8)
+        try write(header + imported(from: ghosttyFiles), to: url)
+    }
+
+    /// Writes through symlinks, including one whose target does not exist
+    /// yet, so a config kept with someone's dotfiles stays a link to them.
+    static func write(_ text: String, to url: URL) throws {
+        let target = writeTarget(for: url)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try text.write(to: target, atomically: true, encoding: .utf8)
+    }
+
+    static func writeTarget(for url: URL) -> URL {
+        var url = url
+        for _ in 0..<16 {
+            guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path) else { break }
+            url = URL(fileURLWithPath: destination, relativeTo: url.deletingLastPathComponent()).standardizedFileURL
+        }
+        return url
     }
 
     /// The settings in the given files, each under a note of where it came
@@ -75,8 +91,7 @@ extension ConfigFile {
     static func openInEditor() {
         let url = url
         if !FileManager.default.fileExists(atPath: url.path) {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            FileManager.default.createFile(atPath: url.path, contents: Data(header.utf8))
+            try? write(header, to: url)
         }
         // The file has no extension, so it is opened as plain text rather
         // than with whatever claims extensionless files.

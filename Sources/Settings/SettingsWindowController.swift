@@ -11,10 +11,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         self.store = store
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
-        tabs.addTabViewItem(Self.pane("General", symbol: "gearshape", GeneralSettingsView(store: store, updater: updater)))
-        tabs.addTabViewItem(Self.pane("Appearance", symbol: "paintpalette", AppearanceSettingsView(store: store)))
-        tabs.addTabViewItem(Self.pane("Notifications", symbol: "bell.badge", NotificationsSettingsView(store: store)))
-        tabs.addTabViewItem(Self.pane("Advanced", symbol: "gearshape.2", AdvancedSettingsView(store: store, reload: reload)))
+        tabs.addTabViewItem(Self.pane("General", symbol: "gearshape", store: store, GeneralSettingsView(store: store, updater: updater)))
+        tabs.addTabViewItem(Self.pane("Appearance", symbol: "paintpalette", store: store, AppearanceSettingsView(store: store)))
+        tabs.addTabViewItem(Self.pane("Notifications", symbol: "bell.badge", store: store, NotificationsSettingsView(store: store)))
+        tabs.addTabViewItem(Self.pane("Advanced", symbol: "gearshape.2", store: store, AdvancedSettingsView(store: store, reload: reload)))
         let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.toolbarStyle = .preference
@@ -30,8 +30,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     /// The window takes each pane's size as it is picked, from the hosting
     /// controller's preferred content size, so each pane is as tall as its
     /// settings.
-    private static func pane(_ title: String, symbol: String, _ view: some View) -> NSTabViewItem {
+    private static func pane(_ title: String, symbol: String, store: SettingsStore, _ view: some View) -> NSTabViewItem {
         let controller = NSHostingController(rootView: view
+            .safeAreaInset(edge: .top, spacing: 0) { SaveErrorBanner(store: store) }
             .scrollDisabled(true)
             .fixedSize(horizontal: false, vertical: true)
             .frame(width: width))
@@ -52,5 +53,23 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         store.saveNow()
+    }
+}
+
+/// Shown on every pane while the config file cannot be written, since the
+/// controls would otherwise seem to work.
+private struct SaveErrorBanner: View {
+    let store: SettingsStore
+
+    var body: some View {
+        if let error = store.saveError {
+            Label("Could not save the config file: \(error)", systemImage: "exclamationmark.triangle.fill")
+                .symbolRenderingMode(.multicolor)
+                .font(.callout)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(.yellow.opacity(0.15))
+        }
     }
 }

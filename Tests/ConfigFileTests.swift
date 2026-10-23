@@ -50,6 +50,16 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(ConfigDocument(try String(contentsOf: flow, encoding: .utf8))["font-size"], "14")
     }
 
+    func testCreatesConfigThroughALinkWhoseTargetIsMissing() throws {
+        let target = directory.appendingPathComponent("dotfiles/flow/config")
+        let link = directory.appendingPathComponent("flow/config")
+        try FileManager.default.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "../dotfiles/flow/config")
+        try ConfigFile.create(at: link, importing: [])
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), "../dotfiles/flow/config")
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), ConfigFile.header)
+    }
+
     func testCreatesConfigWithOnlyTheHeaderWithoutGhosttySettings() throws {
         let flow = directory.appendingPathComponent("flow/config")
         try ConfigFile.create(at: flow, importing: [directory.appendingPathComponent("missing")])

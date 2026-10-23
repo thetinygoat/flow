@@ -11,11 +11,16 @@ final class SettingsStore {
     private(set) var document: ConfigDocument
     /// What libghostty could not make sense of in the file, after the last load.
     private(set) var problems: [String] = []
+    /// Why the last save failed, until one succeeds.
+    private(set) var saveError: String?
 
     /// Runs after each write, to load the new file into the terminals.
     @ObservationIgnored var onSave: () -> Void = {}
     @ObservationIgnored private var savedText: String
     @ObservationIgnored private var pendingSave: DispatchWorkItem?
+    /// The changes waiting to be saved, replayed onto the file if it was
+    /// edited elsewhere in the meantime.
+    @ObservationIgnored private var pendingChanges: [(inout ConfigDocument) -> Void] = []
 
     init(file: URL = ConfigFile.url) {
         self.file = file
@@ -62,7 +67,7 @@ final class SettingsStore {
         save()
     }
 
-    private func update(_ change: (inout ConfigDocument) -> Void) {
+    private func update(_ change: @escaping (inout ConfigDocument) -> Void) {
         if pendingSave == nil {
             let text = Self.read(file)
             if text != savedText {
@@ -71,6 +76,7 @@ final class SettingsStore {
             }
         }
         change(&document)
+        pendingChanges.append(change)
         pendingSave?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.pendingSave = nil
@@ -80,18 +86,25 @@ final class SettingsStore {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
-    /// Writes through a symlink, so a config kept with someone's dotfiles stays
-    /// a link to them.
     private func save() {
+        let onDisk = Self.read(file)
+        if onDisk != savedText {
+            var latest = ConfigDocument(onDisk)
+            pendingChanges.forEach { $0(&latest) }
+            document = latest
+            savedText = onDisk
+        }
+        pendingChanges = []
         let text = document.text
         guard text != savedText else { return }
         do {
-            let target = file.resolvingSymlinksInPath()
-            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try text.write(to: target, atomically: true, encoding: .utf8)
+            try ConfigFile.write(text, to: file)
             savedText = text
+            saveError = nil
         } catch {
+            saveError = error.localizedDescription
             logger.error("could not save \(self.file.path, privacy: .public): \(error, privacy: .public)")
+            return
         }
         onSave()
     }

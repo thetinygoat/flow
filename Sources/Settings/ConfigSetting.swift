@@ -11,7 +11,16 @@ struct ConfigSetting<Value: Equatable> {
 
 extension ConfigSetting where Value == Bool {
     init(_ key: String, default defaultValue: Bool) {
-        self.init(key: key, defaultValue: defaultValue, parse: { ["true": true, "false": false][$0] }, format: { String($0) })
+        self.init(key: key, defaultValue: defaultValue, parse: ConfigBool.parse, format: { String($0) })
+    }
+}
+
+/// The spellings Ghostty accepts for true and false.
+enum ConfigBool {
+    static func parse(_ text: String) -> Bool? {
+        if ["1", "t", "T", "true"].contains(text) { return true }
+        if ["0", "f", "F", "false"].contains(text) { return false }
+        return nil
     }
 }
 
@@ -38,8 +47,11 @@ extension ConfigSetting where Value == Duration {
 }
 
 enum ConfigDuration {
+    /// Longer suffixes first, so `ms` is not read as minutes.
     private static let units: [(suffix: String, duration: Duration)] = [
-        ("ms", .milliseconds(1)), ("h", .seconds(3600)), ("m", .seconds(60)), ("s", .seconds(1)),
+        ("ms", .milliseconds(1)), ("µs", .microseconds(1)), ("us", .microseconds(1)), ("ns", .nanoseconds(1)),
+        ("y", .seconds(365 * 86400)), ("w", .seconds(7 * 86400)), ("d", .seconds(86400)),
+        ("h", .seconds(3600)), ("m", .seconds(60)), ("s", .seconds(1)),
     ]
 
     static func parse(_ text: String) -> Duration? {
@@ -65,17 +77,16 @@ enum ConfigDuration {
 
 /// A Ghostty option made of named switches, such as `no-cursor,sudo`. Ghostty
 /// starts from its defaults and each name turns a switch on, or off with a
-/// `no-` prefix; `true` and `false` set them all.
+/// `no-` prefix; a boolean on its own sets them all.
 struct ConfigFlags: Equatable {
     let names: [String]
     var on: Set<String>
 
     func parse(_ text: String) -> ConfigFlags? {
         var flags = self
-        switch text {
-        case "true": flags.on = Set(names); return flags
-        case "false": flags.on = []; return flags
-        default: break
+        if let all = ConfigBool.parse(text) {
+            flags.on = all ? Set(names) : []
+            return flags
         }
         for part in text.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
             let negated = part.hasPrefix("no-")

@@ -43,9 +43,18 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.parse("1m 30s"), .seconds(90))
         XCTAssertEqual(ConfigDuration.parse("1h"), .seconds(3600))
         XCTAssertEqual(ConfigDuration.parse("500ms"), .milliseconds(500))
+        XCTAssertEqual(ConfigDuration.parse("1d 2h"), .seconds(93600))
+        XCTAssertEqual(ConfigDuration.parse("250us"), .microseconds(250))
         XCTAssertNil(ConfigDuration.parse("soon"))
         XCTAssertEqual(ConfigDuration.format(.seconds(90)), "90s")
         XCTAssertEqual(ConfigDuration.format(.seconds(120)), "2m")
+    }
+
+    func testBooleansTakeGhosttysSpellings() {
+        XCTAssertEqual(Option.fontThicken.parse("t"), true)
+        XCTAssertEqual(Option.fontThicken.parse("1"), true)
+        XCTAssertEqual(Option.fontThicken.parse("F"), false)
+        XCTAssertNil(Option.fontThicken.parse("yes"))
     }
 
     func testCommandFinishActionsStartFromTheBell() {

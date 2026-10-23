@@ -37,7 +37,8 @@ struct ConfigDocument: Equatable {
     /// goes back to its default.
     mutating func setValues(_ values: [String], for key: String) {
         let indices = lines.indices.filter { Self.entry(lines[$0])?.key == key }
-        let replacement = values.map { "\(key) = \(Self.format($0))" }
+        let ending = lines.contains { $0.hasSuffix("\r") } ? "\r" : ""
+        let replacement = values.map { "\(key) = \(Self.format($0))\(ending)" }
         let position = indices.first ?? lines.endIndex
         for index in indices.reversed() {
             lines.remove(at: index)
@@ -58,10 +59,12 @@ struct ConfigDocument: Equatable {
     }
 
     /// The key and value of a line that sets something, read the way Ghostty
-    /// reads it: comments are whole lines and quotes around a value are dropped.
+    /// reads it: comments are whole lines, a carriage return is whitespace,
+    /// quotes around a value are dropped, and a key on its own turns it on.
     private static func entry(_ line: String) -> (key: String, value: String)? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), let equals = trimmed.firstIndex(of: "=") else { return nil }
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { return nil }
+        guard let equals = trimmed.firstIndex(of: "=") else { return (trimmed, "true") }
         let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
         var value = trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
         if value.count >= 2, value.hasPrefix("\""), value.hasSuffix("\"") {

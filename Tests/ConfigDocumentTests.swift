@@ -47,6 +47,20 @@ final class ConfigDocumentTests: XCTestCase {
         XCTAssertEqual(document["command"], "")
     }
 
+    func testReadsWindowsLineEndingsAndKeepsThem() {
+        var document = ConfigDocument("font-size = 12\r\ntheme = Nord\r\n")
+        XCTAssertEqual(document["font-size"], "12")
+        XCTAssertEqual(document["theme"], "Nord")
+        document["font-size"] = "15"
+        XCTAssertEqual(document.text, "font-size = 15\r\ntheme = Nord\r\n")
+    }
+
+    func testAKeyOnItsOwnTurnsItOn() {
+        let document = ConfigDocument("font-thicken\n")
+        XCTAssertEqual(document["font-thicken"], "true")
+        XCTAssertFalse(document.isEmpty)
+    }
+
     func testEmptyWhenOnlyComments() {
         XCTAssertTrue(ConfigDocument("# a\n\n   # b\n").isEmpty)
         XCTAssertFalse(ConfigDocument("# a\ntheme = Nord\n").isEmpty)

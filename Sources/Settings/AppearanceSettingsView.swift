@@ -90,11 +90,8 @@ struct AppearanceSettingsView: View {
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
                         set: { store.set(Option.unfocusedSplitOpacity, ((1 - $0) * 100).rounded() / 100) }), range: 0...0.85)
                 }
-                // Ghostty's whole range for the blur radius.
-                LabeledContent("Background blur") {
-                    SavedOnReleaseSlider(title: "Background blur", value: store.binding(Option.backgroundBlur), range: 0...255, step: 1, format: nil)
-                }
-                .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
+                Toggle("Background blur", isOn: store.binding(Option.backgroundBlur))
+                    .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
                 Toggle("Show scroll bar", isOn: Binding(
                     get: { store.value(Option.scrollbar) != "never" },
                     set: { store.set(Option.scrollbar, $0 ? "system" : "never") }))
@@ -123,16 +120,15 @@ struct AppearanceSettingsView: View {
     }
 }
 
-/// A slider that moves its own copy of the value and saves it once, when the
-/// drag ends. Saving at every step would rebuild the whole pane, theme and
+/// A percentage slider that moves its own copy of the value and saves it
+/// once, when the drag ends. Saving at every step would rebuild the whole pane, theme and
 /// font menus included, many times a second.
 private struct SavedOnReleaseSlider: View {
     let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
-    /// The value is rounded to this when saved.
-    var step: Double = 0.01
-    var format: ((Double) -> String)? = { $0.formatted(.percent.precision(.fractionLength(0))) }
+    /// Values are saved and shown to the whole percent.
+    private let step = 0.01
     @State private var draft: Double?
 
     var body: some View {
@@ -143,12 +139,10 @@ private struct SavedOnReleaseSlider: View {
                 value = (newValue / step).rounded() * step
                 draft = nil
             }
-            if let format {
-                Text(format(((draft ?? value) / step).rounded() * step))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, alignment: .trailing)
-            }
+            Text((((draft ?? value) / step).rounded() * step).formatted(.percent.precision(.fractionLength(0))))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 40, alignment: .trailing)
         }
     }
 }

@@ -54,11 +54,13 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.format(.milliseconds(1500)), "1500ms")
     }
 
-    func testBlurIsARadius() {
-        XCTAssertEqual(Option.backgroundBlur.parse("true"), 20)
-        XCTAssertEqual(Option.backgroundBlur.parse("f"), 0)
-        XCTAssertEqual(Option.backgroundBlur.parse("30"), 30)
-        XCTAssertEqual(Option.backgroundBlur.format(30), "30")
+    func testBlurIsOnForAnyRadius() {
+        XCTAssertEqual(Option.backgroundBlur.parse("true"), true)
+        XCTAssertEqual(Option.backgroundBlur.parse("f"), false)
+        XCTAssertEqual(Option.backgroundBlur.parse("30"), true)
+        XCTAssertEqual(Option.backgroundBlur.parse("0"), false)
+        XCTAssertNil(Option.backgroundBlur.parse("macos-glass-regular"))
+        XCTAssertEqual(Option.backgroundBlur.format(true), "true")
     }
 
     /// The theme standing in for Ghostty's own colors in a light and dark

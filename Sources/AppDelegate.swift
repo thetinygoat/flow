@@ -1,5 +1,4 @@
 import AppKit
-import UniformTypeIdentifiers
 import GhosttyKit
 import Sparkle
 
@@ -17,6 +16,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
     private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
+    /// Made when Settings first opens, so the config is not read for it before.
+    private var loadedSettings: SettingsStore?
+    private var settings: SettingsStore {
+        if let loadedSettings { return loadedSettings }
+        let settings = SettingsStore()
+        settings.onSave = { [weak self] in self?.reloadConfig() }
+        loadedSettings = settings
+        return settings
+    }
+    private lazy var settingsWindow = SettingsWindowController(store: settings, updater: updater.updater) { [weak self] in
+        guard let self, !settings.saveNow() else { return }
+        reloadConfig()
+    }
     private let notifications = DesktopNotifications()
     private let agentSounds = AgentSounds()
     /// Sparkle asks on the second launch whether to check for updates
@@ -36,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 setenv(key, value, 1)
             }
         }
+        Preferences.register()
+        ConfigFile.createIfMissing()
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -52,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for window in self.windows {
                 window.controller.applyAppearance(config: self.runtime.config, app: self.runtime.app)
             }
+            self.loadedSettings?.reload(problems: self.runtime.config.diagnostics)
         }
         notifications.isInView = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return false }
@@ -85,7 +100,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             logger.error("agent socket unavailable at \(listener.url.path, privacy: .public): \(error, privacy: .public)")
         }
-        SecureInput.shared.global = UserDefaults.standard.bool(forKey: Self.secureKeyboardEntryKey)
+        SecureInput.shared.global = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
+        // The Settings window changes secure keyboard entry through the defaults.
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main) { _ in
+            let enabled = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
+            if SecureInput.shared.global != enabled {
+                SecureInput.shared.global = enabled
+            }
+        }
 
         NSApp.mainMenu = buildMainMenu()
         NSApp.servicesProvider = serviceProvider
@@ -124,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        loadedSettings?.saveNow()
         pendingSave?.cancel()
         sessionWriter.flush(session())
         agentSounds.silence()
@@ -135,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard runtime?.needsConfirmQuit == true else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Quit Flow?"
-        alert.informativeText = "A terminal still has a running process."
+        alert.informativeText = "Quitting ends whatever is running in the terminals."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
@@ -264,11 +287,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func closePane() {
+        if closesOtherKeyWindow() { return }
         currentWindow?.closeFocusedPane()
     }
 
     @objc func closeTab() {
+        if closesOtherKeyWindow() { return }
         currentWindow?.closeSelectedTab()
+    }
+
+    /// ⌘W in Settings, About or Keyboard Shortcuts closes that window, not a
+    /// pane of the terminal window behind it.
+    private func closesOtherKeyWindow() -> Bool {
+        guard let window = NSApp.keyWindow, keyWindow == nil else { return false }
+        window.performClose(nil)
+        return true
     }
 
     @objc private func splitRight() {
@@ -324,11 +357,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
-        let isVisible = window.isInView(surface)
-        if let sound = AgentSound.make(for: update, isVisible: isVisible) {
-            agentSounds.play(sound)
+        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), defaults: .standard)
+        if let sound = alert.sound {
+            agentSounds.play(sound.kind, named: sound.name)
         }
-        guard let notification = AgentNotification.make(for: update, title: title, isVisible: isVisible) else { return }
+        guard let notification = alert.notification else { return }
         notifications.post(title: notification.title, body: notification.body, subtitle: "", from: surface.id, replacing: "agent", silent: true)
     }
 
@@ -345,7 +378,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: App
 
-    private static let secureKeyboardEntryKey = "SecureKeyboardEntry"
     private static let flwPath = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/flw").path
 
     @objc private func toggleSecureKeyboardEntry() {
@@ -354,22 +386,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setSecureKeyboardEntry(_ enabled: Bool) {
         SecureInput.shared.global = enabled
-        UserDefaults.standard.set(enabled, forKey: Self.secureKeyboardEntryKey)
+        UserDefaults.standard.set(enabled, forKey: Preferences.secureKeyboardEntry)
     }
 
-    @objc private func openConfig() {
-        let url = URL(fileURLWithPath: GhosttyConfig.editablePath)
-        if !FileManager.default.fileExists(atPath: url.path) {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            FileManager.default.createFile(atPath: url.path, contents: nil)
-        }
-        // Ghostty config files have no extension, so they are opened as plain
-        // text rather than with whatever claims extensionless files.
-        guard let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) else {
-            NSWorkspace.shared.open(url)
-            return
-        }
-        NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+    @objc private func showSettings() {
+        settings.reload(problems: runtime.config.diagnostics)
+        settingsWindow.show()
     }
 
     @objc private func reloadConfig() {
@@ -394,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(withTitle: "About Flow", action: #selector(showAbout), keyEquivalent: "")
         appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "").target = updater
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Settings…", action: #selector(openConfig), keyEquivalent: ",")
+        appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         let reloadItem = appMenu.addItem(withTitle: "Reload Configuration", action: #selector(reloadConfig), keyEquivalent: ",")
         reloadItem.keyEquivalentModifierMask = [.command, .shift]
         appMenu.addItem(.separator())
@@ -552,7 +574,7 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     }
 
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime) {
-        openConfig()
+        showSettings()
     }
 
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView) {

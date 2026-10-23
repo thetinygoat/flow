@@ -13,6 +13,30 @@ struct CommandFinish {
         let rawValue: UInt32
         static let bell = Actions(rawValue: 1 << 0)
         static let notify = Actions(rawValue: 1 << 1)
+        private static let names: [(String, Actions)] = [("bell", .bell), ("notify", .notify)]
+
+        init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+
+        /// Ghostty starts from the bell alone, and each comma-separated name
+        /// turns an action on, or off with a `no-` prefix.
+        init?(config: String) {
+            if let all = ConfigBool.parse(config) {
+                self = all ? [.bell, .notify] : []
+                return
+            }
+            self = .bell
+            for part in config.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+                let name = part.hasPrefix("no-") ? String(part.dropFirst(3)) : part
+                guard let action = Self.names.first(where: { $0.0 == name })?.1 else { return nil }
+                if part.hasPrefix("no-") { remove(action) } else { insert(action) }
+            }
+        }
+
+        var config: String {
+            Self.names.map { name, action in contains(action) ? name : "no-" + name }.joined(separator: ",")
+        }
     }
 
     /// Nil when the shell did not report one.

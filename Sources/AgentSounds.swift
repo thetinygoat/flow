@@ -3,14 +3,14 @@ import AppKit
 /// Plays agent sounds. A sound still playing starts over rather than queueing
 /// another after it.
 final class AgentSounds {
-    private var sounds: [AgentSound: NSSound] = [:]
+    private var sounds: [String: NSSound] = [:]
     private var throttle = AgentSoundThrottle()
     private var isSilenced = false
 
-    func play(_ sound: AgentSound) {
+    func play(_ sound: AgentSound, named name: String) {
         guard !isSilenced, throttle.allows(sound, at: Date()),
-              let player = sounds[sound] ?? NSSound(named: sound.name) else { return }
-        sounds[sound] = player
+              let player = sounds[name] ?? NSSound(named: name) else { return }
+        sounds[name] = player
         player.stop()
         player.play()
     }

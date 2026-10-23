@@ -5,18 +5,15 @@ enum GhosttyError: Error {
     case apiFailed
 }
 
-/// Owns one `ghostty_config_t`, loaded from the user's Ghostty config files.
+/// Owns one `ghostty_config_t`, loaded from Flow's config file.
 final class GhosttyConfig {
     let cValue: ghostty_config_t
 
-    /// Loads the user's Ghostty config files, or the single file named by the
-    /// FLOW_CONFIG environment variable when set.
-    init() throws {
+    /// Without a file, the config holds Ghostty's defaults.
+    init(file: URL? = ConfigFile.url) throws {
         guard let config = ghostty_config_new() else { throw GhosttyError.apiFailed }
-        if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
-            ghostty_config_load_file(config, override)
-        } else {
-            ghostty_config_load_default_files(config)
+        if let file, FileManager.default.fileExists(atPath: file.path) {
+            ghostty_config_load_file(config, file.path)
         }
         ghostty_config_load_recursive_files(config)
         ghostty_config_finalize(config)
@@ -49,6 +46,19 @@ final class GhosttyConfig {
 
     var backgroundColor: NSColor {
         color(for: "background") ?? .windowBackgroundColor
+    }
+
+    var foregroundColor: NSColor {
+        color(for: "foreground") ?? .textColor
+    }
+
+    /// The first 16 colors of the palette, which programs use for their text.
+    var palette: [NSColor] {
+        var palette = ghostty_config_palette_s()
+        guard read("palette", into: &palette) else { return [] }
+        return withUnsafeBytes(of: palette.colors) { buffer in
+            buffer.bindMemory(to: ghostty_config_color_s.self).prefix(16).map(NSColor.init)
+        }
     }
 
     /// How strongly unfocused panes are dimmed, 0 to 1. Ghostty's setting is
@@ -98,23 +108,10 @@ final class GhosttyConfig {
         value(for: "macos-secure-input-indication", default: true)
     }
 
-    /// The file Settings opens.
-    static var editablePath: String {
-        if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
-            return override
-        }
-        if let url = ConfigFile.firstWithSettings(among: ConfigFile.candidates) {
-            return url.path
-        }
-        let path = ghostty_config_open_path()
-        defer { ghostty_string_free(path) }
-        return String(decoding: UnsafeRawBufferPointer(start: path.ptr, count: Int(path.len)), as: UTF8.self)
-    }
-
     private func color(for key: String) -> NSColor? {
         var color = ghostty_config_color_s()
         guard read(key, into: &color) else { return nil }
-        return NSColor(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
+        return NSColor(color)
     }
 
     private func value<T>(for key: String, default defaultValue: T) -> T {
@@ -131,5 +128,11 @@ final class GhosttyConfig {
         (0..<ghostty_config_diagnostics_count(cValue)).map { index in
             String(cString: ghostty_config_get_diagnostic(cValue, UInt32(index)).message)
         }
+    }
+}
+
+private extension NSColor {
+    convenience init(_ color: ghostty_config_color_s) {
+        self.init(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
     }
 }

@@ -5,13 +5,6 @@ import Foundation
 enum AgentSound: Equatable, Hashable {
     case needsInput, finished
 
-    var name: String {
-        switch self {
-        case .needsInput: "Ping"
-        case .finished: "Glass"
-        }
-    }
-
     static func make(for update: AgentSessionStore.Update, isVisible: Bool) -> AgentSound? {
         switch update.kind {
         case .needsInput:

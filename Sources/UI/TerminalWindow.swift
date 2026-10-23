@@ -253,7 +253,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         guard surfaces.contains(where: \.needsConfirmQuit) else { return true }
         let alert = NSAlert()
         alert.messageText = "Close this \(what)?"
-        alert.informativeText = "It still has a running process. Closing the \(what) will kill it."
+        alert.informativeText = "Closing the \(what) ends whatever is running in it."
         alert.addButton(withTitle: "Close")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn

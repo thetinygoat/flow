@@ -31,9 +31,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     /// controller's preferred content size, so each pane is as tall as its
     /// settings.
     private static func pane(_ title: String, symbol: String, store: SettingsStore, _ view: some View) -> NSTabViewItem {
-        let controller = NSHostingController(rootView: view
-            .safeAreaInset(edge: .top, spacing: 0) { SaveErrorBanner(store: store) }
-            .scrollDisabled(true)
+        let controller = NSHostingController(rootView: VStack(spacing: 0) {
+            SaveErrorBanner(store: store)
+            view.scrollDisabled(true)
+        }
             .fixedSize(horizontal: false, vertical: true)
             .frame(width: width))
         controller.sizingOptions = .preferredContentSize

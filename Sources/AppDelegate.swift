@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard runtime?.needsConfirmQuit == true else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Quit Flow?"
-        alert.informativeText = "A terminal still has a running process."
+        alert.informativeText = "Quitting ends whatever is running in the terminals."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel

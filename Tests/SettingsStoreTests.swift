@@ -102,6 +102,87 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "font-size = 15\ntheme = Nord\n")
     }
 
+    func testWritesAHeldChangeOnceTheFileCanBeRead() throws {
+        let file = directory.appendingPathComponent("config")
+        try Data("# caf\u{E9}\nfont-size = 12\n".data(using: .isoLatin1)!).write(to: file)
+        let store = SettingsStore(file: file)
+        store.set(Option.fontSize, 15)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertNotNil(store.readError)
+
+        try "# cafe\nfont-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        store.reload(problems: [])
+        XCTAssertNil(store.fileError)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), "# cafe\nfont-size = 15\n")
+    }
+
+    func testRecreatesADeletedFileWithTheHeader() throws {
+        let file = directory.appendingPathComponent("config")
+        try "font-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        let store = SettingsStore(file: file)
+        try FileManager.default.removeItem(at: file)
+        store.set(Option.cursorStyle, "bar")
+        XCTAssertTrue(store.saveNow())
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), ConfigFile.header + "cursor-style = bar\n")
+    }
+
+    func testLeavesADirectoryAtTheConfigPathAlone() throws {
+        let file = directory.appendingPathComponent("config")
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+        let store = SettingsStore(file: file)
+        XCTAssertNotNil(store.readError)
+        store.set(Option.fontSize, 15)
+        XCTAssertFalse(store.saveNow())
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path, isDirectory: &isDirectory) && isDirectory.boolValue)
+    }
+
+    func testClearsTheSaveErrorWhenChangesAreUndone() throws {
+        let locked = directory.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        let file = locked.appendingPathComponent("config")
+        try "font-size = 12\n".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        let store = SettingsStore(file: file)
+        store.set(Option.fontSize, 15)
+        store.saveNow()
+        XCTAssertNotNil(store.saveError)
+        store.set(Option.fontSize, 12)
+        store.saveNow()
+        XCTAssertNil(store.saveError)
+    }
+
+    func testCannotShowAGlassBlur() throws {
+        let file = directory.appendingPathComponent("config")
+        try "background-blur = macos-glass-regular\n".write(to: file, atomically: true, encoding: .utf8)
+        XCTAssertTrue(SettingsStore(file: file).hasUnknownValue(Option.backgroundBlur))
+    }
+
+    func testPromptCursorSwitchKeepsTheOtherSwitches() throws {
+        let file = directory.appendingPathComponent("config")
+        try "shell-integration-features = sudo\n".write(to: file, atomically: true, encoding: .utf8)
+        let store = SettingsStore(file: file)
+        var features = store.value(Option.shellIntegrationFeatures)
+        features.on.remove("cursor")
+        store.set(Option.shellIntegrationFeatures, features)
+        XCTAssertEqual(store.values(for: Option.shellIntegrationFeatures.key), ["no-cursor,sudo"])
+        features.on.insert("cursor")
+        store.set(Option.shellIntegrationFeatures, features)
+        XCTAssertEqual(store.values(for: Option.shellIntegrationFeatures.key), ["sudo"])
+        features.on.remove("sudo")
+        store.set(Option.shellIntegrationFeatures, features)
+        XCTAssertEqual(store.values(for: Option.shellIntegrationFeatures.key), [])
+    }
+
+    func testAnEmptyIncludeClearsTheOnesBeforeIt() throws {
+        let file = directory.appendingPathComponent("config")
+        try "config-file = extra\nconfig-file = \"\"\n".write(to: file, atomically: true, encoding: .utf8)
+        try "font-size = 16\n".write(to: directory.appendingPathComponent("extra"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(SettingsStore(file: file).overrides, [])
+    }
+
     func testDoesNotReportIncludedFallbackFonts() throws {
         let file = directory.appendingPathComponent("config")
         try "config-file = fonts\nfont-family = Iosevka\n".write(to: file, atomically: true, encoding: .utf8)

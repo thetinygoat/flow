@@ -75,6 +75,11 @@ final class SettingsStore {
         self.problems = problems
         guard pendingSave == nil else { return }
         refreshFromDisk()
+        // A change held back by a file that could not be read or written
+        // goes out once the file is usable again.
+        if readError == nil, !pendingChanges.isEmpty {
+            scheduleSave()
+        }
     }
 
     /// Writes any unsaved change now, retrying one that failed. True when the
@@ -93,6 +98,10 @@ final class SettingsStore {
         }
         change(&document)
         pendingChanges.append(change)
+        scheduleSave()
+    }
+
+    private func scheduleSave() {
         pendingSave?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.pendingSave = nil
@@ -127,6 +136,7 @@ final class SettingsStore {
         let text = document.text
         guard text != savedText else {
             pendingChanges = []
+            saveError = nil
             return false
         }
         do {
@@ -154,10 +164,11 @@ final class SettingsStore {
         }
     }
 
-    /// A missing file reads as empty; one that exists but is not UTF-8 text,
-    /// or cannot be opened, is an error rather than an empty file.
+    /// A missing file reads as a new one, so a change recreates it with the
+    /// header. One that exists but is not UTF-8 text, or cannot be opened, is
+    /// an error rather than an empty file.
     private static func read(_ file: URL) throws -> String {
-        guard FileManager.default.fileExists(atPath: file.path) else { return "" }
+        guard FileManager.default.fileExists(atPath: file.path) else { return ConfigFile.header }
         return try String(contentsOf: file, encoding: .utf8)
     }
 }

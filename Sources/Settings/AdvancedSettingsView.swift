@@ -31,7 +31,7 @@ struct AdvancedSettingsView: View {
 
             Section("Problems") {
                 LabeledContent {
-                    Button("Reload Config", action: reload)
+                    Button("Reload Configuration", action: reload)
                 } label: {
                     Text(problems.isEmpty ? "No problems" : problems.count == 1 ? "1 problem" : "\(problems.count) problems")
                     Text("Reload after editing the file (⇧⌘,).")

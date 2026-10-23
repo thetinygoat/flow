@@ -19,10 +19,18 @@ enum Preferences {
         ])
     }
 
-    /// The sounds macOS offers for alerts, which agent alerts can play.
+    /// The alert sounds macOS offers and the user's own, the places
+    /// `NSSound(named:)` looks.
     static let sounds: [String] = {
-        let directory = URL(fileURLWithPath: "/System/Library/Sounds")
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        return files.map { $0.deletingPathExtension().lastPathComponent }.sorted()
+        let directories = [
+            URL(fileURLWithPath: "/System/Library/Sounds"),
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Sounds"),
+        ]
+        let names = directories.flatMap { directory in
+            ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+                .filter { !$0.lastPathComponent.hasPrefix(".") }
+                .map { $0.deletingPathExtension().lastPathComponent }
+        }
+        return Array(Set(names)).sorted()
     }()
 }

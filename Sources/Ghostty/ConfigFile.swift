@@ -100,7 +100,10 @@ extension ConfigFile {
         var found: [(url: URL, document: ConfigDocument)] = []
         var seen: Set<String> = [url.standardizedFileURL.path]
         func visit(_ document: ConfigDocument, in directory: URL) {
-            for value in document.values(for: "config-file") {
+            // An empty value clears the includes named before it.
+            let values = document.values(for: "config-file")
+            let current = values.lastIndex(of: "").map { values[($0 + 1)...] } ?? values[...]
+            for value in current {
                 guard let include = ConfigPath(value)?.resolved(from: directory),
                       seen.insert(include.standardizedFileURL.path).inserted,
                       let text = try? String(contentsOf: include, encoding: .utf8) else { continue }

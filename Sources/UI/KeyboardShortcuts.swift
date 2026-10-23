@@ -48,7 +48,7 @@ enum KeyboardShortcuts {
         ]),
         Section(title: "Settings", shortcuts: [
             Shortcut(title: "Open Settings", keys: ["⌘", ","]),
-            Shortcut(title: "Reload config", keys: ["⇧", "⌘", ","]),
+            Shortcut(title: "Reload configuration", keys: ["⇧", "⌘", ","]),
         ]),
     ]
 }

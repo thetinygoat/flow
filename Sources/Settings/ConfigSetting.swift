@@ -39,6 +39,17 @@ extension ConfigSetting where Value == String {
     }
 }
 
+extension ConfigSetting where Value == String {
+    /// An option with a fixed set of values. Ghostty's other spellings of
+    /// true and false read as `true` and `false`.
+    init(_ key: String, default defaultValue: String, choices: Set<String>) {
+        self.init(key: key, defaultValue: defaultValue, parse: { text in
+            let value = ConfigBool.parse(text).map(String.init) ?? text
+            return choices.contains(value) ? value : nil
+        }, format: { $0 })
+    }
+}
+
 extension ConfigSetting where Value == Duration {
     /// Ghostty writes durations as numbers with units, such as `1m 30s`.
     init(_ key: String, default defaultValue: Duration) {
@@ -71,7 +82,8 @@ enum ConfigDuration {
     }
 
     static func format(_ duration: Duration) -> String {
-        let seconds = duration.components.seconds
+        let (seconds, attoseconds) = duration.components
+        guard attoseconds == 0 else { return "\(seconds * 1000 + attoseconds / 1_000_000_000_000_000)ms" }
         return seconds % 60 == 0 && seconds > 0 ? "\(seconds / 60)m" : "\(seconds)s"
     }
 }
@@ -118,7 +130,7 @@ enum Option {
     static let theme = "theme"
     static let fontSize = ConfigSetting<Double>("font-size", default: 13)
     static let fontThicken = ConfigSetting<Bool>("font-thicken", default: false)
-    static let cursorStyle = ConfigSetting<String>("cursor-style", default: "block")
+    static let cursorStyle = ConfigSetting<String>("cursor-style", default: "block", choices: ["block", "bar", "underline", "block_hollow"])
     static let cursorBlink = ConfigSetting<Bool>("cursor-style-blink", default: true)
     static let backgroundOpacity = ConfigSetting<Double>("background-opacity", default: 1)
     /// A blur radius; Ghostty reads `true` as 20 and `false` as none.
@@ -127,10 +139,10 @@ enum Option {
         parse: { text in ConfigBool.parse(text).map { $0 ? 20 : 0 } ?? Int(text).map(Double.init) },
         format: { String(Int($0)) })
     static let unfocusedSplitOpacity = ConfigSetting<Double>("unfocused-split-opacity", default: 0.7)
-    static let scrollbar = ConfigSetting<String>("scrollbar", default: "system")
+    static let scrollbar = ConfigSetting<String>("scrollbar", default: "system", choices: ["system", "never"])
     static let command = ConfigSetting<String>("command", default: "")
-    static let confirmClose = ConfigSetting<String>("confirm-close-surface", default: "true")
-    static let copyOnSelect = ConfigSetting<String>("copy-on-select", default: "true")
+    static let confirmClose = ConfigSetting<String>("confirm-close-surface", default: "true", choices: ["false", "true", "always"])
+    static let copyOnSelect = ConfigSetting<String>("copy-on-select", default: "true", choices: ["false", "true", "clipboard"])
     /// The `cursor` switch has the shell set a blinking bar at its prompt,
     /// which overrides `cursor-style` and `cursor-style-blink` there.
     static let shellIntegrationFeatures = ConfigSetting<ConfigFlags>("shell-integration-features", default: ConfigFlags(

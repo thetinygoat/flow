@@ -38,7 +38,7 @@ struct NotificationsSettingsView: View {
                         Stepper(value: Binding(
                             get: { Int(store.value(Option.notifyOnCommandFinishAfter).components.seconds) },
                             set: { store.set(Option.notifyOnCommandFinishAfter, .seconds($0)) }), in: 1...3600) {
-                            Text(store.value(Option.notifyOnCommandFinishAfter).formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
+                            Text(store.value(Option.notifyOnCommandFinishAfter).formatted(.units(allowed: [.minutes, .seconds, .milliseconds], width: .wide)))
                         }
                     }
                     Toggle("Notification", isOn: action(.notify))

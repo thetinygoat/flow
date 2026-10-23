@@ -50,6 +50,8 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.parse("0"), .zero)
         XCTAssertEqual(ConfigDuration.format(.seconds(90)), "90s")
         XCTAssertEqual(ConfigDuration.format(.seconds(120)), "2m")
+        XCTAssertEqual(ConfigDuration.format(.milliseconds(500)), "500ms")
+        XCTAssertEqual(ConfigDuration.format(.milliseconds(1500)), "1500ms")
     }
 
     func testBlurIsARadius() {
@@ -77,6 +79,23 @@ final class ConfigSettingTests: XCTestCase {
                 XCTAssertEqual(themed[keyPath: channel], original[keyPath: channel], accuracy: 1.5 / 255)
             }
         }
+    }
+
+    func testChoicesReadGhosttysOtherSpellings() {
+        XCTAssertEqual(Option.confirmClose.parse("1"), "true")
+        XCTAssertEqual(Option.confirmClose.parse("F"), "false")
+        XCTAssertEqual(Option.confirmClose.parse("always"), "always")
+        XCTAssertEqual(Option.copyOnSelect.parse("clipboard"), "clipboard")
+        XCTAssertNil(Option.cursorStyle.parse("beam"))
+    }
+
+    func testPathsReadLikeGhostty() {
+        XCTAssertEqual(ConfigPath("?\"x y\"").map { [$0.path, String($0.optional)] }, ["x y", "true"])
+        XCTAssertEqual(ConfigPath("?x").map { [$0.path, String($0.optional)] }, ["x", "true"])
+        XCTAssertNil(ConfigPath("?"))
+        XCTAssertNil(ConfigPath(""))
+        XCTAssertEqual(ConfigPath("~/a")?.resolved(from: URL(fileURLWithPath: "/tmp")).path, NSHomeDirectory() + "/a")
+        XCTAssertEqual(ConfigPath("a")?.resolved(from: URL(fileURLWithPath: "/tmp")).path, "/tmp/a")
     }
 
     func testBooleansTakeGhosttysSpellings() {

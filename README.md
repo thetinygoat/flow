@@ -16,7 +16,7 @@
 
 A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
 
-![Flow with Claude Code, Codex and shells side by side in split panes, and workspaces with their git branches in the sidebar](assets/screenshot.png)
+![Flow with Claude Code, Codex and OpenCode side by side in split panes, and workspaces with their paths and git branches in the sidebar](assets/screenshot.png)
 
 ## Why Flow?
 
@@ -38,7 +38,7 @@ Flow updates itself.
 
 ## Getting around
 
-Each project gets its own workspace in the sidebar, with its own tabs and split panes. Flow reopens everything as you left it.
+Each project gets its own workspace in the sidebar, with its own tabs and split panes. A workspace is named after the git repository it's in, with its path and branch underneath. Flow reopens everything as you left it.
 
 After a relaunch, restored terminals start when you first view them. Once started, they keep running when you switch to another tab or workspace.
 
@@ -50,8 +50,9 @@ Drag workspaces up or down in the sidebar to reorder them. Flow remembers their 
 | <kbd>⌘</kbd><kbd>T</kbd>              | New tab          |
 | <kbd>⌘</kbd><kbd>D</kbd>              | Split right      |
 | <kbd>⌘</kbd><kbd>1</kbd>–<kbd>9</kbd> | Switch workspace |
+| <kbd>⌘</kbd><kbd>,</kbd>              | Settings         |
 
-Hold <kbd>⌘</kbd> to see the shortcut for each workspace. The [docs](https://getflowterm.app/docs/keyboard-shortcuts/) list the rest.
+Click the <kbd>?</kbd> button in the title bar to see every shortcut. The [docs](https://getflowterm.app/docs/keyboard-shortcuts/) list them too.
 
 ## Agents
 
@@ -63,7 +64,7 @@ Run `claude`, `codex` or `opencode` in a Flow terminal and the workspace shows w
 | Yellow         | The agent is waiting for you                         |
 | Green          | A turn finished while you were looking elsewhere     |
 
-Looking at the terminal clears the green dot. A terminal you are not looking at also gets a macOS notification, which focuses it when clicked, and a sound: one when an agent needs you, another when it finishes.
+Looking at the terminal clears the green dot. A terminal you are not looking at also gets a macOS notification, which focuses it when clicked, and a sound: one when an agent needs you, another when it finishes. Pick the sounds, or turn them and the notifications off, in **Settings › Notifications**.
 
 Flow does this through the agents' own hooks and plugins, added to each launch and nothing else. It never writes to `~/.claude`, `~/.codex` or `~/.config/opencode`, and an agent started outside Flow behaves exactly as before. There is nothing to set up for fish and zsh. Two things need a step from you:
 
@@ -79,7 +80,9 @@ To run an agent without Flow's hooks for one session, start it with `FLOW_AGENTS
 
 ## Configuration
 
-Flow has no config file of its own. It reads your Ghostty config, so your fonts, themes and keybindings carry over. Choose **Flow › Settings…** to open it.
+Choose **Flow › Settings…** (<kbd>⌘</kbd><kbd>,</kbd>) to pick the shell, a theme for light mode and one for dark mode, the font, cursor, window opacity and blur, and agent sounds. The sidebar and title bar follow the theme, so a dark theme gets a dark sidebar even in light mode.
+
+Settings writes to `~/.config/flow/config`, a plain text file in Ghostty's format that you can also edit by hand. The first time Flow opens, it copies your Ghostty config into this file, so your fonts, theme and keybindings carry over. After that, Flow reads only its own file. Settings changes only the lines it needs to and keeps your comments. **Settings › Advanced** opens the file in your editor and lists any problems in it. See [Configuration](https://getflowterm.app/docs/configuration/) for more.
 
 Flow aims to support every Ghostty setting, but some don't work in Flow yet. If a setting you rely on has no effect, [open an issue](https://github.com/thetinygoat/flow/issues/new).
 
@@ -112,6 +115,8 @@ The tests cover the models and terminal lifecycle without launching the app.
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `Sources/Ghostty/`   | The wrapper around libghostty's C API, with the runtime, config, input and terminal view         |
 | `Sources/Workspace/` | The workspace, tab and pane model. It's generic over `PaneLeaf`, so tests run without terminals. |
+| `Sources/Agent/`     | Each terminal's agent status, its notifications and sounds, and the socket agents report to      |
+| `Sources/Settings/`  | The Settings window and the reader and writer for Flow's config file                             |
 | `Sources/UI/`        | The AppKit window, with the sidebar on the left and terminals on the right                       |
 | `Tests/`             | Unit tests for the model                                                                         |
 

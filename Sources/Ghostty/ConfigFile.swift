@@ -4,13 +4,19 @@ import UniformTypeIdentifiers
 /// Flow's config file. It uses Ghostty's syntax, so every Ghostty option works
 /// in it, but Flow reads only this file and not Ghostty's own config.
 enum ConfigFile {
-    /// `~/.config/flow/config`, or the file named by the FLOW_CONFIG
-    /// environment variable.
+    /// `~/.config/flow/config` (`flow-debug` for a debug build), or the file
+    /// named by the FLOW_CONFIG environment variable.
     static var url: URL {
         if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
             return URL(fileURLWithPath: override)
         }
-        return configHome.appendingPathComponent("flow", isDirectory: true).appendingPathComponent("config")
+        return configHome.appendingPathComponent(AppFolder.name, isDirectory: true).appendingPathComponent("config")
+    }
+
+    /// The installed Flow's config, which a debug build starts from so it
+    /// looks the same.
+    private static var installedURL: URL {
+        configHome.appendingPathComponent("flow", isDirectory: true).appendingPathComponent("config")
     }
 
     /// Ghostty's config files, in the order Ghostty loads them.
@@ -39,11 +45,16 @@ enum ConfigFile {
 
     /// Earlier versions of Flow read Ghostty's config, so the first time Flow
     /// makes its own it copies those settings over and nothing changes for
-    /// people who set Flow up through Ghostty.
+    /// people who set Flow up through Ghostty. A debug build copies the
+    /// installed Flow's instead.
     static func createIfMissing() {
         guard ProcessInfo.processInfo.environment["FLOW_CONFIG"] == nil else { return }
         do {
-            try create(at: url, importing: ghosttyFiles)
+            if AppFolder.isDebugBuild {
+                try copy(installedURL, to: url)
+            } else {
+                try create(at: url, importing: ghosttyFiles)
+            }
         } catch {
             logger.error("could not create \(url.path, privacy: .public): \(error, privacy: .public)")
         }
@@ -52,6 +63,16 @@ enum ConfigFile {
     static func create(at url: URL, importing ghosttyFiles: [URL]) throws {
         guard !FileManager.default.fileExists(atPath: url.path) else { return }
         try write(header + imported(from: ghosttyFiles), to: url)
+    }
+
+    /// The copy's relative paths still lead to the files the original's did.
+    /// Without an original, the copy starts as the header alone.
+    static func copy(_ original: URL, to url: URL) throws {
+        guard !FileManager.default.fileExists(atPath: url.path) else { return }
+        guard let text = try? String(contentsOf: original, encoding: .utf8) else { return try write(header, to: url) }
+        var document = ConfigDocument(text)
+        document.anchorPaths(at: original.deletingLastPathComponent())
+        try write(document.text, to: url)
     }
 
     /// Writes through symlinks, including one whose target does not exist

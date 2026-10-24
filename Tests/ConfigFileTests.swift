@@ -92,6 +92,38 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), ConfigFile.header)
     }
 
+    func testCopiesAConfigAsItIs() throws {
+        let text = ConfigFile.header + "font-size = 14\n# a note\ntheme = Ayu\n"
+        let original = try file("flow/config", text)
+        let copy = directory.appendingPathComponent("flow-debug/config")
+        try ConfigFile.copy(original, to: copy)
+        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), text)
+    }
+
+    func testCopyKeepsRelativeIncludesPointingAtTheSameFiles() throws {
+        let original = try file("flow/config", "config-file = themes/dark\n")
+        let copy = directory.appendingPathComponent("flow-debug/config")
+        try ConfigFile.copy(original, to: copy)
+        let include = try XCTUnwrap(ConfigDocument(try String(contentsOf: copy, encoding: .utf8)).values(for: "config-file").first)
+        XCTAssertEqual(ConfigPath(include)?.resolved(from: copy.deletingLastPathComponent()).standardizedFileURL,
+                       directory.appendingPathComponent("flow/themes/dark").standardizedFileURL)
+    }
+
+    func testCopiesOnlyOnce() throws {
+        let original = try file("flow/config", "font-size = 14\n")
+        let copy = directory.appendingPathComponent("flow-debug/config")
+        try ConfigFile.copy(original, to: copy)
+        try "font-size = 20\n".write(to: original, atomically: true, encoding: .utf8)
+        try ConfigFile.copy(original, to: copy)
+        XCTAssertEqual(ConfigDocument(try String(contentsOf: copy, encoding: .utf8))["font-size"], "14")
+    }
+
+    func testCopyOfAMissingConfigIsTheHeader() throws {
+        let copy = directory.appendingPathComponent("flow-debug/config")
+        try ConfigFile.copy(directory.appendingPathComponent("flow/config"), to: copy)
+        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), ConfigFile.header)
+    }
+
     func testCreatesConfigWithOnlyTheHeaderWithoutGhosttySettings() throws {
         let flow = directory.appendingPathComponent("flow/config")
         try ConfigFile.create(at: flow, importing: [directory.appendingPathComponent("missing")])

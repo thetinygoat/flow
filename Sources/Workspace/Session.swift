@@ -53,7 +53,7 @@ struct Session: Codable, Equatable {
 
     static let fileURL: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("flow", isDirectory: true).appendingPathComponent("session.json")
+        return base.appendingPathComponent(AppFolder.name, isDirectory: true).appendingPathComponent("session.json")
     }()
 
     static func load(from url: URL = fileURL) -> Session? {

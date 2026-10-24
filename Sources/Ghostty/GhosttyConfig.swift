@@ -48,6 +48,12 @@ final class GhosttyConfig {
         color(for: "background") ?? .windowBackgroundColor
     }
 
+    /// Light or dark to match the terminal background, as Ghostty does for a
+    /// window whose title bar takes the terminal's colour.
+    var windowAppearance: NSAppearance? {
+        NSAppearance(named: backgroundColor.luminance > 0.5 ? .aqua : .darkAqua)
+    }
+
     var foregroundColor: NSColor {
         color(for: "foreground") ?? .textColor
     }
@@ -134,5 +140,10 @@ final class GhosttyConfig {
 private extension NSColor {
     convenience init(_ color: ghostty_config_color_s) {
         self.init(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
+    }
+
+    var luminance: Double {
+        guard let rgb = usingColorSpace(.sRGB) else { return 0 }
+        return 0.299 * rgb.redComponent + 0.587 * rgb.greenComponent + 0.114 * rgb.blueComponent
     }
 }

@@ -80,10 +80,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         container.blendingMode = .behindWindow
         // The sidebar material lets a bright desktop colour the whole sidebar,
         // so a wash of the window colour keeps only a hint of it.
-        let tint = NSBox()
-        tint.boxType = .custom
-        tint.borderWidth = 0
-        tint.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8)
+        let tint = SidebarTint()
         tint.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(tint)
         container.addSubview(scrollView)
@@ -351,6 +348,17 @@ private final class WorkspaceTableView: NSTableView {
     override func mouseExited(with event: NSEvent) {
         pointer = nil
         onPointerMove?()
+    }
+}
+
+/// A wash of the window colour over the sidebar. It sets the colour again
+/// in each layer update, since an NSBox keeps the one it first drew with
+/// when the window turns light or dark.
+private final class SidebarTint: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8).cgColor
     }
 }
 

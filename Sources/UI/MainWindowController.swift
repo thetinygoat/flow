@@ -94,6 +94,7 @@ final class MainWindowController: NSWindowController {
     /// only a non-opaque window lets the desktop show through it.
     func applyAppearance(config: GhosttyConfig, app: ghostty_app_t) {
         guard let window else { return }
+        window.appearance = config.windowAppearance
         terminalArea.backgroundColor = config.backgroundColor
         let dim = config.unfocusedSplitDimming
         terminalArea.paneTreeView.unfocusedFill = dim > 0.001 ? config.unfocusedSplitFill.withAlphaComponent(dim) : nil

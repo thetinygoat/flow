@@ -173,25 +173,81 @@ private struct AppKitSlider: NSViewRepresentable {
     }
 }
 
-/// A theme picker whose first choice, nil, is named by `none`.
+/// A theme picker whose first choice, nil, is named by `none`. Its menu is
+/// AppKit's, built once: a SwiftUI picker remakes all of its hundreds of
+/// items whenever the pane changes, which stalls the window after each pick.
 private struct ThemePicker: View {
     let title: String
     @Binding var selection: String?
     let none: String
 
     var body: some View {
-        Picker(title, selection: $selection) {
-            Text(none).tag(String?.none)
-            Divider()
-            ForEach(choices, id: \.self) { name in
-                Text(name).tag(Optional(name))
-            }
+        LabeledContent(title) {
+            ThemePopUpButton(title: title, selection: selection, none: none) { selection = $0 }
+                .fixedSize()
         }
     }
+}
 
-    private var choices: [String] {
-        guard let selection, !Themes.names.contains(selection) else { return Themes.names }
-        return [selection] + Themes.names
+private struct ThemePopUpButton: NSViewRepresentable {
+    let title: String
+    let selection: String?
+    let none: String
+    let onPick: (String?) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.picked(_:))
+        button.setAccessibilityLabel(title)
+        button.menu?.addItem(NSMenuItem(title: none, action: nil, keyEquivalent: ""))
+        button.menu?.addItem(.separator())
+        for name in Themes.names {
+            button.menu?.addItem(Self.item(for: name))
+        }
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.onPick = onPick
+        if let unlisted = coordinator.unlisted, unlisted.representedObject as? String != selection {
+            button.menu?.removeItem(unlisted)
+            coordinator.unlisted = nil
+        }
+        guard let selection else {
+            button.selectItem(at: 0)
+            return
+        }
+        if let item = button.itemArray.first(where: { $0.representedObject as? String == selection }) {
+            button.select(item)
+            return
+        }
+        // A theme the file names that is not one of Themes.names, such as a
+        // path, is still shown as the choice.
+        let item = Self.item(for: selection)
+        button.menu?.insertItem(item, at: 2)
+        coordinator.unlisted = item
+        button.select(item)
+    }
+
+    private static func item(for theme: String) -> NSMenuItem {
+        let item = NSMenuItem(title: theme, action: nil, keyEquivalent: "")
+        item.representedObject = theme
+        return item
+    }
+
+    final class Coordinator: NSObject {
+        var onPick: (String?) -> Void = { _ in }
+        var unlisted: NSMenuItem?
+
+        @objc func picked(_ button: NSPopUpButton) {
+            onPick(button.selectedItem?.representedObject as? String)
+        }
     }
 }
 

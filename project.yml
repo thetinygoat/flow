@@ -164,6 +164,7 @@ targets:
       - path: Tests
       - path: Sources/Logger.swift
       - path: Sources/AppFolder.swift
+      - path: Sources/UI/CommandPalette.swift
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift

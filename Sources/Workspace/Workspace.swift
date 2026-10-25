@@ -16,6 +16,15 @@ extension String {
     }
 }
 
+extension PaneLeaf {
+    /// The terminal's own title, or else where it is.
+    var displayTitle: String {
+        if !title.isEmpty { return title }
+        guard let workingDirectory, !workingDirectory.isEmpty else { return "Terminal" }
+        return workingDirectory.abbreviatingHome
+    }
+}
+
 final class TabModel<Leaf: PaneLeaf> {
     let id = UUID()
     let panes: PaneTreeModel<Leaf>
@@ -32,9 +41,7 @@ final class TabModel<Leaf: PaneLeaf> {
     }
 
     var title: String {
-        if !focusedLeaf.title.isEmpty { return focusedLeaf.title }
-        guard let directory = focusedLeaf.workingDirectory, !directory.isEmpty else { return "Terminal" }
-        return directory.abbreviatingHome
+        focusedLeaf.displayTitle
     }
 
     func focus(_ leaf: Leaf) {
@@ -133,6 +140,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
 final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var workspaces: [WorkspaceModel<Leaf>] = []
     private(set) var selected: WorkspaceModel<Leaf>?
+    /// Terminals by when they last had focus, most recent first.
+    private(set) var recentlyFocused: [UUID] = []
     var onChange: (() -> Void)?
     private var batchDepth = 0
     private var hasPendingChange = false
@@ -173,6 +182,11 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         workspaces.insert(workspace, at: destination)
         notifyChanged()
         return true
+    }
+
+    func noteFocus(_ leaf: Leaf) {
+        recentlyFocused.removeAll { $0 == leaf.id }
+        recentlyFocused.insert(leaf.id, at: 0)
     }
 
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {

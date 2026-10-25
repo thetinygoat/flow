@@ -51,6 +51,41 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertEqual(session?.state, .idle)
     }
 
+    func testStatusSinceIsWhenTheIndicatorLastChanged() {
+        let start = Date()
+        send(.turnStarted, at: start)
+        XCTAssertEqual(store.status(of: surface), AgentStatus(indicator: .working, since: start))
+        send(.working, detail: "Bash", at: start + 1)
+        XCTAssertEqual(store.status(of: surface)?.since, start)
+        send(.needsInput, detail: "permission", at: start + 2)
+        send(.needsInput, detail: "another", at: start + 3)
+        send(.attention, detail: "ping", at: start + 4)
+        XCTAssertEqual(store.status(of: surface), AgentStatus(indicator: .waiting, since: start + 2))
+        send(.turnEnded, at: start + 5)
+        XCTAssertEqual(store.status(of: surface), AgentStatus(indicator: .done, since: start + 5))
+        store.markSeen(surface)
+        XCTAssertNil(session?.indicatorSince)
+        XCTAssertNil(store.status(of: surface))
+    }
+
+    func testANewSessionStartsItsOwnWait() {
+        let start = Date()
+        send(.needsInput, at: start)
+        send(.sessionStarted, session: "s2", at: start + 1)
+        XCTAssertNil(session?.indicatorSince)
+        send(.needsInput, session: "s2", at: start + 2)
+        XCTAssertEqual(store.status(of: surface)?.since, start + 2)
+    }
+
+    func testIdleSessionsHaveNoStatus() {
+        send(.sessionStarted)
+        XCTAssertNil(store.status(of: surface))
+        visible = true
+        send(.turnStarted)
+        send(.turnEnded)
+        XCTAssertNil(store.status(of: surface))
+    }
+
     func testWorkingWhileIdleMeansTheTurnStartWasMissed() {
         send(.sessionStarted)
         send(.working)

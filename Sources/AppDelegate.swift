@@ -156,6 +156,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.keyWindow?.controller.commandPalette?.cancel()
             }
         }
+        // The menus would otherwise list the previewed workspace's tabs,
+        // while their commands act on where the palette was opened.
+        NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: NSApp.mainMenu, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.keyWindow?.controller.commandPalette?.cancel()
+            }
+        }
     }
 
     private static let actionsKeepingThePalette: Set<Selector> = [

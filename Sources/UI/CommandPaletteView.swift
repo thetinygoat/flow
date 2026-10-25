@@ -24,6 +24,10 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private let items: [CommandPalette.Item]
     private let agentIndicator: @MainActor (UUID) -> AgentIndicator?
     private var shown: [CommandPalette.Item] = []
+    /// What `onSelect` was last given, so a search that keeps the same best
+    /// match previews nothing again.
+    private var selectedTerminal: UUID?
+    private var isUpdating = false
     private var commandReleaseMonitor: Any?
     private var titleBarClickMonitor: Any?
 
@@ -202,17 +206,26 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     /// The best match is selected, and so previewed, unless the mode starts
     /// on nothing and there is no search.
     private func update() {
+        isUpdating = true
         shown = CommandPalette.filter(items, query: field.stringValue)
         tableView.reloadData()
         message.isHidden = !shown.isEmpty
         message.stringValue = items.isEmpty ? mode.emptyMessage : "No matches"
         tableHeight.constant = Self.rowHeight * CGFloat(min(max(shown.count, 1), Self.visibleRows))
-        // Reloading keeps the selected row, which would leave a new best
-        // match in that row selected without previewing it.
-        tableView.deselectAll(nil)
-        if !(mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty) {
+        if mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            tableView.deselectAll(nil)
+        } else {
             select(0)
         }
+        isUpdating = false
+        reportSelection()
+    }
+
+    private func reportSelection() {
+        let item = shown.indices.contains(tableView.selectedRow) ? shown[tableView.selectedRow] : nil
+        guard let onSelect, item?.terminal != selectedTerminal else { return }
+        selectedTerminal = item?.terminal
+        onSelect(item)
     }
 
     private func select(_ row: Int) {
@@ -271,8 +284,11 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         PaletteRowView()
     }
 
+    /// A search reloads the list and selects its best match in steps, which
+    /// are reported once it is done.
     func tableViewSelectionDidChange(_ notification: Notification) {
-        onSelect?(shown.indices.contains(tableView.selectedRow) ? shown[tableView.selectedRow] : nil)
+        guard !isUpdating else { return }
+        reportSelection()
     }
 }
 

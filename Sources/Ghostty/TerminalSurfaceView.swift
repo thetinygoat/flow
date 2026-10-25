@@ -53,6 +53,15 @@ final class TerminalSurfaceView: NSView {
     private var pendingConfiguration: TerminalSurfaceConfiguration?
     /// The directory the shell was started in, until the shell reports its own.
     let initialWorkingDirectory: String?
+    /// While set, an unopened pane that comes into view waits to start, so
+    /// passing over it in the command palette leaves it unopened.
+    var defersStart = false {
+        didSet {
+            guard !defersStart, window != nil, pendingConfiguration != nil else { return }
+            start()
+            updateWindowState()
+        }
+    }
 
     private(set) var title = "" {
         didSet { if title != oldValue { delegate?.surfaceTitleDidChange(self) } }
@@ -243,8 +252,21 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil { start() }
+        if window != nil, !defersStart { start() }
         windowObserver.observe(window)
+        updateWindowState()
+    }
+
+    /// Ghostty draws a started terminal into a layer of its own. One waiting
+    /// to start shows the terminal's background rather than whatever is
+    /// behind the window.
+    override func draw(_ dirtyRect: NSRect) {
+        guard surface == nil, let config = runtime?.config else { return }
+        config.backgroundColor.withAlphaComponent(config.backgroundOpacity).setFill()
+        dirtyRect.intersection(bounds).fill()
+    }
+
+    private func updateWindowState() {
         updateDisplay()
         updateOcclusion()
         // Being detached while first responder loses focus without a

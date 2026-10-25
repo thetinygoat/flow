@@ -196,6 +196,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             open.cancel()
         }
         let restore = rememberPlaces()
+        setDefersStart(true)
         let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
         palette.commandTarget = focusedSurface
         palette.onSelect = { [weak self] item in
@@ -209,6 +210,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             guard let self else { return }
             controller.closeCommandPalette()
             restore()
+            setDefersStart(false)
             reveal(item)
             // Only after the reveal, so the place the palette was opened from
             // is never in view on the way out and keeps a finished agent unseen.
@@ -218,9 +220,16 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             guard let self else { return }
             controller.closeCommandPalette()
             restore()
+            setDefersStart(false)
             controller.terminalArea.focusSelectedSurface()
         }
         controller.showCommandPalette(palette)
+    }
+
+    /// A restored session opens its panes only once they are shown, and a
+    /// preview is not the user going there.
+    private func setDefersStart(_ defers: Bool) {
+        allSurfaces.forEach { $0.defersStart = defers }
     }
 
     /// A palette open while something outside it adds, closes or reveals a

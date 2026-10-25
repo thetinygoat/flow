@@ -20,6 +20,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private let agentIndicator: @MainActor (UUID) -> AgentIndicator?
     private var shown: [CommandPalette.Item] = []
     private var commandReleaseMonitor: Any?
+    private var titleBarClickMonitor: Any?
 
     private let field = NSTextField()
     private let message = NSTextField(labelWithString: "")
@@ -81,6 +82,9 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
             panel.content.addSubview(view)
         }
         tableHeight = scrollView.heightAnchor.constraint(equalToConstant: 0)
+        // A short window shrinks the list, which then scrolls, rather than
+        // the list growing the window.
+        tableHeight.priority = .dragThatCannotResizeWindow
         let preferredWidth = panel.widthAnchor.constraint(equalToConstant: 720)
         preferredWidth.priority = .defaultHigh
         NSLayoutConstraint.activate([
@@ -88,6 +92,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
             panel.topAnchor.constraint(equalTo: topAnchor, constant: 72),
             preferredWidth,
             panel.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, constant: -48),
+            panel.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -24),
             // As wide as a row's icon, so the field lines up with the titles below.
             searchIcon.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 20),
             searchIcon.widthAnchor.constraint(equalToConstant: 22),
@@ -111,6 +116,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
 
     deinit {
         commandReleaseMonitor.map(NSEvent.removeMonitor)
+        titleBarClickMonitor.map(NSEvent.removeMonitor)
     }
 
     required init?(coder: NSCoder) {
@@ -154,11 +160,28 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         }
     }
 
+    /// The palette covers the window's content but not its title bar, whose
+    /// buttons act on the tab in view, so a click there cancels first and the
+    /// button then acts on where the palette was opened.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil, titleBarClickMonitor == nil else { return }
+        titleBarClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            if let self, event.window === window, !bounds.contains(convert(event.locationInWindow, from: nil)) {
+                cancel()
+            }
+            return event
+        }
+    }
+
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
-        guard newWindow == nil, let commandReleaseMonitor else { return }
-        NSEvent.removeMonitor(commandReleaseMonitor)
-        self.commandReleaseMonitor = nil
+        guard newWindow == nil else { return }
+        for monitor in [commandReleaseMonitor, titleBarClickMonitor].compactMap({ $0 }) {
+            NSEvent.removeMonitor(monitor)
+        }
+        commandReleaseMonitor = nil
+        titleBarClickMonitor = nil
     }
 
     /// A click anywhere but the panel cancels.

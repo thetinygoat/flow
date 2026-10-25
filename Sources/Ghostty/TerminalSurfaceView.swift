@@ -369,9 +369,11 @@ final class TerminalSurfaceView: NSView {
         }
     }
 
+    /// Hit-tested from the top of the window, so a view drawn over the
+    /// terminal, such as the command palette, keeps its clicks.
     private func isUnderMouse(_ event: NSEvent) -> Bool {
-        guard let window, event.window === window, let superview else { return false }
-        return hitTest(superview.convert(event.locationInWindow, from: nil)) === self
+        guard let window, event.window === window, let content = window.contentView else { return false }
+        return content.hitTest(content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow) === self
     }
 
     private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {

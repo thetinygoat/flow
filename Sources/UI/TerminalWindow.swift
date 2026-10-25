@@ -199,8 +199,10 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             guard let self else { return }
             controller.closeCommandPalette()
             restore()
-            controller.terminalArea.focusSelectedSurface()
             reveal(item)
+            // Only after the reveal, so the place the palette was opened from
+            // is never in view on the way out and keeps a finished agent unseen.
+            controller.terminalArea.focusSelectedSurface()
         }
         palette.onCancel = { [weak self] in
             guard let self else { return }
@@ -376,6 +378,12 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         delegate?.terminalWindowWillClose(self)
+    }
+
+    /// Menu commands only cancel the key window's palette, and a palette
+    /// previewing in a window the user has left would otherwise stay open.
+    func windowDidResignKey(_ notification: Notification) {
+        controller.commandPalette?.cancel()
     }
 }
 

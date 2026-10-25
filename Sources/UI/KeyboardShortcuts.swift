@@ -28,6 +28,8 @@ enum KeyboardShortcuts {
             Shortcut(title: "Go back to the previous place", keys: ["⌘", "P", "P"]),
             Shortcut(title: "Go to an agent", keys: ["⌘", "I"]),
             Shortcut(title: "Go to the agent waiting longest", keys: ["⌘", "I", "I"]),
+            Shortcut(title: "Step up the list, going there on letting go of ⌘", keys: ["⌘", "↑"]),
+            Shortcut(title: "Step down the list, going there on letting go of ⌘", keys: ["⌘", "↓"]),
         ]),
         Section(title: "Tabs and panes", shortcuts: [
             Shortcut(title: "New tab", keys: ["⌘", "T"]),

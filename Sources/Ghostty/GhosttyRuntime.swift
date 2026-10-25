@@ -18,6 +18,7 @@ protocol GhosttyRuntimeDelegate: AnyObject {
     func runtime(_ runtime: GhosttyRuntime, wantsToggleZoomFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool)
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime)
+    func runtime(_ runtime: GhosttyRuntime, wantsCommandPaletteFrom surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, wantsNotification title: String, body: String, from surface: TerminalSurfaceView)
     func runtime(_ runtime: GhosttyRuntime, didFinish command: CommandFinish, in surface: TerminalSurfaceView)
 }
@@ -274,6 +275,10 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_END_SEARCH:
             guard let surface else { return false }
             DispatchQueue.main.async { surface.endSearch() }
+
+        case GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE:
+            guard let surface else { return false }
+            DispatchQueue.main.async { self.delegate?.runtime(self, wantsCommandPaletteFrom: surface) }
 
         case GHOSTTY_ACTION_SEARCH_TOTAL:
             guard let surface else { return false }

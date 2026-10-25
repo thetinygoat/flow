@@ -149,15 +149,60 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.terminalArea.focusSelectedSurface()
     }
 
-    /// Switches to the workspace and tab holding the surface and focuses it.
+    /// Switches to the workspace and tab holding the surface and focuses it,
+    /// showing every pane if another one is zoomed.
     func reveal(_ surface: TerminalSurfaceView) {
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        if let zoomed = tab.panes.zoomed, zoomed !== surface {
+            tab.panes.unzoom()
+        }
+        show(surface)
+        controller.showWindow(nil)
+        NSApp.activate()
+        controller.terminalArea.focusSelectedSurface()
+    }
+
+    /// Switches to the workspace and tab holding the surface and makes it the
+    /// tab's focused pane, without moving keyboard focus there.
+    private func show(_ surface: TerminalSurfaceView) {
         guard let (workspace, tab) = store.workspace(containing: surface) else { return }
         workspace.select(tab)
         tab.focus(surface)
         store.select(workspace)
-        controller.showWindow(nil)
-        NSApp.activate()
-        controller.terminalArea.focusSelectedSurface()
+    }
+
+    // MARK: Command palette
+
+    /// Opens the palette, or steps to its next item when one of the same mode
+    /// is open; one of the other mode is cancelled first. The window shows the
+    /// selected item behind the palette while it is in this window, and
+    /// cancelling goes back to where the palette was opened. `reveal` goes to
+    /// the chosen item, in whichever window holds it.
+    func showCommandPalette(_ mode: CommandPalette.Mode, items: @autoclosure () -> [CommandPalette.Item],
+                            reveal: @escaping (CommandPalette.Item) -> Void) {
+        if let open = controller.commandPalette {
+            guard open.mode != mode else { return open.selectNext() }
+            open.cancel()
+        }
+        let origin = focusedSurface
+        let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
+        palette.onSelect = { [weak self] item in
+            guard let self, let surface = surface(withID: item.terminal) ?? origin else { return }
+            show(surface)
+        }
+        palette.onChoose = { [weak self] item in
+            guard let self else { return }
+            controller.closeCommandPalette()
+            controller.terminalArea.focusSelectedSurface()
+            reveal(item)
+        }
+        palette.onCancel = { [weak self] in
+            guard let self else { return }
+            controller.closeCommandPalette()
+            if let origin { show(origin) }
+            controller.terminalArea.focusSelectedSurface()
+        }
+        controller.showCommandPalette(palette)
     }
 
     private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID, startImmediately: Bool = true) -> TerminalSurfaceView {
@@ -238,7 +283,9 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     }
 
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
-        guard let (_, tab) = store.workspace(containing: surface), tab.focusedSurface !== surface else { return }
+        guard let (_, tab) = store.workspace(containing: surface) else { return }
+        store.noteFocus(surface)
+        guard tab.focusedSurface !== surface else { return }
         tab.focus(surface)
         controller.refresh()
     }

@@ -230,6 +230,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
         }
+        window.controller.agentIndicator = { [unowned self] terminal in
+            agentSessions.indicator(for: [terminal])
+        }
         window.controller.applyAppearance(config: runtime.config, app: runtime.app)
         windows.append(window)
         return window
@@ -330,6 +333,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func selectTab(_ sender: NSMenuItem) {
         keyWindow?.selectTab(at: sender.tag)
+    }
+
+    // MARK: Command palette
+
+    @objc private func showPlaces() {
+        keyWindow.map { showPalette(.places, in: $0) }
+    }
+
+    @objc private func showAgents() {
+        keyWindow.map { showPalette(.agents, in: $0) }
+    }
+
+    /// The places are the window's own. The agents are every window's, since
+    /// one waiting in another window is as much the user's to answer.
+    private func showPalette(_ mode: CommandPalette.Mode, in window: TerminalWindow) {
+        window.showCommandPalette(mode, items: paletteItems(mode, in: window)) { [weak self] item in
+            guard let (window, surface) = self?.surface(withID: item.terminal) else { return }
+            window.reveal(surface)
+        }
+    }
+
+    private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
+        switch mode {
+        case .places:
+            return CommandPalette.recentFirst(CommandPalette.items(in: window.store), recentlyFocused: window.store.recentlyFocused)
+        case .agents:
+            let items = ([window] + windows.filter { $0 !== window }).flatMap { CommandPalette.items(in: $0.store) }
+            let statuses = MainActor.assumeIsolated {
+                Dictionary(uniqueKeysWithValues: items.compactMap { item in agentSessions.status(of: item.terminal).map { (item.terminal, $0) } })
+            }
+            return CommandPalette.agents(items, current: window.focusedSurface?.id, statuses: statuses)
+        }
     }
 
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
@@ -474,6 +509,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
+        viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
+        viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: "i")
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")
@@ -520,6 +557,9 @@ extension AppDelegate: NSMenuItemValidation {
         }
         if menuItem.action == #selector(renameWorkspace) {
             return keyWindow?.store.selected != nil
+        }
+        if menuItem.action == #selector(showPlaces) || menuItem.action == #selector(showAgents) {
+            return keyWindow != nil
         }
         return true
     }
@@ -571,6 +611,10 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool) {
         setSecureKeyboardEntry(enabled)
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsCommandPaletteFrom surface: TerminalSurfaceView) {
+        window(containing: surface).map { showPalette(.places, in: $0) }
     }
 
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime) {

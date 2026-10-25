@@ -71,6 +71,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
 
     /// Without a directory the workspace starts where the shell's own default is.
     func newWorkspace(in directory: String? = nil) {
+        cancelCommandPalette()
         store.performBatch {
             let workspace = store.addWorkspace()
             workspace.add(TerminalTab(leaf: makeSurface(in: directory, workspace: workspace.id)))
@@ -102,6 +103,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// workspace, or the tabs to its right. One confirmation covers them all.
     func closeTabs(_ mode: TabCloseMode, from surface: TerminalSurfaceView) {
         guard let (workspace, tab) = store.workspace(containing: surface) else { return }
+        cancelCommandPalette()
         let closing = workspace.tabs(closing: mode, from: tab)
         guard !closing.isEmpty, confirmClose(closing.flatMap(\.panes.surfaces), what: closing.count == 1 ? "tab" : "tabs") else { return }
         closing.forEach(workspace.remove)
@@ -153,6 +155,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// showing every pane if another one is zoomed.
     func reveal(_ surface: TerminalSurfaceView) {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
+        cancelCommandPalette()
         if let zoomed = tab.panes.zoomed, zoomed !== surface {
             tab.panes.unzoom()
         }
@@ -211,6 +214,13 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             controller.terminalArea.focusSelectedSurface()
         }
         controller.showCommandPalette(palette)
+    }
+
+    /// A palette open while something outside it adds, closes or reveals a
+    /// terminal would put back places that no longer exist, or undo the
+    /// change once it closes.
+    private func cancelCommandPalette() {
+        controller.commandPalette?.cancel()
     }
 
     /// Previewing changes which tab each workspace shows and which pane each
@@ -337,6 +347,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// Closes one pane. The tab closes with its last pane.
     func close(_ surface: TerminalSurfaceView) {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
+        cancelCommandPalette()
         guard tab.panes.surfaces.count > 1 else { return close(tab) }
         guard confirmClose([surface], what: "pane") else { return }
         tab.removePane(surface)
@@ -345,6 +356,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     }
 
     func close(_ workspace: Workspace) {
+        cancelCommandPalette()
         guard confirmClose(workspace.tabs.flatMap(\.panes.surfaces), what: "workspace") else { return }
         store.remove(workspace)
         closeWindowIfEmpty()
@@ -352,6 +364,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
 
     func close(_ tab: TerminalTab) {
         guard let workspace = store.workspaces.first(where: { $0.tabs.contains { $0 === tab } }) else { return }
+        cancelCommandPalette()
         guard confirmClose(tab.panes.surfaces, what: "tab") else { return }
         workspace.remove(tab)
         if workspace.tabs.isEmpty {

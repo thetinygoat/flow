@@ -83,6 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             isLive: { [weak self] id in self?.surface(withID: id) != nil },
             isVisible: { [weak self] id in self?.isInView(id) == true })
         agentSessions.onChange = { [weak self] id in
+            // The agents palette lists every window's terminals.
+            self?.windows.forEach { $0.controller.commandPalette?.updateAgentIndicators() }
             guard let (window, surface) = self?.surface(withID: id),
                   let (workspace, tab) = window.store.workspace(containing: surface) else { return }
             window.controller.agentsDidChange(in: workspace, tab: tab)
@@ -143,7 +145,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             windows.compactMap(\.focusedSurface).forEach(markSeenIfInView)
         }
+        // A menu command acts on where the palette was opened, not on a place
+        // it is only previewing, so the palette is cancelled first. Editing
+        // commands belong to its search field, and the palette's own
+        // shortcuts step through it.
+        NotificationCenter.default.addObserver(forName: NSMenu.willSendActionNotification, object: nil, queue: nil) { [weak self] notification in
+            guard let action = (notification.userInfo?["MenuItem"] as? NSMenuItem)?.action,
+                  !Self.actionsKeepingThePalette.contains(action) else { return }
+            MainActor.assumeIsolated {
+                self?.keyWindow?.controller.commandPalette?.cancel()
+            }
+        }
     }
+
+    private static let actionsKeepingThePalette: Set<Selector> = [
+        #selector(showPlaces), #selector(showAgents),
+        #selector(NSText.copy(_:)), #selector(NSText.paste(_:)), #selector(NSText.selectAll(_:)),
+    ]
 
     func applicationWillTerminate(_ notification: Notification) {
         loadedSettings?.saveNow()

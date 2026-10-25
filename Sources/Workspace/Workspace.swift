@@ -184,8 +184,11 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         return true
     }
 
+    /// Closed terminals drop out here, so the list stays as long as the
+    /// window has terminals.
     func noteFocus(_ leaf: Leaf) {
-        recentlyFocused.removeAll { $0 == leaf.id }
+        let open = Set(workspaces.flatMap(\.tabs).flatMap(\.panes.leaves).map(\.id))
+        recentlyFocused.removeAll { $0 == leaf.id || !open.contains($0) }
         recentlyFocused.insert(leaf.id, at: 0)
     }
 

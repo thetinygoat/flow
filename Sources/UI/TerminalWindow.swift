@@ -176,33 +176,59 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// Opens the palette, or steps to its next item when one of the same mode
     /// is open; one of the other mode is cancelled first. The window shows the
     /// selected item behind the palette while it is in this window, and
-    /// cancelling goes back to where the palette was opened. `reveal` goes to
-    /// the chosen item, in whichever window holds it.
+    /// otherwise where the palette was opened. `reveal` goes to the chosen
+    /// item, in whichever window holds it.
+    ///
+    /// The items are only made once a palette already open has been
+    /// cancelled, so they are listed from where the user is rather than from
+    /// a place being previewed.
     func showCommandPalette(_ mode: CommandPalette.Mode, items: @autoclosure () -> [CommandPalette.Item],
                             reveal: @escaping (CommandPalette.Item) -> Void) {
         if let open = controller.commandPalette {
             guard open.mode != mode else { return open.selectNext() }
             open.cancel()
         }
-        let origin = focusedSurface
+        let restore = rememberPlaces()
         let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
         palette.onSelect = { [weak self] item in
-            guard let self, let surface = surface(withID: item.terminal) ?? origin else { return }
+            guard let self else { return }
+            guard let item, let surface = surface(withID: item.terminal) else { return restore() }
             show(surface)
         }
         palette.onChoose = { [weak self] item in
             guard let self else { return }
             controller.closeCommandPalette()
+            restore()
             controller.terminalArea.focusSelectedSurface()
             reveal(item)
         }
         palette.onCancel = { [weak self] in
             guard let self else { return }
             controller.closeCommandPalette()
-            if let origin { show(origin) }
+            restore()
             controller.terminalArea.focusSelectedSurface()
         }
         controller.showCommandPalette(palette)
+    }
+
+    /// Previewing changes which tab each workspace shows and which pane each
+    /// tab has focused, including tabs the user never chooses, so the palette
+    /// puts them all back when it closes. Otherwise a zoomed tab could be left
+    /// focused on a pane hidden by the zoom.
+    private func rememberPlaces() -> () -> Void {
+        let selected = store.selected
+        let selectedTabs = store.workspaces.compactMap { workspace in workspace.selectedTab.map { (workspace, $0) } }
+        let focusedPanes = store.workspaces.flatMap(\.tabs).map { ($0, $0.focusedSurface) }
+        return { [weak self] in
+            guard let self else { return }
+            for (tab, surface) in focusedPanes { tab.focus(surface) }
+            for (workspace, tab) in selectedTabs { workspace.select(tab) }
+            if let selected, store.workspaces.contains(where: { $0 === selected }) {
+                store.select(selected)
+            } else {
+                store.notifyChanged()
+            }
+        }
     }
 
     private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID, startImmediately: Bool = true) -> TerminalSurfaceView {

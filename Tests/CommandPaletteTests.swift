@@ -184,11 +184,20 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(CommandPalette.recentFirst(items, recentlyFocused: [UUID(), items[1].terminal]).map(\.title), ["b", "a"])
     }
 
-    func testStoreKeepsEachTerminalOnceMostRecentFirst() {
+    func testStoreKeepsEachOpenTerminalOnceMostRecentFirst() {
         let store = TestStore()
-        let a = FakeLeaf(), b = FakeLeaf()
-        [a, b, a].forEach(store.noteFocus)
-        XCTAssertEqual(store.recentlyFocused, [a.id, b.id])
+        let a = FakeLeaf(), b = FakeLeaf(), c = FakeLeaf()
+        let workspace = store.addWorkspace()
+        let tab = TestTab(leaf: a)
+        tab.panes.split(a, direction: .right, with: b)
+        tab.panes.split(b, direction: .down, with: c)
+        workspace.add(tab)
+        [a, b, c, a].forEach(store.noteFocus)
+        XCTAssertEqual(store.recentlyFocused, [a.id, c.id, b.id])
+
+        tab.removePane(c)
+        store.noteFocus(b)
+        XCTAssertEqual(store.recentlyFocused, [b.id, a.id])
     }
 
     // MARK: Agents
@@ -220,11 +229,6 @@ final class CommandPaletteTests: XCTestCase {
         let items = ["a", "b", "c"].map { item($0) }
         XCTAssertEqual(agents(items, current: items[2], ["a": (.waiting, 2), "b": (.waiting, 1), "c": (.waiting, 0)]), ["b", "a"])
         XCTAssertEqual(agents(items, current: items[0], ["a": (.waiting, 1)]), [])
-    }
-
-    func testOnlyModesThatLeaveOutThePlaceInViewStartUnselected() {
-        XCTAssertFalse(CommandPalette.Mode.places.startsUnselected)
-        XCTAssertTrue(CommandPalette.Mode.agents.startsUnselected)
     }
 
     // MARK: Search

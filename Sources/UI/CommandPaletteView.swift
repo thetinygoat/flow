@@ -8,7 +8,8 @@ import AppKit
 /// place and ⌘I I to the agent that has waited longest.
 final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let mode: CommandPalette.Mode
-    var onSelect: ((CommandPalette.Item) -> Void)?
+    /// Nil when nothing is selected.
+    var onSelect: ((CommandPalette.Item?) -> Void)?
     var onChoose: ((CommandPalette.Item) -> Void)?
     var onCancel: (() -> Void)?
 
@@ -106,7 +107,10 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
             message.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
         ])
         update()
-        if mode.startsUnselected { tableView.deselectAll(nil) }
+    }
+
+    deinit {
+        commandReleaseMonitor.map(NSEvent.removeMonitor)
     }
 
     required init?(coder: NSCoder) {
@@ -162,13 +166,20 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         cancel()
     }
 
+    /// The best match is selected, and so previewed, unless the mode starts
+    /// on nothing and there is no search.
     private func update() {
         shown = CommandPalette.filter(items, query: field.stringValue)
         tableView.reloadData()
         message.isHidden = !shown.isEmpty
         message.stringValue = items.isEmpty ? mode.emptyMessage : "No matches"
         tableHeight.constant = Self.rowHeight * CGFloat(min(max(shown.count, 1), Self.visibleRows))
-        select(0)
+        // Reloading keeps the selected row, which would leave a new best
+        // match in that row selected without previewing it.
+        tableView.deselectAll(nil)
+        if !(mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty) {
+            select(0)
+        }
     }
 
     private func select(_ row: Int) {
@@ -228,8 +239,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
-        guard shown.indices.contains(tableView.selectedRow) else { return }
-        onSelect?(shown[tableView.selectedRow])
+        onSelect?(shown.indices.contains(tableView.selectedRow) ? shown[tableView.selectedRow] : nil)
     }
 }
 

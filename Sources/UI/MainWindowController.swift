@@ -125,7 +125,6 @@ final class MainWindowController: NSWindowController {
     func agentsDidChange(in workspace: Workspace, tab: TerminalTab) {
         sidebar.updateAgentIndicator(for: workspace)
         terminalArea.updateAgentIndicator(for: tab)
-        commandPalette?.updateAgentIndicators()
     }
 
     func titleDidChange(of surface: TerminalSurfaceView) {

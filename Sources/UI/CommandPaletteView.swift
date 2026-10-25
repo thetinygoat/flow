@@ -8,6 +8,11 @@ import AppKit
 /// place and ⌘I I to the agent that has waited longest.
 final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let mode: CommandPalette.Mode
+    /// The terminal the palette was opened from. Its menu commands, such as
+    /// Find or a font size change, stay enabled while the palette has the
+    /// keyboard; the palette is cancelled before they are sent, which puts
+    /// the keyboard back with this terminal for them.
+    weak var commandTarget: NSResponder?
     /// Nil when nothing is selected.
     var onSelect: ((CommandPalette.Item?) -> Void)?
     var onChoose: ((CommandPalette.Item) -> Void)?
@@ -182,6 +187,11 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         }
         commandReleaseMonitor = nil
         titleBarClickMonitor = nil
+    }
+
+    override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
+        if let commandTarget, commandTarget.responds(to: action) { return commandTarget }
+        return super.supplementalTarget(forAction: action, sender: sender)
     }
 
     /// A click anywhere but the panel cancels.

@@ -193,6 +193,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         }
         let restore = rememberPlaces()
         let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
+        palette.commandTarget = focusedSurface
         palette.onSelect = { [weak self] item in
             guard let self else { return }
             guard let item, let surface = surface(withID: item.terminal) else { return restore() }

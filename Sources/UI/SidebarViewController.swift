@@ -97,12 +97,20 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         view = container
     }
 
-    func reload() {
+    /// A preview only changes which tab and pane are shown, so it keeps the
+    /// repositories and names already found for each directory rather than
+    /// looking for them on disk again.
+    func reload(isPreview: Bool = false) {
         let wasReloading = isReloading
         isReloading = true
         defer { isReloading = wasReloading }
-        git.watch(store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory })
-        store.workspaces.forEach { $0.invalidateDerivedName() }
+        let directories = store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory }
+        if isPreview {
+            git.include(directories)
+        } else {
+            git.watch(directories)
+            store.workspaces.forEach { $0.invalidateDerivedName() }
+        }
 
         if tableView.numberOfRows == store.workspaces.count {
             var rows = IndexSet(0..<store.workspaces.count)

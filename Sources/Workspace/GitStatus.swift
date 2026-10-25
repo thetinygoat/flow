@@ -126,7 +126,8 @@ final class GitStatusMonitor {
         }
     }
 
-    private var repositories: [String: GitRepository] = [:]
+    /// Nil for a directory outside any repository.
+    private var repositories: [String: GitRepository?] = [:]
     private var watched: [GitRepository: Watched] = [:]
     private let queue = DispatchQueue(label: "dev.thetinygoat.flow.git", qos: .utility)
     private(set) var finishedChecks = 0
@@ -135,32 +136,45 @@ final class GitStatusMonitor {
     /// others. Directories are resolved again on every call, so a `git init`
     /// or a deleted repository is picked up on the next change of directory.
     func watch(_ directories: [String]) {
-        repositories = Dictionary(directories.compactMap { directory in
-            GitRepository(containing: directory).map { (directory, $0) }
-        }, uniquingKeysWith: { first, _ in first })
-        let current = Set(repositories.values)
+        repositories = Dictionary(directories.map { ($0, GitRepository(containing: $0)) }, uniquingKeysWith: { first, _ in first })
+        let current = Set(repositories.values.compactMap { $0 })
         for repository in watched.keys where !current.contains(repository) {
             watched.removeValue(forKey: repository)
         }
-        for repository in current where watched[repository] == nil {
-            let state = Watched(repository: repository)
-            // Paths are filtered where they arrive, off the main thread; a build
-            // can report thousands at a time.
-            state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
-                guard paths.contains(where: repository.isRelevant) else { return }
-                let headChanged = paths.contains(repository.gitDir + "/HEAD")
-                DispatchQueue.main.async {
-                    guard let self, let state, self.isCurrent(state) else { return }
-                    self.handle(headChanged: headChanged, in: state)
-                }
-            }
-            watched[repository] = state
-            requestCheck(state)
+        current.forEach(startWatching)
+    }
+
+    /// Adds the repositories behind directories not seen before, leaving the
+    /// rest as they are until the next `watch`. For directories shown only
+    /// for a moment, which would otherwise mean looking for every directory's
+    /// repository each time.
+    func include(_ directories: [String]) {
+        for directory in directories where !repositories.keys.contains(directory) {
+            let repository = GitRepository(containing: directory)
+            repositories[directory] = repository
+            repository.map(startWatching)
         }
     }
 
+    private func startWatching(_ repository: GitRepository) {
+        guard watched[repository] == nil else { return }
+        let state = Watched(repository: repository)
+        // Paths are filtered where they arrive, off the main thread; a build
+        // can report thousands at a time.
+        state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
+            guard paths.contains(where: repository.isRelevant) else { return }
+            let headChanged = paths.contains(repository.gitDir + "/HEAD")
+            DispatchQueue.main.async {
+                guard let self, let state, self.isCurrent(state) else { return }
+                self.handle(headChanged: headChanged, in: state)
+            }
+        }
+        watched[repository] = state
+        requestCheck(state)
+    }
+
     func status(for directory: String) -> GitStatus? {
-        guard let repository = repositories[directory], let state = watched[repository],
+        guard let repository = repositories[directory] ?? nil, let state = watched[repository],
               let branch = state.branch ?? state.gitBranch else { return nil }
         return GitStatus(branch: branch, isDirty: state.isDirty ?? false)
     }

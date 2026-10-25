@@ -254,6 +254,20 @@ final class GitStatusTests: XCTestCase {
         XCTAssertEqual(monitor.finishedChecks, 1)
     }
 
+    func testIncludedDirectoriesStayUntilTheNextWatch() throws {
+        let (repo, root) = try makeRepository()
+        try shell("git worktree add -q -b feature ../wt", in: repo)
+        let worktree = root.appendingPathComponent("wt").path
+        let monitor = GitStatusMonitor()
+        monitor.watch([repo.path])
+        monitor.include([repo.path, worktree])
+        XCTAssertEqual(monitor.status(for: repo.path)?.branch, "main")
+        XCTAssertEqual(monitor.status(for: worktree)?.branch, "feature")
+        monitor.watch([repo.path])
+        XCTAssertNil(monitor.status(for: worktree))
+        XCTAssertEqual(monitor.status(for: repo.path)?.branch, "main")
+    }
+
     func testSlowRepositoriesAreCheckedLessOften() {
         XCTAssertEqual(GitStatusMonitor.delay(after: 0.01), 1)
         XCTAssertEqual(GitStatusMonitor.delay(after: 0.5), 5)

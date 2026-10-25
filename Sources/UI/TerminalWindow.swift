@@ -14,6 +14,9 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     let controller: MainWindowController
     weak var delegate: TerminalWindowDelegate?
     private let config: () -> GhosttyConfig
+    /// Set while the command palette shows a place, which is put back when it
+    /// closes and so needs no saving.
+    private var isPreviewing = false
 
     init(frame: CGRect?, config: @escaping () -> GhosttyConfig) {
         self.config = config
@@ -26,7 +29,8 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.onNewWorkspace = { [weak self] in self?.newWorkspace() }
         store.onChange = { [weak self] in
             guard let self else { return }
-            self.controller.refresh()
+            self.controller.refresh(isPreview: self.isPreviewing)
+            guard !self.isPreviewing else { return }
             self.delegate?.terminalWindowDidChange(self)
         }
     }
@@ -197,7 +201,9 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         palette.onSelect = { [weak self] item in
             guard let self else { return }
             guard let item, let surface = surface(withID: item.terminal) else { return restore() }
+            isPreviewing = true
             show(surface)
+            isPreviewing = false
         }
         palette.onChoose = { [weak self] item in
             guard let self else { return }

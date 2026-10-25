@@ -113,8 +113,8 @@ final class MainWindowController: NSWindowController {
     }
 
     /// Re-reads the store and updates the sidebar, tab strip, and window title.
-    func refresh() {
-        sidebar.reload()
+    func refresh(isPreview: Bool = false) {
+        sidebar.reload(isPreview: isPreview)
         terminalArea.show(store.selected)
         updateWindowTitle()
         // The accessory controller's own isHidden is not honored in the

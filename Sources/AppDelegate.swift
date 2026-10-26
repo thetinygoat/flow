@@ -426,8 +426,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Sessions of terminals that have closed would otherwise linger, and
-    /// their ids are never reused.
-    private func forgetClosedAgentSessions() {
+    /// their ids are never reused. A window closing a terminal cancels its
+    /// own palette first, but the agents palette lists every window's.
+    private func forgetClosedTerminals() {
+        for window in windows {
+            window.controller.commandPalette?.removeItems { surface(withID: $0.terminal) == nil }
+        }
         MainActor.assumeIsolated {
             for id in agentSessions.sessions.keys where surface(withID: id) == nil {
                 agentSessions.remove(id)
@@ -708,13 +712,13 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {
-        forgetClosedAgentSessions()
+        forgetClosedTerminals()
         scheduleSave()
     }
 
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
-        forgetClosedAgentSessions()
+        forgetClosedTerminals()
         scheduleSave()
     }
 

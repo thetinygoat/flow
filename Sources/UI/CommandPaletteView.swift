@@ -21,7 +21,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private static let rowHeight: CGFloat = 50
     private static let visibleRows = 9
 
-    private let items: [CommandPalette.Item]
+    private var items: [CommandPalette.Item]
     private let agentIndicator: @MainActor (UUID) -> AgentIndicator?
     private var shown: [CommandPalette.Item] = []
     /// What `onSelect` was last given, so a search that keeps the same best
@@ -146,6 +146,14 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         onCancel?()
     }
 
+    /// For terminals closed in another window, which the agents palette lists
+    /// too. The selection stays on its item unless that one closed.
+    func removeItems(where isClosed: (CommandPalette.Item) -> Bool) {
+        guard items.contains(where: isClosed) else { return }
+        items.removeAll(where: isClosed)
+        update(keeping: selectedTerminal)
+    }
+
     /// Agents change state far more often than the list changes, so only the
     /// dots are updated.
     func updateAgentIndicators() {
@@ -206,15 +214,17 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     }
 
     /// The best match is selected, and so previewed, unless the mode starts
-    /// on nothing and there is no search.
-    private func update() {
+    /// on nothing and there is no search, or the terminal to keep is shown.
+    private func update(keeping terminal: UUID? = nil) {
         isUpdating = true
         shown = CommandPalette.filter(items, query: field.stringValue)
         tableView.reloadData()
         message.isHidden = !shown.isEmpty
         message.stringValue = items.isEmpty ? mode.emptyMessage : "No matches"
         tableHeight.constant = Self.rowHeight * CGFloat(min(max(shown.count, 1), Self.visibleRows))
-        if mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
+        if let row = shown.firstIndex(where: { $0.terminal == terminal }) {
+            select(row)
+        } else if mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
             tableView.deselectAll(nil)
         } else {
             select(0)

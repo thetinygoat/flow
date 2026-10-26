@@ -57,6 +57,7 @@ final class TerminalSurfaceView: NSView {
     /// passing over it in the command palette leaves it unopened.
     var defersStart = false {
         didSet {
+            if surface == nil { needsDisplay = true }
             guard !defersStart, window != nil, pendingConfiguration != nil else { return }
             start()
             updateWindowState()
@@ -259,11 +260,19 @@ final class TerminalSurfaceView: NSView {
 
     /// Ghostty draws a started terminal into a layer of its own. One waiting
     /// to start shows the terminal's background rather than whatever is
-    /// behind the window.
+    /// behind the window, and says why it is empty, which would otherwise
+    /// look like a terminal that stopped responding.
     override func draw(_ dirtyRect: NSRect) {
         guard surface == nil, let config = runtime?.config else { return }
         config.backgroundColor.withAlphaComponent(config.backgroundOpacity).setFill()
         dirtyRect.intersection(bounds).fill()
+        guard defersStart else { return }
+        let note = NSAttributedString(string: "Starts when chosen", attributes: [
+            .font: NSFont.systemFont(ofSize: 13),
+            .foregroundColor: config.foregroundColor.withAlphaComponent(0.5),
+        ])
+        let size = note.size()
+        note.draw(at: NSPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2))
     }
 
     private func updateWindowState() {

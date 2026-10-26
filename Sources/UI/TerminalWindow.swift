@@ -14,9 +14,10 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     let controller: MainWindowController
     weak var delegate: TerminalWindowDelegate?
     private let config: () -> GhosttyConfig
-    /// Set while the command palette shows a place, which is put back when it
-    /// closes and so needs no saving.
-    private var isPreviewing = false
+    /// Where the command palette was opened, while it is open. Its previews
+    /// are put back when it closes, so menus and the saved session go by this
+    /// rather than the place in view, and nothing is saved until then.
+    private var paletteOrigin: WorkspaceStore.Places?
 
     init(frame: CGRect?, config: @escaping () -> GhosttyConfig) {
         self.config = config
@@ -29,8 +30,8 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.onNewWorkspace = { [weak self] in self?.newWorkspace() }
         store.onChange = { [weak self] in
             guard let self else { return }
-            self.controller.refresh(isPreview: self.isPreviewing)
-            guard !self.isPreviewing else { return }
+            self.refresh()
+            guard self.paletteOrigin == nil else { return }
             self.delegate?.terminalWindowDidChange(self)
         }
     }
@@ -45,7 +46,13 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     // MARK: Session
 
     func snapshot() -> Session.Window {
-        store.snapshot(frame: window?.frame)
+        store.snapshot(frame: window?.frame, places: paletteOrigin)
+    }
+
+    /// Where the user is, which is where the command palette was opened while
+    /// it previews other places.
+    var places: WorkspaceStore.Places {
+        paletteOrigin ?? store.places
     }
 
     func restore(_ saved: Session.Window) {
@@ -195,22 +202,22 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
             guard open.mode != mode else { return open.selectNext() }
             open.cancel()
         }
-        let restore = rememberPlaces()
+        let origin = store.places
+        paletteOrigin = origin
         setDefersStart(true)
         let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
         palette.commandTarget = focusedSurface
         palette.onSelect = { [weak self] item in
             guard let self else { return }
-            guard let item, let surface = surface(withID: item.terminal) else { return restore() }
-            isPreviewing = true
+            guard let item, let surface = surface(withID: item.terminal) else {
+                store.show(origin)
+                return
+            }
             show(surface)
-            isPreviewing = false
         }
         palette.onChoose = { [weak self] item in
             guard let self else { return }
-            controller.closeCommandPalette()
-            restore()
-            setDefersStart(false)
+            closeCommandPalette(returningTo: origin)
             reveal(item)
             // Only after the reveal, so the place the palette was opened from
             // is never in view on the way out and keeps a finished agent unseen.
@@ -218,12 +225,31 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         }
         palette.onCancel = { [weak self] in
             guard let self else { return }
-            controller.closeCommandPalette()
-            restore()
-            setDefersStart(false)
+            closeCommandPalette(returningTo: origin)
             controller.terminalArea.focusSelectedSurface()
         }
         controller.showCommandPalette(palette)
+    }
+
+    /// Previewing changes which tab each workspace shows and which pane each
+    /// tab has focused, including tabs the user never chooses, so they are
+    /// all put back. Otherwise a zoomed tab could be left focused on a pane
+    /// hidden by the zoom.
+    private func closeCommandPalette(returningTo origin: WorkspaceStore.Places) {
+        controller.closeCommandPalette()
+        paletteOrigin = nil
+        let changed = store.show(origin)
+        // Only once the previews are gone, so none of their panes is started.
+        setDefersStart(false)
+        // When the previews left nothing to put back, the refresh still stops
+        // watching the repositories only they showed.
+        if !changed { refresh() }
+    }
+
+    /// While the command palette is open the window only shows its previews,
+    /// so the sidebar keeps what it already found on disk.
+    private func refresh() {
+        controller.refresh(isPreview: paletteOrigin != nil)
     }
 
     /// A restored session opens its panes only once they are shown, and a
@@ -237,26 +263,6 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     /// change once it closes.
     private func cancelCommandPalette() {
         controller.commandPalette?.cancel()
-    }
-
-    /// Previewing changes which tab each workspace shows and which pane each
-    /// tab has focused, including tabs the user never chooses, so the palette
-    /// puts them all back when it closes. Otherwise a zoomed tab could be left
-    /// focused on a pane hidden by the zoom.
-    private func rememberPlaces() -> () -> Void {
-        let selected = store.selected
-        let selectedTabs = store.workspaces.compactMap { workspace in workspace.selectedTab.map { (workspace, $0) } }
-        let focusedPanes = store.workspaces.flatMap(\.tabs).map { ($0, $0.focusedSurface) }
-        return { [weak self] in
-            guard let self else { return }
-            for (tab, surface) in focusedPanes { tab.focus(surface) }
-            for (workspace, tab) in selectedTabs { workspace.select(tab) }
-            if let selected, store.workspaces.contains(where: { $0 === selected }) {
-                store.select(selected)
-            } else {
-                store.notifyChanged()
-            }
-        }
     }
 
     private func makeSurface(id: UUID = UUID(), in directory: String?, workspace: UUID, startImmediately: Bool = true) -> TerminalSurfaceView {
@@ -341,7 +347,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         store.noteFocus(surface)
         guard tab.focusedSurface !== surface else { return }
         tab.focus(surface)
-        controller.refresh()
+        refresh()
     }
 
     // MARK: Closing

@@ -554,12 +554,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             target: self,
             selectWorkspace: #selector(selectWorkspace(_:)),
             selectTab: #selector(selectTab(_:)))
+        // From where the user is rather than a place the command palette
+        // previews: a tab's shortcut can be pressed during a preview, and is
+        // matched against these items before the palette is cancelled.
         workspaceMenu.contents = { [weak self] in
-            guard let store = self?.keyWindow?.store else { return nil }
-            let tabs = store.selected?.tabs ?? []
+            guard let window = self?.keyWindow else { return nil }
+            let workspaces = window.store.workspaces
+            let places = window.places
+            let tabs = places.selected?.tabs ?? []
+            let selectedTab = places.selected.flatMap(places.selectedTab)
             return WorkspaceMenu.Contents(
-                workspaces: .init(names: store.workspaces.map(\.name), selected: store.workspaces.firstIndex { $0 === store.selected }),
-                tabs: .init(names: tabs.map(\.title), selected: tabs.firstIndex { $0 === store.selected?.selectedTab }))
+                workspaces: .init(names: workspaces.map(\.name), selected: workspaces.firstIndex { $0 === places.selected }),
+                tabs: .init(names: tabs.map(\.title), selected: tabs.firstIndex { $0 === selectedTab }))
         }
         mainMenu.addItem(submenu: workspaceMenu.menu, title: "Workspace")
 

@@ -78,8 +78,10 @@ struct Session: Codable, Equatable {
 }
 
 extension WorkspaceStoreModel {
-    func snapshot(frame: CGRect? = nil) -> Session.Window {
-        Session.Window(
+    /// `places`, when given, are saved in place of the ones in view.
+    func snapshot(frame: CGRect? = nil, places: Places? = nil) -> Session.Window {
+        let places = places ?? self.places
+        return Session.Window(
             workspaces: workspaces.map { workspace in
                 Session.Workspace(
                     id: workspace.id,
@@ -89,9 +91,9 @@ extension WorkspaceStoreModel {
                             layout: Session.Layout(node: tab.panes.root),
                             zoomedPane: tab.panes.zoomed.flatMap { zoomed in tab.panes.leaves.firstIndex { $0 === zoomed } })
                     },
-                    selectedTab: workspace.tabs.firstIndex { $0 === workspace.selectedTab } ?? 0)
+                    selectedTab: workspace.tabs.firstIndex { $0 === places.selectedTab(in: workspace) } ?? 0)
             },
-            selectedWorkspace: workspaces.firstIndex { $0 === selected } ?? 0,
+            selectedWorkspace: workspaces.firstIndex { $0 === places.selected } ?? 0,
             frame: frame)
     }
 

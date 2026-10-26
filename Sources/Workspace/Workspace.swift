@@ -192,6 +192,46 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         recentlyFocused.insert(leaf.id, at: 0)
     }
 
+    /// Which workspace is selected, which tab each workspace shows and which
+    /// pane each tab has focused.
+    struct Places {
+        let selected: WorkspaceModel<Leaf>?
+        fileprivate let selectedTabs: [(WorkspaceModel<Leaf>, TabModel<Leaf>)]
+        fileprivate let focusedLeaves: [(TabModel<Leaf>, Leaf)]
+
+        func selectedTab(in workspace: WorkspaceModel<Leaf>) -> TabModel<Leaf>? {
+            selectedTabs.first { $0.0 === workspace }?.1
+        }
+    }
+
+    var places: Places {
+        Places(selected: selected,
+               selectedTabs: workspaces.compactMap { workspace in workspace.selectedTab.map { (workspace, $0) } },
+               focusedLeaves: workspaces.flatMap(\.tabs).map { ($0, $0.focusedLeaf) })
+    }
+
+    /// Goes back to the places, apart from workspaces, tabs and panes closed
+    /// since. Observers hear of it, and it returns true, only when something
+    /// changes.
+    @discardableResult
+    func show(_ places: Places) -> Bool {
+        var changed = false
+        for (tab, leaf) in places.focusedLeaves where tab.focusedLeaf !== leaf && tab.panes.contains(leaf) {
+            tab.focus(leaf)
+            changed = true
+        }
+        for (workspace, tab) in places.selectedTabs where workspace.selectedTab !== tab && workspace.tabs.contains(where: { $0 === tab }) {
+            workspace.select(tab)
+            changed = true
+        }
+        if let workspace = places.selected, workspace !== selected, workspaces.contains(where: { $0 === workspace }) {
+            selected = workspace
+            changed = true
+        }
+        if changed { notifyChanged() }
+        return changed
+    }
+
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {
         for workspace in workspaces {
             if let tab = workspace.tab(containing: leaf) { return (workspace, tab) }

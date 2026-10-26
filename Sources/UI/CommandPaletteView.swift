@@ -235,9 +235,9 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
 
     private func reportSelection() {
         let item = shown.indices.contains(tableView.selectedRow) ? shown[tableView.selectedRow] : nil
-        guard let onSelect, item?.terminal != selectedTerminal else { return }
+        guard item?.terminal != selectedTerminal else { return }
         selectedTerminal = item?.terminal
-        onSelect(item)
+        onSelect?(item)
     }
 
     private func select(_ row: Int) {

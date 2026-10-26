@@ -290,3 +290,24 @@ final class CommandPaletteTests: XCTestCase {
              layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
     }
 }
+
+@MainActor
+final class CommandPaletteViewTests: XCTestCase {
+    func testClosedTerminalsLeaveTheListWithoutMovingTheSelection() {
+        let items = (0..<3).map { index in
+            CommandPalette.Item(terminal: UUID(), title: "\(index)", detail: "", location: "", fullLocation: "",
+                                layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
+        }
+        let palette = CommandPaletteView(.places, items: items, agentIndicator: { _ in nil })
+        var selected: [UUID?] = []
+        palette.onSelect = { selected.append($0?.terminal) }
+        palette.selectNext()
+        XCTAssertEqual(selected, [items[1].terminal])
+
+        palette.removeItems { $0.terminal == items[0].terminal }
+        XCTAssertEqual(selected, [items[1].terminal], "still on its item, so nothing new to preview")
+
+        palette.removeItems { $0.terminal == items[1].terminal }
+        XCTAssertEqual(selected, [items[1].terminal, items[2].terminal])
+    }
+}

@@ -165,6 +165,7 @@ targets:
       - path: Sources/Logger.swift
       - path: Sources/AppFolder.swift
       - path: Sources/UI/CommandPalette.swift
+      - path: Sources/UI/CommandPaletteView.swift
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift

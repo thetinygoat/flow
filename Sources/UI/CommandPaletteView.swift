@@ -78,8 +78,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         searchIcon.symbolConfiguration = .init(pointSize: 18, weight: .regular)
         searchIcon.contentTintColor = .secondaryLabelColor
 
-        let divider = NSBox()
-        divider.boxType = .separator
+        let divider = PaletteDivider()
 
         message.font = .systemFont(ofSize: 14)
         message.textColor = .secondaryLabelColor
@@ -94,8 +93,10 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         // A short window shrinks the list, which then scrolls, rather than
         // the list growing the window.
         tableHeight.priority = .dragThatCannotResizeWindow
+        // Above what any view inside asks for, so only a narrow window makes
+        // the panel narrower.
         let preferredWidth = panel.widthAnchor.constraint(equalToConstant: 720)
-        preferredWidth.priority = .defaultHigh
+        preferredWidth.priority = .defaultHigh + 1
         NSLayoutConstraint.activate([
             panel.centerXAnchor.constraint(equalTo: centerXAnchor),
             panel.topAnchor.constraint(equalTo: topAnchor, constant: 72),
@@ -112,6 +113,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
             divider.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
             divider.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
             divider.topAnchor.constraint(equalTo: field.bottomAnchor, constant: 18),
+            divider.heightAnchor.constraint(equalToConstant: 1),
             scrollView.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: divider.bottomAnchor),
@@ -340,6 +342,17 @@ private final class PalettePanel: NSView {
 
     /// Clicks inside the panel stay in it rather than reaching the backdrop.
     override func mouseDown(with event: NSEvent) {}
+}
+
+/// A separator box turns vertical whenever a layout pass makes it taller than
+/// wide, and then holds the panel to its own width. The colour is set in each
+/// layer update so it follows the window turning light or dark.
+private final class PaletteDivider: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.separatorColor.cgColor
+    }
 }
 
 /// Selected the way the sidebar's rows are, edge to edge in grey.

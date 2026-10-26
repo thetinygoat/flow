@@ -133,27 +133,34 @@ final class GitStatusMonitor {
     private(set) var finishedChecks = 0
 
     /// Watches the repositories behind `directories` and stops watching any
-    /// others. Directories are resolved again on every call, so a `git init`
-    /// or a deleted repository is picked up on the next change of directory.
+    /// others. Each directory's repository is looked up once, until
+    /// `forgetDirectories`.
     func watch(_ directories: [String]) {
-        repositories = Dictionary(directories.map { ($0, GitRepository(containing: $0)) }, uniquingKeysWith: { first, _ in first })
-        let current = Set(repositories.values.compactMap { $0 })
+        include(directories)
+        let current = Set(directories.compactMap { repositories[$0] ?? nil })
         for repository in watched.keys where !current.contains(repository) {
             watched.removeValue(forKey: repository)
         }
-        current.forEach(startWatching)
     }
 
-    /// Adds the repositories behind directories not seen before, leaving the
-    /// rest as they are until the next `watch`. For directories shown only
-    /// for a moment, which would otherwise mean looking for every directory's
-    /// repository each time.
+    /// Also watches the repositories behind `directories`, leaving the rest
+    /// watched until the next `watch`. For directories shown only for a
+    /// moment, whose repositories are likely to be shown again.
     func include(_ directories: [String]) {
-        for directory in directories where !repositories.keys.contains(directory) {
-            let repository = GitRepository(containing: directory)
-            repositories[directory] = repository
-            repository.map(startWatching)
+        for directory in directories {
+            if !repositories.keys.contains(directory) {
+                repositories[directory] = GitRepository(containing: directory)
+            }
+            if let repository = repositories[directory] ?? nil {
+                startWatching(repository)
+            }
         }
+    }
+
+    /// A `git init` or a deleted repository changes which repository a
+    /// directory is in, so each is looked up again on the next `watch`.
+    func forgetDirectories() {
+        repositories.removeAll()
     }
 
     private func startWatching(_ repository: GitRepository) {

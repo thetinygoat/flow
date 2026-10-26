@@ -143,9 +143,10 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(workspace.name, "other")
         workspace.select(tab)
         XCTAssertEqual(workspace.name, "renamed")
-        workspace.invalidateDerivedName()
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other"], "a directory already named")
+        workspace.invalidateDerivedNames()
         XCTAssertEqual(workspace.name, "renamed")
-        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other", "/renamed", "/renamed"])
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other", "/renamed"])
     }
 
     func testNameFollowsDirectoryUntilRenamed() {

@@ -728,7 +728,7 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func surfaceDirectoryDidChange(_ surface: TerminalSurfaceView) {
-        window(containing: surface)?.controller.refresh()
+        window(containing: surface)?.directoryDidChange()
         scheduleSave()
     }
 

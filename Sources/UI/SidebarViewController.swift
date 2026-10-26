@@ -52,7 +52,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         tableView.registerForDraggedTypes([Self.workspacePasteboardType])
         tableView.setDraggingSourceOperationMask(.move, forLocal: true)
         tableView.setDraggingSourceOperationMask([], forLocal: false)
-        git.onUpdate = { [weak self] in self?.reload() }
+        git.onUpdate = { [weak self] in self?.reloadRows() }
 
         let menu = NSMenu()
         menu.addItem(withTitle: "Rename Workspace", action: #selector(renameClickedWorkspace), keyEquivalent: "")
@@ -97,21 +97,30 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         view = container
     }
 
-    /// A preview only changes which tab and pane are shown, so it keeps the
-    /// repositories and names already found for each directory rather than
-    /// looking for them on disk again.
+    /// A preview keeps watching the repositories it moved away from, as the
+    /// palette puts them back when it closes.
     func reload(isPreview: Bool = false) {
-        let wasReloading = isReloading
-        isReloading = true
-        defer { isReloading = wasReloading }
         let directories = store.workspaces.compactMap { $0.selectedTab?.focusedSurface.workingDirectory }
         if isPreview {
             git.include(directories)
         } else {
             git.watch(directories)
-            store.workspaces.forEach { $0.invalidateDerivedName() }
         }
+        reloadRows()
+    }
 
+    /// A terminal changing directory can follow a `git init` or a deleted
+    /// repository, so every directory's repository and name are looked up
+    /// again on the next reload.
+    func forgetRepositories() {
+        git.forgetDirectories()
+        store.workspaces.forEach { $0.invalidateDerivedNames() }
+    }
+
+    private func reloadRows() {
+        let wasReloading = isReloading
+        isReloading = true
+        defer { isReloading = wasReloading }
         if tableView.numberOfRows == store.workspaces.count {
             var rows = IndexSet(0..<store.workspaces.count)
             if let renaming, let row = row(of: renaming) {

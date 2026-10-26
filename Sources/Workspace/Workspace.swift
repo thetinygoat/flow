@@ -70,7 +70,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var customName: String?
     private(set) var tabs: [TabModel<Leaf>] = []
     private(set) var selectedTab: TabModel<Leaf>?
-    private var derivedName: (directory: String, name: String)?
+    /// By directory, so going back to a tab or pane looks nothing up again.
+    private var derivedNames: [String: String] = [:]
     private let resolveName: (String) -> String
 
     init(id: UUID = UUID(), customName: String? = nil,
@@ -83,14 +84,14 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var name: String {
         if let customName { return customName }
         guard let directory = selectedTab?.focusedLeaf.workingDirectory else { return "~" }
-        if let derivedName, derivedName.directory == directory { return derivedName.name }
+        if let name = derivedNames[directory] { return name }
         let name = resolveName(directory)
-        derivedName = (directory, name)
+        derivedNames[directory] = name
         return name
     }
 
-    func invalidateDerivedName() {
-        derivedName = nil
+    func invalidateDerivedNames() {
+        derivedNames.removeAll()
     }
 
     /// Inside a repository the workspace is named after it, so it keeps its

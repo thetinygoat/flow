@@ -342,6 +342,11 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         controller.terminalArea.focusSelectedSurface()
     }
 
+    func directoryDidChange() {
+        controller.sidebar.forgetRepositories()
+        refresh()
+    }
+
     func surfaceDidFocus(_ surface: TerminalSurfaceView) {
         guard let (_, tab) = store.workspace(containing: surface) else { return }
         store.noteFocus(surface)

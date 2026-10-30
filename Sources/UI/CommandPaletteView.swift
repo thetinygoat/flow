@@ -24,7 +24,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private var items: [CommandPalette.Item]
     private let agentIndicator: @MainActor (UUID) -> AgentIndicator?
     private var shown: [CommandPalette.Item] = []
-    /// What `onSelect` was last given, so a search that keeps the same best
+    /// The selected item's terminal, so a search that keeps the same best
     /// match previews nothing again.
     private var selectedTerminal: UUID?
     private var isUpdating = false
@@ -185,7 +185,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard window != nil, titleBarClickMonitor == nil else { return }
-        titleBarClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        titleBarClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
             if let self, event.window === window, !bounds.contains(convert(event.locationInWindow, from: nil)) {
                 cancel()
             }
@@ -208,8 +208,16 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         return super.supplementalTarget(forAction: action, sender: sender)
     }
 
-    /// A click anywhere but the panel cancels.
+    /// A click anywhere but the panel cancels, with any button.
     override func mouseDown(with event: NSEvent) {
+        cancel()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        cancel()
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
         cancel()
     }
 
@@ -352,6 +360,10 @@ private final class PalettePanel: NSView {
 
     /// Clicks inside the panel stay in it rather than reaching the backdrop.
     override func mouseDown(with event: NSEvent) {}
+
+    override func rightMouseDown(with event: NSEvent) {}
+
+    override func otherMouseDown(with event: NSEvent) {}
 }
 
 /// A separator box turns vertical whenever a layout pass makes it taller than

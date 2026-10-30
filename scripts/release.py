@@ -261,9 +261,7 @@ class Release:
 
     def check(self):
         step("Checking the tree and tools")
-        # The ghostty submodule carries local build patches, so its working
-        # copy is allowed to differ; everything else must be committed.
-        if output("git", "status", "--porcelain", "--ignore-submodules=dirty"):
+        if output("git", "status", "--porcelain"):
             raise ReleaseError("commit or stash your changes first")
         identity = developer_id(output("security", "find-identity", "-v", "-p", "codesigning"), TEAM)
         if not identity:

@@ -48,11 +48,12 @@ final class GhosttyRuntime {
             action_cb: { app, target, action in
                 GhosttyRuntime.dispatch(app: app!, target: target, action: action)
             },
-            read_clipboard_cb: { userdata, location, state in
-                TerminalSurfaceView.from(userdata: userdata).readClipboard(location, state: state)
+            read_clipboard_cb: { userdata, location, state, mimes, mimeCount, list in
+                TerminalSurfaceView.from(userdata: userdata).readClipboard(
+                    location, state: state, mimes: mimes, mimeCount: mimeCount, list: list)
             },
-            confirm_read_clipboard_cb: { userdata, text, state, request in
-                TerminalSurfaceView.from(userdata: userdata).confirmReadClipboard(text, state: state, request: request)
+            confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                TerminalSurfaceView.from(userdata: userdata).confirmReadClipboard(confirm, state: state, request: request)
             },
             write_clipboard_cb: { userdata, location, content, count, confirm in
                 TerminalSurfaceView.from(userdata: userdata).writeClipboard(location, content: content, count: count, confirm: confirm)

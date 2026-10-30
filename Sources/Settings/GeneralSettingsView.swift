@@ -10,9 +10,6 @@ struct GeneralSettingsView: View {
     @State private var checksForUpdates = false
     @State private var canCheckForUpdates = false
     @State private var lastUpdateCheck: Date?
-    /// What copy on select goes back to when turned off, since the file may
-    /// have said `false` or nothing.
-    @State private var copyOnSelectOff = Option.copyOnSelect.defaultValue
     @FocusState private var editingCommand: Bool
 
     var body: some View {
@@ -43,11 +40,8 @@ struct GeneralSettingsView: View {
                     Text("Always").tag("always")
                 }
                 Toggle("Copy on select", isOn: Binding(
-                    get: { store.value(Option.copyOnSelect) == "clipboard" },
-                    set: { on in
-                        if on { copyOnSelectOff = store.value(Option.copyOnSelect) }
-                        store.set(Option.copyOnSelect, on ? "clipboard" : copyOnSelectOff)
-                    }))
+                    get: { ["true", "clipboard", "both"].contains(store.value(Option.copyOnSelect)) },
+                    set: { store.set(Option.copyOnSelect, $0 ? "clipboard" : "none") }))
                 Toggle("Hide mouse pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
             }
 

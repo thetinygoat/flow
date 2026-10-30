@@ -241,13 +241,22 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_OPEN_URL:
             let openURL = action.action.open_url
             guard let bytes = openURL.url,
-                  let string = String(data: Data(bytes: bytes, count: Int(openURL.len)), encoding: .utf8),
-                  let url = LinkTarget.url(for: string, relativeTo: surface?.workingDirectory) else { return false }
-            if openURL.kind == GHOSTTY_ACTION_OPEN_URL_KIND_TEXT,
-               let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
-                NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
-            } else {
-                NSWorkspace.shared.open(url)
+                  let string = String(data: Data(bytes: bytes, count: Int(openURL.len)), encoding: .utf8) else { return false }
+            switch openURL.kind {
+            // Only these come from Ghostty itself; any program can print the others.
+            case GHOSTTY_ACTION_OPEN_URL_KIND_TEXT, GHOSTTY_ACTION_OPEN_URL_KIND_HTML:
+                guard let url = LinkTarget.url(for: string, relativeTo: surface?.workingDirectory) else { return false }
+                if openURL.kind == GHOSTTY_ACTION_OPEN_URL_KIND_TEXT,
+                   let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
+                    NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(url)
+                }
+            // Handled even when blocked, since otherwise Ghostty opens the link itself.
+            case GHOSTTY_ACTION_OPEN_URL_KIND_OSC8:
+                UntrustedLinkAlert.open(UntrustedLink(string), in: surface?.window)
+            default:
+                UntrustedLinkAlert.open(.matched(string, relativeTo: surface?.workingDirectory), in: surface?.window)
             }
 
         case GHOSTTY_ACTION_RELOAD_CONFIG:

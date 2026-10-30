@@ -146,11 +146,14 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         onCancel?()
     }
 
-    /// For terminals closed in another window, which the agents palette lists
-    /// too. The selection stays on its item unless that one closed.
-    func removeItems(where isClosed: (CommandPalette.Item) -> Bool) {
-        guard items.contains(where: isClosed) else { return }
-        items.removeAll(where: isClosed)
+    /// For changes in another window, which the agents palette lists too:
+    /// `current` gives each terminal's item as it is now, or nil once it has
+    /// closed. The list keeps its order, and the selection stays on its item
+    /// unless that one closed.
+    func updateItems(_ current: (UUID) -> CommandPalette.Item?) {
+        let updated = items.compactMap { current($0.terminal) }
+        guard updated != items else { return }
+        items = updated
         update(keeping: selectedTerminal)
     }
 

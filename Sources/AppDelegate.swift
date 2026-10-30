@@ -379,6 +379,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A window changing its own terminals cancels its palette first, but
+    /// the agents palette lists every window's, whose tabs and panes can
+    /// close or move meanwhile.
+    private func updatePaletteItems() {
+        let palettes = windows.compactMap(\.controller.commandPalette)
+        guard !palettes.isEmpty else { return }
+        let current = Dictionary(uniqueKeysWithValues: windows.flatMap { CommandPalette.items(in: $0.store) }.map { ($0.terminal, $0) })
+        palettes.forEach { $0.updateItems { current[$0] } }
+    }
+
     private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
         switch mode {
         case .places:
@@ -426,12 +436,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Sessions of terminals that have closed would otherwise linger, and
-    /// their ids are never reused. A window closing a terminal cancels its
-    /// own palette first, but the agents palette lists every window's.
+    /// their ids are never reused.
     private func forgetClosedTerminals() {
-        for window in windows {
-            window.controller.commandPalette?.removeItems { surface(withID: $0.terminal) == nil }
-        }
+        updatePaletteItems()
         MainActor.assumeIsolated {
             for id in agentSessions.sessions.keys where surface(withID: id) == nil {
                 agentSessions.remove(id)

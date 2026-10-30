@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The Settings window: a pane per toolbar button, like other Mac apps.
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
-    private static let width: CGFloat = 560
+    private static let size = CGSize(width: 560, height: 520)
     private let store: SettingsStore
 
     init(store: SettingsStore, updater: SPUUpdater, reload: @escaping () -> Void) {
@@ -27,16 +27,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         fatalError("init(coder:) is not supported")
     }
 
-    /// The window takes each pane's size as it is picked, from the hosting
-    /// controller's preferred content size, so each pane is as tall as its
-    /// settings.
+    /// Every pane is the same size, so the window doesn't jump between tabs
+    /// and a long pane scrolls instead of growing past the screen.
     private static func pane(_ title: String, symbol: String, store: SettingsStore, _ view: some View) -> NSTabViewItem {
         let controller = NSHostingController(rootView: VStack(spacing: 0) {
             SaveErrorBanner(store: store)
-            view.scrollDisabled(true)
+            view
         }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(width: width))
+            .frame(width: size.width, height: size.height))
         controller.sizingOptions = .preferredContentSize
         controller.title = title
         let item = NSTabViewItem(viewController: controller)

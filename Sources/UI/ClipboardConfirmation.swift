@@ -27,11 +27,15 @@ enum ClipboardConfirmation {
         var confirmTitle: String { self == .paste ? "Paste" : "Allow" }
     }
 
-    /// Calls `completion` with the answer. A request made while the window
-    /// already shows a sheet is refused, so a program that keeps asking only
-    /// ever gets one prompt.
+    /// Calls `completion` with the answer, always later on the main queue,
+    /// because answering a request from inside the libghostty callback that
+    /// made it is unsafe. A request made while the window already shows a
+    /// sheet is refused, so a program that keeps asking only ever gets one
+    /// prompt.
     static func ask(_ request: Request, contents: String, in window: NSWindow?, completion: @escaping (Bool) -> Void) {
-        guard let window, window.attachedSheet == nil else { return completion(false) }
+        guard let window, window.attachedSheet == nil else {
+            return DispatchQueue.main.async { completion(false) }
+        }
         let sheet = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 270),
             styleMask: [.titled, .resizable],

@@ -845,41 +845,64 @@ final class TerminalSurfaceView: NSView {
 
     // MARK: Clipboard callbacks
 
-    func readClipboard(_ location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) -> Bool {
-        guard let surface,
-              let pasteboard = NSPasteboard.ghostty(location),
-              let text = pasteboard.getOpinionatedStringContents() else { return false }
-        text.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
-        return true
+    func readClipboard(
+        _ location: ghostty_clipboard_e,
+        state: UnsafeMutableRawPointer?,
+        mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+        mimeCount: Int,
+        list: Bool
+    ) -> ghostty_clipboard_read_result_e {
+        guard let surface, let pasteboard = NSPasteboard.ghostty(location) else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
+        var seen = Set<String>()
+        let contents = (0..<mimeCount)
+            .compactMap { mimes?[$0].map { String(cString: $0) } }
+            .filter { seen.insert($0).inserted }
+            .compactMap { mime in pasteboard.ghosttyData(forMime: mime).map { ClipboardContent(mime: mime, data: $0) } }
+        guard !contents.isEmpty || list else { return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE }
+        let available = list ? pasteboard.ghosttyAvailableMimes() : []
+        ClipboardContent.complete(surface, state: state, contents: contents, available: available)
+        return GHOSTTY_CLIPBOARD_READ_STARTED
     }
 
-    func confirmReadClipboard(_ text: UnsafePointer<CChar>?, state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e) {
-        guard let surface, let text else { return }
-        let string = String(cString: text)
-        let kind: ClipboardConfirmation.Request = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ ? .read : .paste
-        ClipboardConfirmation.ask(kind, contents: string, in: window) { allowed in
-            (allowed ? string : "").withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+    func confirmReadClipboard(
+        _ confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
+        state: UnsafeMutableRawPointer?,
+        request: ghostty_clipboard_request_e
+    ) {
+        guard let surface else { return }
+        guard let confirm = confirm?.pointee else { return ghostty_surface_deny_clipboard_request(surface, state) }
+        let contents = ClipboardContent.copy(confirm.contents, count: confirm.contents_len)
+        let available = (0..<confirm.available_len).compactMap { confirm.available?[$0].map { String(cString: $0) } }
+        let kind: ClipboardConfirmation.Request = switch request {
+        case GHOSTTY_CLIPBOARD_REQUEST_PASTE: .paste
+        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE, GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE: .write
+        default: .read
+        }
+        ClipboardConfirmation.ask(kind, contents: ClipboardContent.summary(contents), in: window) { [weak self] allowed in
+            guard let surface = self?.surface else { return }
+            if allowed {
+                ClipboardContent.complete(surface, state: state, contents: contents, available: available, confirmed: true)
+            } else {
+                ghostty_surface_deny_clipboard_request(surface, state)
+            }
         }
     }
 
     func writeClipboard(_ location: ghostty_clipboard_e, content: UnsafePointer<ghostty_clipboard_content_s>?, count: Int, confirm: Bool) {
-        guard let pasteboard = NSPasteboard.ghostty(location), let content, count > 0 else { return }
-        let items: [(NSPasteboard.PasteboardType, String)] = (0..<count).compactMap { index in
-            let item = content[index]
-            guard let mime = item.mime, let data = item.data,
-                  let type = NSPasteboard.PasteboardType(mimeType: String(cString: mime)) else { return nil }
-            return (type, String(cString: data))
+        guard let pasteboard = NSPasteboard.ghostty(location) else { return }
+        let items = ClipboardContent.copy(content, count: count).compactMap { item in
+            NSPasteboard.PasteboardType(mimeType: item.mime).map { ($0, item.data) }
         }
         guard !items.isEmpty else { return }
 
         let write = {
             pasteboard.declareTypes(items.map(\.0), owner: nil)
             for (type, data) in items {
-                pasteboard.setString(data, forType: type)
+                pasteboard.setData(data, forType: type)
             }
         }
         guard confirm else { return write() }
-        guard let text = items.first(where: { $0.0 == .string })?.1 else { return }
+        guard let text = items.first(where: { $0.0 == .string }).flatMap({ String(data: $0.1, encoding: .utf8) }) else { return }
         ClipboardConfirmation.ask(.write, contents: text, in: window) { allowed in
             if allowed { write() }
         }

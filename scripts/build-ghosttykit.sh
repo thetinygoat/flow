@@ -13,13 +13,6 @@ if [ ! -f "$GHOSTTY/build.zig" ]; then
 fi
 
 cd "$GHOSTTY"
-# Upstream fixes that landed after the pinned release, needed for Xcode 27.
-for patch in "$ROOT"/patches/*.patch; do
-  if git apply --check --reverse "$patch" >/dev/null 2>&1; then
-    continue
-  fi
-  git apply "$patch"
-done
 
 zig build \
   -Dapp-runtime=none \
@@ -36,7 +29,7 @@ cp -R "$GHOSTTY/zig-out/share/terminfo" "$GHOSTTY/zig-out/share/ghostty" "$ROOT/
 
 # Xcode's linker can miss symbols in the copied universal archive until its
 # symbol index is rebuilt.
-xcrun ranlib "$ROOT/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/libghostty.a"
+xcrun ranlib "$ROOT/Vendor/GhosttyKit.xcframework/macos-arm64_x86_64/ghostty-internal.a"
 
 # Records what was built, so a release can refuse a stale libghostty.
 "$ROOT/scripts/ghosttykit-stamp.sh" > "$ROOT/Vendor/GhosttyKit.stamp"

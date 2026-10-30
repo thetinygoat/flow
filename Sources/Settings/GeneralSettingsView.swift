@@ -39,10 +39,19 @@ struct GeneralSettingsView: View {
                     Text("With a running process").tag("true")
                     Text("Always").tag("always")
                 }
-                Toggle("Copy on select", isOn: Binding(
-                    get: { ["true", "clipboard", "both"].contains(store.value(Option.copyOnSelect)) },
-                    set: { store.set(Option.copyOnSelect, $0 ? "clipboard" : "none") }))
                 Toggle("Hide mouse pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
+            }
+
+            Section {
+                Picker("Copy on select", selection: store.binding(Option.copyOnSelect)) {
+                    Text("Off").tag("none")
+                    Text("For middle-click only").tag("primary")
+                    Text("To the clipboard").tag("clipboard")
+                    Text("To the clipboard and middle-click").tag("both")
+                }
+            } footer: {
+                Text("Middle-click pastes the selected text without changing the clipboard.")
+                    .settingsFooter()
             }
 
             Section {

@@ -143,9 +143,16 @@ enum Option {
     static let scrollbar = ConfigSetting<String>("scrollbar", default: "system", choices: ["system", "never"])
     static let command = ConfigSetting<String>("command", default: "")
     static let confirmClose = ConfigSetting<String>("confirm-close-surface", default: "true", choices: ["false", "true", "always"])
-    /// `true` copies to the system clipboard on macOS, like `clipboard` and `both`.
-    static let copyOnSelect = ConfigSetting<String>(
-        "copy-on-select", default: "none", choices: ["false", "true", "none", "primary", "clipboard", "both"])
+    /// `primary` fills the clipboard middle-click pastes from. Ghostty still
+    /// reads the old `true` and `false`, as `clipboard` and `none` on macOS.
+    static let copyOnSelect = ConfigSetting<String>(key: "copy-on-select", defaultValue: "none", parse: { text in
+        switch text {
+        case "true": "clipboard"
+        case "false": "none"
+        case "none", "primary", "clipboard", "both": text
+        default: nil
+        }
+    }, format: { $0 })
     /// The `cursor` switch has the shell set a blinking bar at its prompt,
     /// which overrides `cursor-style` and `cursor-style-blink` there.
     static let shellIntegrationFeatures = ConfigSetting<ConfigFlags>("shell-integration-features", default: ConfigFlags(

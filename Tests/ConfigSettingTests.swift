@@ -87,7 +87,10 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(Option.confirmClose.parse("1"), "true")
         XCTAssertEqual(Option.confirmClose.parse("F"), "false")
         XCTAssertEqual(Option.confirmClose.parse("always"), "always")
-        XCTAssertEqual(Option.copyOnSelect.parse("clipboard"), "clipboard")
+        XCTAssertEqual(Option.copyOnSelect.parse("primary"), "primary")
+        XCTAssertEqual(Option.copyOnSelect.parse("true"), "clipboard")
+        XCTAssertEqual(Option.copyOnSelect.parse("false"), "none")
+        XCTAssertNil(Option.copyOnSelect.parse("1"), "Ghostty reads only true and false here")
         XCTAssertNil(Option.cursorStyle.parse("beam"))
     }
 

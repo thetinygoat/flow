@@ -381,12 +381,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// A window changing its own terminals cancels its palette first, but
     /// the agents palette lists every window's, whose tabs and panes can
-    /// close or move meanwhile.
-    private func updatePaletteItems() {
+    /// close or move meanwhile. Only the changed window's items are made
+    /// again: a palette's own window shows previews, which would otherwise
+    /// rename its rows.
+    private func updatePaletteItems(after window: TerminalWindow) {
         let palettes = windows.compactMap(\.controller.commandPalette)
         guard !palettes.isEmpty else { return }
-        let current = Dictionary(uniqueKeysWithValues: windows.flatMap { CommandPalette.items(in: $0.store) }.map { ($0.terminal, $0) })
-        palettes.forEach { $0.updateItems { current[$0] } }
+        let changed = windows.contains { $0 === window } ? CommandPalette.items(in: window.store) : []
+        let current = Dictionary(uniqueKeysWithValues: changed.map { ($0.terminal, $0) })
+        for palette in palettes {
+            palette.updateItems { item in current[item.terminal] ?? (surface(withID: item.terminal) == nil ? nil : item) }
+        }
     }
 
     private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
@@ -437,8 +442,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Sessions of terminals that have closed would otherwise linger, and
     /// their ids are never reused.
-    private func forgetClosedTerminals() {
-        updatePaletteItems()
+    private func forgetClosedTerminals(after window: TerminalWindow) {
+        updatePaletteItems(after: window)
         MainActor.assumeIsolated {
             for id in agentSessions.sessions.keys where surface(withID: id) == nil {
                 agentSessions.remove(id)
@@ -719,13 +724,13 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {
-        forgetClosedTerminals()
+        forgetClosedTerminals(after: window)
         scheduleSave()
     }
 
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
-        forgetClosedTerminals()
+        forgetClosedTerminals(after: window)
         scheduleSave()
     }
 

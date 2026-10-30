@@ -307,11 +307,11 @@ final class CommandPaletteViewTests: XCTestCase {
 
         current[items[0].terminal] = nil
         current[items[1].terminal]?.location = "Tab 1"
-        palette.updateItems { current[$0] }
+        palette.updateItems { current[$0.terminal] }
         XCTAssertEqual(selected, [items[1].terminal], "still on its item, so nothing new to preview")
 
         current[items[1].terminal] = nil
-        palette.updateItems { current[$0] }
+        palette.updateItems { current[$0.terminal] }
         XCTAssertEqual(selected, [items[1].terminal, items[2].terminal])
     }
 }

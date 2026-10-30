@@ -147,11 +147,11 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     }
 
     /// For changes in another window, which the agents palette lists too:
-    /// `current` gives each terminal's item as it is now, or nil once it has
+    /// `current` gives each item as it is now, or nil once its terminal has
     /// closed. The list keeps its order, and the selection stays on its item
     /// unless that one closed.
-    func updateItems(_ current: (UUID) -> CommandPalette.Item?) {
-        let updated = items.compactMap { current($0.terminal) }
+    func updateItems(_ current: (CommandPalette.Item) -> CommandPalette.Item?) {
+        let updated = items.compactMap(current)
         guard updated != items else { return }
         items = updated
         update(keeping: selectedTerminal)

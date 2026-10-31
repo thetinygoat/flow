@@ -138,16 +138,18 @@ enum CommandPalette {
             .map(\.element)
     }
 
-    /// The agent in view, then the ones waiting for input, the finished ones
-    /// and the working ones, each longest first. Terminals without an agent
-    /// to show are left out.
+    /// The agent in view, then the ones waiting for input, the finished
+    /// ones, the idle ones and the working ones. Each state comes longest
+    /// first, except idle agents, which have no time to go by and keep the
+    /// sidebar's order. Terminals without a running agent are left out.
     static func agents(_ items: [Item], current: UUID?, statuses: [UUID: AgentStatus]) -> [Item] {
-        // A finished turn needs the user sooner than one still running.
-        let rank: [AgentIndicator: Int] = [.waiting: 0, .done: 1, .working: 2]
+        // An idle agent can take its next prompt, which one still working can't.
+        let rank: [AgentIndicator?: Int] = [.waiting: 0, .done: 1, nil: 2, .working: 3]
         return items.enumerated()
             .compactMap { index, item -> (item: Item, key: (Int, Int, Date, Int))? in
-                guard let status = statuses[item.terminal] else { return nil }
-                return (item, (item.terminal == current ? 0 : 1, rank[status.indicator]!, status.since, index))
+                guard item.agent != nil else { return nil }
+                let status = statuses[item.terminal]
+                return (item, (item.terminal == current ? 0 : 1, rank[status?.indicator]!, status?.since ?? .distantPast, index))
             }
             .sorted { $0.key < $1.key }
             .map(\.item)

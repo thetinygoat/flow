@@ -201,7 +201,14 @@ final class CommandPaletteTests: XCTestCase {
 
     // MARK: Agents
 
-    private func agents(_ items: [Item], current: Item? = nil, _ statuses: [String: (AgentIndicator, TimeInterval)]) -> [String] {
+    /// The terminals named in `statuses` or `idle` run an agent.
+    private func agents(_ items: [Item], current: Item? = nil, idle: Set<String> = [],
+                        _ statuses: [String: (AgentIndicator, TimeInterval)]) -> [String] {
+        let items = items.map { item in
+            var item = item
+            item.agent = statuses[item.title] != nil || idle.contains(item.title) ? "agent" : nil
+            return item
+        }
         let byTitle = Dictionary(uniqueKeysWithValues: items.map { ($0.title, $0.terminal) })
         let statuses = Dictionary(uniqueKeysWithValues: statuses.map { title, status in
             (byTitle[title]!, AgentStatus(indicator: status.0, since: Date(timeIntervalSince1970: status.1)))
@@ -219,6 +226,11 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(agents(items, ["a": (.waiting, 30), "b": (.waiting, 10), "c": (.waiting, 20), "d": (.done, 0)]), ["b", "c", "a", "d"])
     }
 
+    func testIdleAgentsComeAfterFinishedAndBeforeWorkingInListedOrder() {
+        let items = ["a", "b", "c", "d", "e"].map { item($0) }
+        XCTAssertEqual(agents(items, idle: ["d", "b"], ["a": (.working, 1), "c": (.done, 2)]), ["c", "b", "d", "a"])
+    }
+
     func testAgentsThatStartedTogetherKeepTheirListedOrder() {
         let items = ["a", "b", "c"].map { item($0) }
         XCTAssertEqual(agents(items, ["c": (.done, 5), "a": (.done, 5), "b": (.done, 5)]), ["a", "b", "c"])
@@ -229,6 +241,7 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(agents(items, current: items[2], ["a": (.waiting, 2), "b": (.waiting, 1), "c": (.working, 0)]), ["c", "b", "a"])
         XCTAssertEqual(agents(items, current: items[0], ["a": (.waiting, 1)]), ["a"])
         XCTAssertEqual(agents(items, current: items[0], ["b": (.waiting, 1)]), ["b"], "the terminal in view has no agent")
+        XCTAssertEqual(agents(items, current: items[1], idle: ["b"], ["a": (.waiting, 1)]), ["b", "a"], "even an idle one")
     }
 
     // MARK: Search

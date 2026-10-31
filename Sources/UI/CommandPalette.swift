@@ -35,13 +35,12 @@ enum CommandPalette {
         var title: String
         /// The terminal's directory, unless it is already the title.
         var detail: String
-        /// Where the terminal is, as much as tells it apart: the workspace,
-        /// the tab when the workspace has more than one, and the pane when the
-        /// tab is split.
+        /// The only part of where the terminal is that the row shows. Moving
+        /// through the list shows the place itself, and the layout its pane.
+        var workspace: String
+        /// The workspace, tab and pane, which a search matches, so "tab 1"
+        /// and "left" find terminals without the row naming them.
         var location: String
-        /// The location in full, which is what a search matches, so "tab 1"
-        /// finds a workspace's only tab too.
-        var fullLocation: String
         var layout: PaneLayout
     }
 
@@ -70,20 +69,18 @@ enum CommandPalette {
     static func items<Leaf>(in store: WorkspaceStoreModel<Leaf>) -> [Item] {
         store.workspaces.flatMap { workspace in
             workspace.tabs.enumerated().flatMap { index, tab in
-                let tabName = "Tab \(index + 1)"
-                let fullLocation = "\(workspace.name) › \(tabName)"
-                let location = workspace.tabs.count > 1 ? fullLocation : workspace.name
+                let location = "\(workspace.name) › Tab \(index + 1)"
                 let panes = tab.panes.leaves
                 let frames = frames(of: tab.panes.root, in: CGRect(x: 0, y: 0, width: 1, height: 1))
                 guard panes.count > 1 else {
                     return [Item(terminal: tab.focusedLeaf.id, title: tab.title, detail: directory(of: tab.focusedLeaf),
-                                 location: location, fullLocation: fullLocation, layout: PaneLayout(frames: frames, highlighted: 0))]
+                                 workspace: workspace.name, location: location, layout: PaneLayout(frames: frames, highlighted: 0))]
                 }
                 let zoomed = panes.firstIndex { $0 === tab.panes.zoomed }
                 return zip(panes.indices, zip(panes, positions(in: tab.panes.root))).map { index, pane in
                     let (leaf, position) = pane
                     return Item(terminal: leaf.id, title: leaf.displayTitle, detail: directory(of: leaf),
-                                location: "\(location) › \(position)", fullLocation: "\(fullLocation) › \(position)",
+                                workspace: workspace.name, location: "\(location) › \(position)",
                                 layout: PaneLayout(frames: frames, highlighted: index, zoomed: zoomed))
                 }
             }
@@ -168,7 +165,7 @@ enum CommandPalette {
     /// or directory too.
     private static func score(_ words: [String], in item: Item) -> Int? {
         if let score = score(words, in: [item.title]) { return score + 1000 }
-        return score(words, in: [item.fullLocation, item.title, item.detail])
+        return score(words, in: [item.location, item.title, item.detail])
     }
 
     /// Nil unless every word of the query is found in one of the texts, in

@@ -401,7 +401,7 @@ private final class PaletteItemView: NSTableCellView {
     private let icon: PaneLayoutIcon
     private let title = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
-    private let location = NSTextField(labelWithString: "")
+    private let workspace = NSTextField(labelWithString: "")
     private let zoomIcon = NSImageView()
     private let agentDot = AgentDotView()
 
@@ -417,19 +417,18 @@ private final class PaletteItemView: NSTableCellView {
         icon = PaneLayoutIcon(layout: item.layout)
         super.init(frame: .zero)
         title.stringValue = item.title
-        title.font = .systemFont(ofSize: 15, weight: .semibold)
+        title.font = .systemFont(ofSize: 14, weight: .medium)
         title.lineBreakMode = .byTruncatingTail
         detail.stringValue = item.detail
-        detail.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        detail.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingMiddle
         detail.isHidden = item.detail.isEmpty
-        location.stringValue = item.location
-        location.font = .systemFont(ofSize: 13)
-        location.textColor = .secondaryLabelColor
-        location.lineBreakMode = .byTruncatingHead
-        location.alignment = .right
-        location.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        workspace.stringValue = item.workspace
+        workspace.font = .systemFont(ofSize: 12)
+        workspace.textColor = .secondaryLabelColor
+        workspace.lineBreakMode = .byTruncatingTail
+        workspace.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         zoomIcon.isHidden = item.layout.zoom == nil
         if let zoom = item.layout.zoom {
@@ -449,9 +448,9 @@ private final class PaletteItemView: NSTableCellView {
         text.alignment = .leading
         text.spacing = 1
 
-        // The location is on every row, so it takes the trailing edge and
+        // The workspace is on every row, so it takes the trailing edge and
         // lines up down the list. What only some rows show goes to its left.
-        let trailing = NSStackView(views: [zoomIcon, agentDot, location])
+        let trailing = NSStackView(views: [zoomIcon, agentDot, workspace])
         trailing.orientation = .horizontal
         trailing.spacing = 10
         for view in [icon, text, trailing] {
@@ -476,7 +475,8 @@ private final class PaletteItemView: NSTableCellView {
     }
 }
 
-/// A tab's split drawn small, with the item's own pane filled in.
+/// A tab's split drawn small, with the item's own pane filled in. A tab
+/// that isn't split has no pane to pick out, so it is only outlined.
 private final class PaneLayoutIcon: NSView {
     private let layout: CommandPalette.PaneLayout
 
@@ -501,14 +501,13 @@ private final class PaneLayoutIcon: NSView {
                 height: frame.height * area.height
             ).insetBy(dx: 1, dy: 1)
             let path = NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
-            if index == layout.highlighted {
-                NSColor.secondaryLabelColor.setFill()
+            if index == layout.highlighted && layout.frames.count > 1 {
+                NSColor.secondaryLabelColor.withAlphaComponent(0.5).setFill()
                 path.fill()
-            } else {
-                NSColor.secondaryLabelColor.withAlphaComponent(0.6).setStroke()
-                path.lineWidth = 1
-                path.stroke()
             }
+            NSColor.secondaryLabelColor.setStroke()
+            path.lineWidth = 1
+            path.stroke()
         }
     }
 }

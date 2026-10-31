@@ -17,16 +17,16 @@ final class CommandPaletteTests: XCTestCase {
         store.addWorkspace(customName: "web").add(TestTab(leaf: d))
 
         let items = CommandPalette.items(in: store)
-        XCTAssertEqual(items.map { "\($0.title) | \($0.detail) | \($0.location)" }, [
-            "vim | /src/api | api › Tab 1",
-            "/src/api |  | api › Tab 2 › Left",
-            "logs |  | api › Tab 2 › Right",
-            "zsh |  | web",
+        XCTAssertEqual(items.map { "\($0.title) | \($0.detail) | \($0.workspace) | \($0.location)" }, [
+            "vim | /src/api | api | api › Tab 1",
+            "/src/api |  | api | api › Tab 2 › Left",
+            "logs |  | api | api › Tab 2 › Right",
+            "zsh |  | web | web › Tab 1",
         ])
         XCTAssertEqual(items.map(\.terminal), [a, b, c, d].map(\.id))
     }
 
-    func testShowsTheTabOnlyWhenTheWorkspaceHasMoreThanOne() {
+    func testFindsAWorkspacesOnlyTabByNumber() {
         let store = TestStore()
         let a = FakeLeaf("a"), b = FakeLeaf("b"), c = FakeLeaf("c"), d = FakeLeaf("d")
         let api = store.addWorkspace(customName: "api")
@@ -37,8 +37,7 @@ final class CommandPaletteTests: XCTestCase {
         store.addWorkspace(customName: "web").add(TestTab(leaf: d))
 
         let items = CommandPalette.items(in: store)
-        XCTAssertEqual(items.map(\.location), ["api › Tab 1", "api › Tab 2 › Top", "api › Tab 2 › Bottom", "web"])
-        XCTAssertEqual(items.map(\.fullLocation), ["api › Tab 1", "api › Tab 2 › Top", "api › Tab 2 › Bottom", "web › Tab 1"])
+        XCTAssertEqual(items.map(\.location), ["api › Tab 1", "api › Tab 2 › Top", "api › Tab 2 › Bottom", "web › Tab 1"])
         XCTAssertEqual(CommandPalette.filter(items, query: "web tab 1").map(\.title), ["d"])
     }
 
@@ -60,7 +59,7 @@ final class CommandPaletteTests: XCTestCase {
         store.addWorkspace().add(tab)
 
         let panes = CommandPalette.items(in: store)
-        XCTAssertEqual(panes.map(\.location), ["~ › Left", "~ › Top right", "~ › Bottom right"])
+        XCTAssertEqual(panes.map(\.location), ["~ › Tab 1 › Left", "~ › Tab 1 › Top right", "~ › Tab 1 › Bottom right"])
         XCTAssertEqual(panes.map(\.layout.highlighted), [0, 1, 2])
         XCTAssertEqual(panes[0].layout.frames, [
             CGRect(x: 0, y: 0, width: 0.5, height: 1),
@@ -169,7 +168,7 @@ final class CommandPaletteTests: XCTestCase {
         let (tree, panes) = tree([("a", .left), ("a", .down)])
         store.addWorkspace(customName: "api").add(TestTab(panes: tree, focused: panes["a"]!))
         let locations = Dictionary(uniqueKeysWithValues: CommandPalette.items(in: store).map { ($0.title, $0.location) })
-        XCTAssertEqual(locations, ["b": "api › Left", "a": "api › Top right", "c": "api › Bottom right"])
+        XCTAssertEqual(locations, ["b": "api › Tab 1 › Left", "a": "api › Tab 1 › Top right", "c": "api › Tab 1 › Bottom right"])
     }
 
     // MARK: Recency
@@ -307,7 +306,7 @@ final class CommandPaletteTests: XCTestCase {
     }
 
     private func item(_ title: String, location: String = "") -> Item {
-        Item(terminal: UUID(), title: title, detail: "", location: location, fullLocation: location,
+        Item(terminal: UUID(), title: title, detail: "", workspace: "", location: location,
              layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
     }
 }
@@ -316,7 +315,7 @@ final class CommandPaletteTests: XCTestCase {
 final class CommandPaletteViewTests: XCTestCase {
     private func items(_ count: Int) -> [CommandPalette.Item] {
         (0..<count).map { index in
-            CommandPalette.Item(terminal: UUID(), title: "\(index)", detail: "", location: "", fullLocation: "",
+            CommandPalette.Item(terminal: UUID(), title: "\(index)", detail: "", workspace: "", location: "",
                                 layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
         }
     }

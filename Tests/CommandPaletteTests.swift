@@ -295,6 +295,24 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(CommandPalette.filter(items, query: "flow lef").map(\.location), ["flow › Tab 1 › Left"])
     }
 
+    func testFindsTerminalsByTheirAgent() {
+        var claude = item("~/Code/flow"), codex = item("~/Code/api")
+        claude.agent = "claude"
+        codex.agent = "codex"
+        let items = [claude, codex, item("zsh")]
+        XCTAssertEqual(CommandPalette.filter(items, query: "claude").map(\.title), ["~/Code/flow"])
+        XCTAssertEqual(CommandPalette.filter(items, query: "cod api").map(\.title), ["~/Code/api"])
+    }
+
+    func testItemsCarryTheirTerminalsAgent() {
+        let store = TestStore()
+        let a = FakeLeaf("a"), b = FakeLeaf("b")
+        store.addWorkspace().add(TestTab(leaf: a))
+        store.addWorkspace().add(TestTab(leaf: b))
+        let items = CommandPalette.items(in: store) { $0 == b.id ? "claude" : nil }
+        XCTAssertEqual(items.map(\.agent), [nil, "claude"])
+    }
+
     func testNumbersMatchWholeNumbersOnly() {
         let items = [
             item("~/C/any2any", location: "any2any › Tab 1"),

@@ -101,6 +101,14 @@ final class AgentSessionStoreTests: XCTestCase {
         }
     }
 
+    func testTheRunningAgentIsNamedUntilItsSessionEnds() {
+        XCTAssertNil(store.runningAgent(in: surface))
+        send(.sessionStarted, agent: "claude")
+        XCTAssertEqual(store.runningAgent(in: surface), "claude")
+        send(.sessionEnded, agent: "claude")
+        XCTAssertNil(store.runningAgent(in: surface))
+    }
+
     func testAttentionRecordsAMessageWithoutChangingState() {
         send(.turnStarted, detail: "Read")
         send(.attention, detail: "look here")

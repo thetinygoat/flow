@@ -145,6 +145,12 @@ final class AgentSessionStore {
         if previous != AgentIndicator(session) { onChange?(surface) }
     }
 
+    /// The name the terminal's agent reports, until its session ends.
+    func runningAgent(in surface: UUID) -> String? {
+        guard let session = sessions[surface], session.state != .ended else { return nil }
+        return session.agent
+    }
+
     func remove(_ surface: UUID) {
         sessions.removeValue(forKey: surface)
     }

@@ -41,6 +41,9 @@ enum CommandPalette {
         /// The workspace, tab and pane, which a search matches, so "tab 1"
         /// and "left" find terminals without the row naming them.
         var location: String
+        /// The agent running in the terminal, which a search matches though
+        /// the row doesn't name it.
+        var agent: String?
         var layout: PaneLayout
     }
 
@@ -66,7 +69,7 @@ enum CommandPalette {
     // MARK: Items
 
     /// In sidebar order: each workspace's tabs, a split tab as its panes.
-    static func items<Leaf>(in store: WorkspaceStoreModel<Leaf>) -> [Item] {
+    static func items<Leaf>(in store: WorkspaceStoreModel<Leaf>, agent: (UUID) -> String? = { _ in nil }) -> [Item] {
         store.workspaces.flatMap { workspace in
             workspace.tabs.enumerated().flatMap { index, tab in
                 let location = "\(workspace.name) › Tab \(index + 1)"
@@ -74,13 +77,14 @@ enum CommandPalette {
                 let frames = frames(of: tab.panes.root, in: CGRect(x: 0, y: 0, width: 1, height: 1))
                 guard panes.count > 1 else {
                     return [Item(terminal: tab.focusedLeaf.id, title: tab.title, detail: directory(of: tab.focusedLeaf),
-                                 workspace: workspace.name, location: location, layout: PaneLayout(frames: frames, highlighted: 0))]
+                                 workspace: workspace.name, location: location, agent: agent(tab.focusedLeaf.id),
+                                 layout: PaneLayout(frames: frames, highlighted: 0))]
                 }
                 let zoomed = panes.firstIndex { $0 === tab.panes.zoomed }
                 return zip(panes.indices, zip(panes, positions(in: tab.panes.root))).map { index, pane in
                     let (leaf, position) = pane
                     return Item(terminal: leaf.id, title: leaf.displayTitle, detail: directory(of: leaf),
-                                workspace: workspace.name, location: "\(location) › \(position)",
+                                workspace: workspace.name, location: "\(location) › \(position)", agent: agent(leaf.id),
                                 layout: PaneLayout(frames: frames, highlighted: index, zoomed: zoomed))
                 }
             }
@@ -161,11 +165,11 @@ enum CommandPalette {
             .map(\.item)
     }
 
-    /// A query found in the title alone outranks one that needs the location
-    /// or directory too.
+    /// A query found in the title alone outranks one that needs the location,
+    /// directory or agent too.
     private static func score(_ words: [String], in item: Item) -> Int? {
         if let score = score(words, in: [item.title]) { return score + 1000 }
-        return score(words, in: [item.location, item.title, item.detail])
+        return score(words, in: [item.location, item.title, item.detail] + [item.agent].compactMap { $0 })
     }
 
     /// Nil unless every word of the query is found in one of the texts, in

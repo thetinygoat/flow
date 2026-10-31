@@ -381,7 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updatePaletteItems(after window: TerminalWindow) {
         let palettes = windows.compactMap(\.controller.commandPalette)
         guard !palettes.isEmpty else { return }
-        let changed = windows.contains { $0 === window } ? CommandPalette.items(in: window.store) : []
+        let changed = windows.contains { $0 === window } ? paletteItems(in: window) : []
         let current = Dictionary(uniqueKeysWithValues: changed.map { ($0.terminal, $0) })
         for palette in palettes {
             palette.updateItems { item in current[item.terminal] ?? (surface(withID: item.terminal) == nil ? nil : item) }
@@ -391,13 +391,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
         switch mode {
         case .places:
-            return CommandPalette.recentFirst(CommandPalette.items(in: window.store), recentlyFocused: window.store.recentlyFocused)
+            return CommandPalette.recentFirst(paletteItems(in: window), recentlyFocused: window.store.recentlyFocused)
         case .agents:
-            let items = ([window] + windows.filter { $0 !== window }).flatMap { CommandPalette.items(in: $0.store) }
+            let items = ([window] + windows.filter { $0 !== window }).flatMap(paletteItems(in:))
             let statuses = MainActor.assumeIsolated {
                 Dictionary(uniqueKeysWithValues: items.compactMap { item in agentSessions.status(of: item.terminal).map { (item.terminal, $0) } })
             }
             return CommandPalette.agents(items, current: window.focusedSurface?.id, statuses: statuses)
+        }
+    }
+
+    private func paletteItems(in window: TerminalWindow) -> [CommandPalette.Item] {
+        CommandPalette.items(in: window.store) { terminal in
+            MainActor.assumeIsolated { agentSessions.runningAgent(in: terminal) }
         }
     }
 

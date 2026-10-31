@@ -403,6 +403,7 @@ private final class PaletteItemView: NSTableCellView {
     private let detail = NSTextField(labelWithString: "")
     private let workspace = NSTextField(labelWithString: "")
     private let zoomIcon = NSImageView()
+    private let agentIcon = NSImageView()
     private let agentDot = AgentDotView()
 
     var agentIndicator: AgentIndicator? {
@@ -450,9 +451,17 @@ private final class PaletteItemView: NSTableCellView {
 
         // The workspace is on every row, so it takes the trailing edge and
         // lines up down the list. What only some rows show goes to its left.
-        let accessories = NSStackView(views: [zoomIcon, agentDot])
+        // An agent Flow has no icon for goes without one.
+        agentIcon.image = item.agent.flatMap { NSImage(named: "Agents/\($0)") }
+        agentIcon.isHidden = agentIcon.image == nil
+        agentIcon.contentTintColor = .secondaryLabelColor
+        agentIcon.imageScaling = .scaleProportionallyUpOrDown
+        agentIcon.toolTip = item.agent
+
+        let accessories = NSStackView(views: [zoomIcon, agentDot, agentIcon])
         accessories.orientation = .horizontal
         accessories.spacing = 10
+        accessories.setCustomSpacing(6, after: agentDot)
         for view in [icon, text, accessories, workspace] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
@@ -465,6 +474,8 @@ private final class PaletteItemView: NSTableCellView {
             text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
             text.centerYAnchor.constraint(equalTo: centerYAnchor),
             text.trailingAnchor.constraint(lessThanOrEqualTo: accessories.leadingAnchor, constant: -16),
+            agentIcon.widthAnchor.constraint(equalToConstant: 14),
+            agentIcon.heightAnchor.constraint(equalToConstant: 14),
             accessories.trailingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: -10),
             // On the middle of the lowercase letters, which sit below the
             // middle of the label.

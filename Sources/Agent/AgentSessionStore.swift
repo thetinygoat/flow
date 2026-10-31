@@ -18,6 +18,10 @@ final class AgentSessionStore {
         var finishedUnseen = false
         var startedAt: Date
         var updatedAt: Date
+        /// When the session took the indicator it shows, so agents can be
+        /// taken in the order they started waiting or finished. Repeated
+        /// events keep it; nil while it shows none.
+        var indicatorSince: Date?
     }
 
     /// One applied event, with the terminal's session before and after it.
@@ -113,6 +117,9 @@ final class AgentSessionStore {
         case .attention:
             session.attention = event.detail
         }
+        if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) {
+            session.indicatorSince = AgentIndicator(session) == nil ? nil : event.at
+        }
         sessions[surface] = session
         onUpdate?(Update(surface: surface, kind: event.kind, previous: previous, session: session))
         if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) {
@@ -133,8 +140,16 @@ final class AgentSessionStore {
         let previous = AgentIndicator(session)
         session.finishedUnseen = false
         session.attention = nil
+        if AgentIndicator(session) == nil { session.indicatorSince = nil }
         sessions[surface] = session
         if previous != AgentIndicator(session) { onChange?(surface) }
+    }
+
+    /// The name the terminal's agent reports, until its session ends. An
+    /// event sent by hand without a name has no agent to show.
+    func runningAgent(in surface: UUID) -> String? {
+        guard let session = sessions[surface], session.state != .ended, !session.agent.isEmpty else { return nil }
+        return session.agent
     }
 
     func remove(_ surface: UUID) {

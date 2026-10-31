@@ -74,7 +74,7 @@ final class MenuReuseTests: XCTestCase {
         }
         for _ in 0..<30 { menu.menuNeedsUpdate(menu.menu) }
         XCTAssertEqual(lookups, 1)
-        workspace.invalidateDerivedName()
+        workspace.invalidateDerivedNames()
         menu.menuNeedsUpdate(menu.menu)
         XCTAssertEqual(lookups, 2)
     }

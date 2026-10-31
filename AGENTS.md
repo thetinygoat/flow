@@ -3,7 +3,14 @@
 1. if a code comment explains how instead of why its unncessary, your code is too complicated, delete the comment and make the code better
 2. Do not refer to local files and folders in you code comments for example, the comment below is a bad comment because it refers to ../ghostty
    > # Builds libghostty from ../ghostty (branch flow-build: v1.3.1 + two Xcode 27)
-3. if you have fixed something in the terminal, close the old debug build if running, and start a new one.
+3. if you have fixed something in the terminal, close the old debug build if running, and start a new one. Start it with an empty environment, the way the Dock does, so its terminals don't inherit your session's variables (`CLAUDECODE`, `CLAUDE_CODE_*`, `FLOW_*`, `GHOSTTY_*`); otherwise an agent run inside it thinks it is nested in yours:
+
+   ```
+   pkill -f "Debug/Flow.app/Contents/MacOS/Flow"
+   env -i /usr/bin/open <BUILT_PRODUCTS_DIR>/Flow.app
+   ```
+
+   Plain `open` and `osascript ... activate` both pass the caller's environment to the app. Match `Contents/MacOS/Flow` in `pkill`: a shorter pattern also kills agents started in the debug build, whose arguments carry its `flw` path, and `pkill -x Flow` kills the installed Flow too.
 4. every keyboard shortcut Flow adds must be listed in the Keyboard Shortcuts window (the ? button in the title bar). The list is written by hand in `KeyboardShortcuts.all`, so add the new shortcut there whenever you add, change or remove one, named for what it does and in the section it belongs to. Open the window to check it, and add the shortcut to the site's keyboard shortcuts page at the next release.
 
 # releases

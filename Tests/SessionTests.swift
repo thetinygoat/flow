@@ -30,6 +30,25 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(store.selected?.id, last.id)
     }
 
+    func testSnapshotCanSaveOtherPlacesThanTheOnesInView() {
+        let store = TestStore()
+        let first = store.addWorkspace()
+        let tabs = (0..<2).map { _ in TestTab(leaf: FakeLeaf()) }
+        tabs.forEach(first.add)
+        first.select(tabs[0])
+        store.addWorkspace().add(TestTab(leaf: FakeLeaf()))
+        let places = store.places
+        store.select(first)
+        first.select(tabs[1])
+
+        let saved = store.snapshot(places: places)
+        XCTAssertEqual(saved.selectedWorkspace, 1)
+        XCTAssertEqual(saved.workspaces[0].selectedTab, 0)
+        let inView = store.snapshot()
+        XCTAssertEqual(inView.selectedWorkspace, 0)
+        XCTAssertEqual(inView.workspaces[0].selectedTab, 1)
+    }
+
     func testSavedSessionIsReadableAndDeterministic() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

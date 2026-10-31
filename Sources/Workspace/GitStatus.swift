@@ -126,41 +126,62 @@ final class GitStatusMonitor {
         }
     }
 
-    private var repositories: [String: GitRepository] = [:]
+    /// Nil for a directory outside any repository.
+    private var repositories: [String: GitRepository?] = [:]
     private var watched: [GitRepository: Watched] = [:]
     private let queue = DispatchQueue(label: "dev.thetinygoat.flow.git", qos: .utility)
     private(set) var finishedChecks = 0
 
     /// Watches the repositories behind `directories` and stops watching any
-    /// others. Directories are resolved again on every call, so a `git init`
-    /// or a deleted repository is picked up on the next change of directory.
+    /// others. Each directory's repository is looked up once, until
+    /// `forgetDirectories`.
     func watch(_ directories: [String]) {
-        repositories = Dictionary(directories.compactMap { directory in
-            GitRepository(containing: directory).map { (directory, $0) }
-        }, uniquingKeysWith: { first, _ in first })
-        let current = Set(repositories.values)
+        include(directories)
+        let current = Set(directories.compactMap { repositories[$0] ?? nil })
         for repository in watched.keys where !current.contains(repository) {
             watched.removeValue(forKey: repository)
         }
-        for repository in current where watched[repository] == nil {
-            let state = Watched(repository: repository)
-            // Paths are filtered where they arrive, off the main thread; a build
-            // can report thousands at a time.
-            state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
-                guard paths.contains(where: repository.isRelevant) else { return }
-                let headChanged = paths.contains(repository.gitDir + "/HEAD")
-                DispatchQueue.main.async {
-                    guard let self, let state, self.isCurrent(state) else { return }
-                    self.handle(headChanged: headChanged, in: state)
-                }
+    }
+
+    /// Also watches the repositories behind `directories`, leaving the rest
+    /// watched until the next `watch`. For directories shown only for a
+    /// moment, whose repositories are likely to be shown again.
+    func include(_ directories: [String]) {
+        for directory in directories {
+            if !repositories.keys.contains(directory) {
+                repositories[directory] = GitRepository(containing: directory)
             }
-            watched[repository] = state
-            requestCheck(state)
+            if let repository = repositories[directory] ?? nil {
+                startWatching(repository)
+            }
         }
     }
 
+    /// A `git init` or a deleted repository changes which repository a
+    /// directory is in, so each is looked up again on the next `watch`.
+    func forgetDirectories() {
+        repositories.removeAll()
+    }
+
+    private func startWatching(_ repository: GitRepository) {
+        guard watched[repository] == nil else { return }
+        let state = Watched(repository: repository)
+        // Paths are filtered where they arrive, off the main thread; a build
+        // can report thousands at a time.
+        state.events = FileEvents(paths: repository.watchedPaths()) { [weak self, weak state] paths in
+            guard paths.contains(where: repository.isRelevant) else { return }
+            let headChanged = paths.contains(repository.gitDir + "/HEAD")
+            DispatchQueue.main.async {
+                guard let self, let state, self.isCurrent(state) else { return }
+                self.handle(headChanged: headChanged, in: state)
+            }
+        }
+        watched[repository] = state
+        requestCheck(state)
+    }
+
     func status(for directory: String) -> GitStatus? {
-        guard let repository = repositories[directory], let state = watched[repository],
+        guard let repository = repositories[directory] ?? nil, let state = watched[repository],
               let branch = state.branch ?? state.gitBranch else { return nil }
         return GitStatus(branch: branch, isDirty: state.isDirty ?? false)
     }

@@ -16,6 +16,15 @@ extension String {
     }
 }
 
+extension PaneLeaf {
+    /// The terminal's own title, or else where it is.
+    var displayTitle: String {
+        if !title.isEmpty { return title }
+        guard let workingDirectory, !workingDirectory.isEmpty else { return "Terminal" }
+        return workingDirectory.abbreviatingHome
+    }
+}
+
 final class TabModel<Leaf: PaneLeaf> {
     let id = UUID()
     let panes: PaneTreeModel<Leaf>
@@ -32,9 +41,7 @@ final class TabModel<Leaf: PaneLeaf> {
     }
 
     var title: String {
-        if !focusedLeaf.title.isEmpty { return focusedLeaf.title }
-        guard let directory = focusedLeaf.workingDirectory, !directory.isEmpty else { return "Terminal" }
-        return directory.abbreviatingHome
+        focusedLeaf.displayTitle
     }
 
     func focus(_ leaf: Leaf) {
@@ -63,7 +70,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var customName: String?
     private(set) var tabs: [TabModel<Leaf>] = []
     private(set) var selectedTab: TabModel<Leaf>?
-    private var derivedName: (directory: String, name: String)?
+    /// By directory, so going back to a tab or pane looks nothing up again.
+    private var derivedNames: [String: String] = [:]
     private let resolveName: (String) -> String
 
     init(id: UUID = UUID(), customName: String? = nil,
@@ -76,14 +84,14 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     var name: String {
         if let customName { return customName }
         guard let directory = selectedTab?.focusedLeaf.workingDirectory else { return "~" }
-        if let derivedName, derivedName.directory == directory { return derivedName.name }
+        if let name = derivedNames[directory] { return name }
         let name = resolveName(directory)
-        derivedName = (directory, name)
+        derivedNames[directory] = name
         return name
     }
 
-    func invalidateDerivedName() {
-        derivedName = nil
+    func invalidateDerivedNames() {
+        derivedNames.removeAll()
     }
 
     /// Inside a repository the workspace is named after it, so it keeps its
@@ -133,6 +141,8 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
 final class WorkspaceStoreModel<Leaf: PaneLeaf> {
     private(set) var workspaces: [WorkspaceModel<Leaf>] = []
     private(set) var selected: WorkspaceModel<Leaf>?
+    /// Terminals by when they last had focus, most recent first.
+    private(set) var recentlyFocused: [UUID] = []
     var onChange: (() -> Void)?
     private var batchDepth = 0
     private var hasPendingChange = false
@@ -173,6 +183,54 @@ final class WorkspaceStoreModel<Leaf: PaneLeaf> {
         workspaces.insert(workspace, at: destination)
         notifyChanged()
         return true
+    }
+
+    /// Closed terminals drop out here, so the list stays as long as the
+    /// window has terminals.
+    func noteFocus(_ leaf: Leaf) {
+        let open = Set(workspaces.flatMap(\.tabs).flatMap(\.panes.leaves).map(\.id))
+        recentlyFocused.removeAll { $0 == leaf.id || !open.contains($0) }
+        recentlyFocused.insert(leaf.id, at: 0)
+    }
+
+    /// Which workspace is selected, which tab each workspace shows and which
+    /// pane each tab has focused.
+    struct Places {
+        let selected: WorkspaceModel<Leaf>?
+        fileprivate let selectedTabs: [(WorkspaceModel<Leaf>, TabModel<Leaf>)]
+        fileprivate let focusedLeaves: [(TabModel<Leaf>, Leaf)]
+
+        func selectedTab(in workspace: WorkspaceModel<Leaf>) -> TabModel<Leaf>? {
+            selectedTabs.first { $0.0 === workspace }?.1
+        }
+    }
+
+    var places: Places {
+        Places(selected: selected,
+               selectedTabs: workspaces.compactMap { workspace in workspace.selectedTab.map { (workspace, $0) } },
+               focusedLeaves: workspaces.flatMap(\.tabs).map { ($0, $0.focusedLeaf) })
+    }
+
+    /// Goes back to the places, apart from workspaces, tabs and panes closed
+    /// since. Observers hear of it, and it returns true, only when something
+    /// changes.
+    @discardableResult
+    func show(_ places: Places) -> Bool {
+        var changed = false
+        for (tab, leaf) in places.focusedLeaves where tab.focusedLeaf !== leaf && tab.panes.contains(leaf) {
+            tab.focus(leaf)
+            changed = true
+        }
+        for (workspace, tab) in places.selectedTabs where workspace.selectedTab !== tab && workspace.tabs.contains(where: { $0 === tab }) {
+            workspace.select(tab)
+            changed = true
+        }
+        if let workspace = places.selected, workspace !== selected, workspaces.contains(where: { $0 === workspace }) {
+            selected = workspace
+            changed = true
+        }
+        if changed { notifyChanged() }
+        return changed
     }
 
     func workspace(containing leaf: Leaf) -> (WorkspaceModel<Leaf>, TabModel<Leaf>)? {

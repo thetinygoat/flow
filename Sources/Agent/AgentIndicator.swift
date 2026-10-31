@@ -20,7 +20,18 @@ enum AgentIndicator: Int, Comparable {
     }
 }
 
+/// A terminal's indicator and when it took it.
+struct AgentStatus: Equatable {
+    var indicator: AgentIndicator
+    var since: Date
+}
+
 extension AgentSessionStore {
+    func status(of surface: UUID) -> AgentStatus? {
+        guard let session = sessions[surface], let indicator = AgentIndicator(session) else { return nil }
+        return AgentStatus(indicator: indicator, since: session.indicatorSince ?? session.updatedAt)
+    }
+
     func indicator(for surfaces: some Sequence<UUID>) -> AgentIndicator? {
         var result: AgentIndicator?
         for surface in surfaces {

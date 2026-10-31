@@ -7,6 +7,8 @@ final class MainWindowController: NSWindowController {
     let terminalArea = TerminalAreaViewController()
     private let store: WorkspaceStore
     private let content: WindowContentViewController
+    private(set) var commandPalette: CommandPaletteView?
+    var agentIndicator: @MainActor (UUID) -> AgentIndicator? = { _ in nil }
     var onResetZoom: (() -> Void)?
     var onNewWorkspace: (() -> Void)?
     private let sidebarAccessory = NSTitlebarAccessoryViewController()
@@ -111,8 +113,8 @@ final class MainWindowController: NSWindowController {
     }
 
     /// Re-reads the store and updates the sidebar, tab strip, and window title.
-    func refresh() {
-        sidebar.reload()
+    func refresh(isPreview: Bool = false) {
+        sidebar.reload(isPreview: isPreview)
         terminalArea.show(store.selected)
         updateWindowTitle()
         // The accessory controller's own isHidden is not honored in the
@@ -146,6 +148,26 @@ final class MainWindowController: NSWindowController {
             window?.layoutIfNeeded()
         }
         sidebar.beginRename(of: workspace)
+    }
+
+    /// Covers the whole window, so a click anywhere outside the palette cancels it.
+    func showCommandPalette(_ palette: CommandPaletteView) {
+        closeCommandPalette()
+        commandPalette = palette
+        palette.translatesAutoresizingMaskIntoConstraints = false
+        content.view.addSubview(palette)
+        NSLayoutConstraint.activate([
+            palette.leadingAnchor.constraint(equalTo: content.view.leadingAnchor),
+            palette.trailingAnchor.constraint(equalTo: content.view.trailingAnchor),
+            palette.topAnchor.constraint(equalTo: content.view.topAnchor),
+            palette.bottomAnchor.constraint(equalTo: content.view.bottomAnchor),
+        ])
+        palette.focusField()
+    }
+
+    func closeCommandPalette() {
+        commandPalette?.removeFromSuperview()
+        commandPalette = nil
     }
 
     @objc func toggleWorkspaceSidebar(_ sender: Any?) {

@@ -53,6 +53,16 @@ final class TerminalSurfaceView: NSView {
     private var pendingConfiguration: TerminalSurfaceConfiguration?
     /// The directory the shell was started in, until the shell reports its own.
     let initialWorkingDirectory: String?
+    /// While set, an unopened pane that comes into view waits to start, so
+    /// passing over it in the command palette leaves it unopened.
+    var defersStart = false {
+        didSet {
+            if surface == nil { needsDisplay = true }
+            guard !defersStart, window != nil, pendingConfiguration != nil else { return }
+            start()
+            updateWindowState()
+        }
+    }
 
     private(set) var title = "" {
         didSet { if title != oldValue { delegate?.surfaceTitleDidChange(self) } }
@@ -243,8 +253,29 @@ final class TerminalSurfaceView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil { start() }
+        if window != nil, !defersStart { start() }
         windowObserver.observe(window)
+        updateWindowState()
+    }
+
+    /// Ghostty draws a started terminal into a layer of its own. One waiting
+    /// to start shows the terminal's background rather than whatever is
+    /// behind the window, and says why it is empty, which would otherwise
+    /// look like a terminal that stopped responding.
+    override func draw(_ dirtyRect: NSRect) {
+        guard surface == nil, let config = runtime?.config else { return }
+        config.backgroundColor.withAlphaComponent(config.backgroundOpacity).setFill()
+        dirtyRect.intersection(bounds).fill()
+        guard defersStart else { return }
+        let note = NSAttributedString(string: "Starts when chosen", attributes: [
+            .font: NSFont.systemFont(ofSize: 13),
+            .foregroundColor: config.foregroundColor.withAlphaComponent(0.5),
+        ])
+        let size = note.size()
+        note.draw(at: NSPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2))
+    }
+
+    private func updateWindowState() {
         updateDisplay()
         updateOcclusion()
         // Being detached while first responder loses focus without a
@@ -369,9 +400,11 @@ final class TerminalSurfaceView: NSView {
         }
     }
 
+    /// Hit-tested from the top of the window, so a view drawn over the
+    /// terminal, such as the command palette, keeps its clicks.
     private func isUnderMouse(_ event: NSEvent) -> Bool {
-        guard let window, event.window === window, let superview else { return false }
-        return hitTest(superview.convert(event.locationInWindow, from: nil)) === self
+        guard let window, event.window === window, let content = window.contentView else { return false }
+        return content.hitTest(content.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow) === self
     }
 
     private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {

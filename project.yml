@@ -25,6 +25,7 @@ targets:
       - path: Resources/AppIcon.icon
         type: file
         buildPhase: resources
+      - path: Resources/Assets.xcassets
       - path: LICENSE
         buildPhase: resources
       - path: THIRD_PARTY_LICENSES.md
@@ -163,6 +164,9 @@ targets:
     sources:
       - path: Tests
       - path: Sources/Logger.swift
+      - path: Sources/AppFolder.swift
+      - path: Sources/UI/CommandPalette.swift
+      - path: Sources/UI/CommandPaletteView.swift
       - path: Sources/Workspace/PaneTree.swift
       - path: Sources/Workspace/Workspace.swift
       - path: Sources/Workspace/Session.swift

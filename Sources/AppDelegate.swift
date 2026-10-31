@@ -77,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             isLive: { [weak self] id in self?.surface(withID: id) != nil },
             isVisible: { [weak self] id in self?.isInView(id) == true })
         agentSessions.onChange = { [weak self] id in
+            // The agents palette lists every window's terminals.
+            self?.windows.forEach { $0.controller.commandPalette?.updateAgentIndicators() }
             guard let (window, surface) = self?.surface(withID: id),
                   let (workspace, tab) = window.store.workspace(containing: surface) else { return }
             window.controller.agentsDidChange(in: workspace, tab: tab)
@@ -137,7 +139,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             windows.compactMap(\.focusedSurface).forEach(markSeenIfInView)
         }
+        // A menu command acts on where the palette was opened, not on a place
+        // it is only previewing, so the palette is cancelled first. Editing
+        // commands belong to its search field, and the palette's own
+        // shortcuts step through it.
+        NotificationCenter.default.addObserver(forName: NSMenu.willSendActionNotification, object: nil, queue: nil) { [weak self] notification in
+            guard let action = (notification.userInfo?["MenuItem"] as? NSMenuItem)?.action,
+                  !Self.actionsKeepingThePalette.contains(action) else { return }
+            MainActor.assumeIsolated {
+                self?.keyWindow?.controller.commandPalette?.cancel()
+            }
+        }
+        // The menus would otherwise list the previewed workspace's tabs,
+        // while their commands act on where the palette was opened.
+        NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: NSApp.mainMenu, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.keyWindow?.controller.commandPalette?.cancel()
+            }
+        }
     }
+
+    private static let actionsKeepingThePalette: Set<Selector> = [
+        #selector(showPlaces), #selector(showAgents),
+        #selector(NSText.copy(_:)), #selector(NSText.paste(_:)), #selector(NSText.selectAll(_:)),
+    ]
 
     func applicationWillTerminate(_ notification: Notification) {
         loadedSettings?.saveNow()
@@ -223,6 +248,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
+        }
+        window.controller.agentIndicator = { [unowned self] terminal in
+            agentSessions.indicator(for: [terminal])
         }
         window.controller.applyAppearance(config: runtime.config, app: runtime.app)
         windows.append(window)
@@ -326,6 +354,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyWindow?.selectTab(at: sender.tag)
     }
 
+    // MARK: Command palette
+
+    @objc private func showPlaces() {
+        keyWindow.map { showPalette(.places, in: $0) }
+    }
+
+    @objc private func showAgents() {
+        keyWindow.map { showPalette(.agents, in: $0) }
+    }
+
+    /// The places are the window's own. The agents are every window's, since
+    /// one waiting in another window is as much the user's to answer.
+    private func showPalette(_ mode: CommandPalette.Mode, in window: TerminalWindow) {
+        window.showCommandPalette(mode, items: paletteItems(mode, in: window)) { [weak self] item in
+            guard let (window, surface) = self?.surface(withID: item.terminal) else { return }
+            window.reveal(surface)
+        }
+    }
+
+    /// A window changing its own terminals cancels its palette first, but
+    /// the agents palette lists every window's, whose tabs and panes can
+    /// close or move meanwhile. Only the changed window's items are made
+    /// again: a palette's own window shows previews, which would otherwise
+    /// rename its rows.
+    private func updatePaletteItems(after window: TerminalWindow) {
+        let palettes = windows.compactMap(\.controller.commandPalette)
+        guard !palettes.isEmpty else { return }
+        let changed = windows.contains { $0 === window } ? paletteItems(in: window) : []
+        let current = Dictionary(uniqueKeysWithValues: changed.map { ($0.terminal, $0) })
+        for palette in palettes {
+            palette.updateItems { item in current[item.terminal] ?? (surface(withID: item.terminal) == nil ? nil : item) }
+        }
+    }
+
+    private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
+        switch mode {
+        case .places:
+            return CommandPalette.recentFirst(paletteItems(in: window), recentlyFocused: window.store.recentlyFocused)
+        case .agents:
+            let items = ([window] + windows.filter { $0 !== window }).flatMap(paletteItems(in:))
+            let statuses = MainActor.assumeIsolated {
+                Dictionary(uniqueKeysWithValues: items.compactMap { item in agentSessions.status(of: item.terminal).map { (item.terminal, $0) } })
+            }
+            return CommandPalette.agents(items, current: window.focusedSurface?.id, statuses: statuses)
+        }
+    }
+
+    private func paletteItems(in window: TerminalWindow) -> [CommandPalette.Item] {
+        CommandPalette.items(in: window.store) { terminal in
+            MainActor.assumeIsolated { agentSessions.runningAgent(in: terminal) }
+        }
+    }
+
     private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
@@ -361,7 +442,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Sessions of terminals that have closed would otherwise linger, and
     /// their ids are never reused.
-    private func forgetClosedAgentSessions() {
+    private func forgetClosedTerminals(after window: TerminalWindow) {
+        updatePaletteItems(after: window)
         MainActor.assumeIsolated {
             for id in agentSessions.sessions.keys where surface(withID: id) == nil {
                 agentSessions.remove(id)
@@ -468,6 +550,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
+        viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
+        viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: "i")
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")
@@ -486,12 +570,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             target: self,
             selectWorkspace: #selector(selectWorkspace(_:)),
             selectTab: #selector(selectTab(_:)))
+        // From where the user is rather than a place the command palette
+        // previews: a tab's shortcut can be pressed during a preview, and is
+        // matched against these items before the palette is cancelled.
         workspaceMenu.contents = { [weak self] in
-            guard let store = self?.keyWindow?.store else { return nil }
-            let tabs = store.selected?.tabs ?? []
+            guard let window = self?.keyWindow else { return nil }
+            let workspaces = window.store.workspaces
+            let places = window.places
+            let tabs = places.selected?.tabs ?? []
+            let selectedTab = places.selected.flatMap(places.selectedTab)
             return WorkspaceMenu.Contents(
-                workspaces: .init(names: store.workspaces.map(\.name), selected: store.workspaces.firstIndex { $0 === store.selected }),
-                tabs: .init(names: tabs.map(\.title), selected: tabs.firstIndex { $0 === store.selected?.selectedTab }))
+                workspaces: .init(names: workspaces.map(\.name), selected: workspaces.firstIndex { $0 === places.selected }),
+                tabs: .init(names: tabs.map(\.title), selected: tabs.firstIndex { $0 === selectedTab }))
         }
         mainMenu.addItem(submenu: workspaceMenu.menu, title: "Workspace")
 
@@ -514,6 +604,9 @@ extension AppDelegate: NSMenuItemValidation {
         }
         if menuItem.action == #selector(renameWorkspace) {
             return keyWindow?.store.selected != nil
+        }
+        if menuItem.action == #selector(showPlaces) || menuItem.action == #selector(showAgents) {
+            return keyWindow != nil
         }
         return true
     }
@@ -565,6 +658,10 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 
     func runtime(_ runtime: GhosttyRuntime, wantsSecureKeyboardEntry enabled: Bool) {
         setSecureKeyboardEntry(enabled)
+    }
+
+    func runtime(_ runtime: GhosttyRuntime, wantsCommandPaletteFrom surface: TerminalSurfaceView) {
+        window(containing: surface).map { showPalette(.places, in: $0) }
     }
 
     func runtimeWantsOpenConfig(_ runtime: GhosttyRuntime) {
@@ -627,13 +724,13 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {
-        forgetClosedAgentSessions()
+        forgetClosedTerminals(after: window)
         scheduleSave()
     }
 
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
-        forgetClosedAgentSessions()
+        forgetClosedTerminals(after: window)
         scheduleSave()
     }
 
@@ -643,7 +740,7 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     }
 
     func surfaceDirectoryDidChange(_ surface: TerminalSurfaceView) {
-        window(containing: surface)?.controller.refresh()
+        window(containing: surface)?.directoryDidChange()
         scheduleSave()
     }
 

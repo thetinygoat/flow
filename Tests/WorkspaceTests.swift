@@ -81,6 +81,40 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(workspace.tabs(closing: .this, from: TestTab(leaf: FakeLeaf("elsewhere"))).count, 0)
     }
 
+    func testShowingPlacesPutsBackSelectionsAndFocus() {
+        let store = TestStore()
+        let first = store.addWorkspace()
+        let left = FakeLeaf(), right = FakeLeaf()
+        let split = TestTab(leaf: left)
+        split.panes.split(left, direction: .right, with: right)
+        first.add(split)
+        let other = TestTab(leaf: FakeLeaf())
+        first.add(other)
+        let second = store.addWorkspace()
+        second.add(TestTab(leaf: FakeLeaf()))
+        let places = store.places
+        var changes = 0
+        store.onChange = { changes += 1 }
+
+        XCTAssertFalse(store.show(places))
+        XCTAssertEqual(changes, 0, "nothing to put back")
+
+        store.select(first)
+        first.select(split)
+        split.focus(right)
+        changes = 0
+        XCTAssertTrue(store.show(places))
+        XCTAssertEqual(changes, 1)
+        XCTAssertTrue(store.selected === second)
+        XCTAssertTrue(first.selectedTab === other)
+        XCTAssertTrue(split.focusedLeaf === left)
+
+        first.select(split)
+        first.remove(other)
+        store.show(places)
+        XCTAssertTrue(first.selectedTab === split, "a closed tab is not selected again")
+    }
+
     func testDerivedNameCacheFollowsDirectoryFocusAndTabChanges() {
         var lookups: [String] = []
         let workspace = WorkspaceModel<FakeLeaf>(resolveName: { path in
@@ -109,9 +143,10 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(workspace.name, "other")
         workspace.select(tab)
         XCTAssertEqual(workspace.name, "renamed")
-        workspace.invalidateDerivedName()
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other"], "a directory already named")
+        workspace.invalidateDerivedNames()
         XCTAssertEqual(workspace.name, "renamed")
-        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other", "/renamed", "/renamed"])
+        XCTAssertEqual(lookups, ["/first", "/second", "/changed", "/renamed", "/other", "/renamed"])
     }
 
     func testNameFollowsDirectoryUntilRenamed() {

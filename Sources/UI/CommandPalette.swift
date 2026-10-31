@@ -24,14 +24,6 @@ enum CommandPalette {
             }
         }
 
-        /// The places list starts on the place in view, so stepping once goes
-        /// back to the previous one. The agents list leaves the place in view
-        /// out, so it starts on nothing and stepping once goes to the agent
-        /// that has waited longest.
-        var startsUnselected: Bool {
-            self == .agents
-        }
-
         /// Working agents are listed for completeness but don't need the user yet.
         var dimsWorkingAgents: Bool {
             self == .agents
@@ -145,16 +137,16 @@ enum CommandPalette {
             .map(\.element)
     }
 
-    /// The agents waiting for input, then the finished ones and the working
-    /// ones, each longest first. Terminals without an agent to show are left
-    /// out, and so is the one in view, since going to it goes nowhere.
+    /// The agent in view, then the ones waiting for input, the finished ones
+    /// and the working ones, each longest first. Terminals without an agent
+    /// to show are left out.
     static func agents(_ items: [Item], current: UUID?, statuses: [UUID: AgentStatus]) -> [Item] {
         // A finished turn needs the user sooner than one still running.
         let rank: [AgentIndicator: Int] = [.waiting: 0, .done: 1, .working: 2]
         return items.enumerated()
-            .compactMap { index, item -> (item: Item, key: (Int, Date, Int))? in
-                guard item.terminal != current, let status = statuses[item.terminal] else { return nil }
-                return (item, (rank[status.indicator]!, status.since, index))
+            .compactMap { index, item -> (item: Item, key: (Int, Int, Date, Int))? in
+                guard let status = statuses[item.terminal] else { return nil }
+                return (item, (item.terminal == current ? 0 : 1, rank[status.indicator]!, status.since, index))
             }
             .sorted { $0.key < $1.key }
             .map(\.item)

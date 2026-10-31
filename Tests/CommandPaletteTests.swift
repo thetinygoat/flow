@@ -225,10 +225,11 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(agents(items, ["c": (.done, 5), "a": (.done, 5), "b": (.done, 5)]), ["a", "b", "c"])
     }
 
-    func testAgentsLeaveOutTheTerminalInView() {
+    func testAgentsPutTheTerminalInViewFirst() {
         let items = ["a", "b", "c"].map { item($0) }
-        XCTAssertEqual(agents(items, current: items[2], ["a": (.waiting, 2), "b": (.waiting, 1), "c": (.waiting, 0)]), ["b", "a"])
-        XCTAssertEqual(agents(items, current: items[0], ["a": (.waiting, 1)]), [])
+        XCTAssertEqual(agents(items, current: items[2], ["a": (.waiting, 2), "b": (.waiting, 1), "c": (.working, 0)]), ["c", "b", "a"])
+        XCTAssertEqual(agents(items, current: items[0], ["a": (.waiting, 1)]), ["a"])
+        XCTAssertEqual(agents(items, current: items[0], ["b": (.waiting, 1)]), ["b"], "the terminal in view has no agent")
     }
 
     // MARK: Search
@@ -293,25 +294,47 @@ final class CommandPaletteTests: XCTestCase {
 
 @MainActor
 final class CommandPaletteViewTests: XCTestCase {
-    func testItemsFollowOtherWindowsWithoutMovingTheSelection() {
-        let items = (0..<3).map { index in
+    private func items(_ count: Int) -> [CommandPalette.Item] {
+        (0..<count).map { index in
             CommandPalette.Item(terminal: UUID(), title: "\(index)", detail: "", location: "", fullLocation: "",
                                 layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
         }
+    }
+
+    func testStartsOnTheTerminalInViewSoSteppingOnceGoesToTheNext() {
+        let items = items(3)
+        let palette = CommandPaletteView(.agents, items: items, current: items[0].terminal, agentIndicator: { _ in nil })
+        var selected: [UUID?] = []
+        palette.onSelect = { selected.append($0?.terminal) }
+        palette.selectNext()
+        XCTAssertEqual(selected, [items[1].terminal])
+    }
+
+    func testStartsOnNothingWhenTheTerminalInViewIsNotListed() {
+        let items = items(3)
+        let palette = CommandPaletteView(.agents, items: items, current: UUID(), agentIndicator: { _ in nil })
+        var selected: [UUID?] = []
+        palette.onSelect = { selected.append($0?.terminal) }
+        palette.selectNext()
+        XCTAssertEqual(selected, [items[0].terminal])
+    }
+
+    func testItemsFollowOtherWindowsWithoutMovingTheSelection() {
+        let items = items(3)
         var current = Dictionary(uniqueKeysWithValues: items.map { ($0.terminal, $0) })
-        let palette = CommandPaletteView(.places, items: items, agentIndicator: { _ in nil })
+        let palette = CommandPaletteView(.places, items: items, current: items[0].terminal, agentIndicator: { _ in nil })
         var selected: [UUID?] = []
         palette.onSelect = { selected.append($0?.terminal) }
         palette.selectNext()
         XCTAssertEqual(selected, [items[1].terminal])
 
-        current[items[0].terminal] = nil
+        current[items[2].terminal] = nil
         current[items[1].terminal]?.location = "Tab 1"
         palette.updateItems { current[$0.terminal] }
         XCTAssertEqual(selected, [items[1].terminal], "still on its item, so nothing new to preview")
 
         current[items[1].terminal] = nil
         palette.updateItems { current[$0.terminal] }
-        XCTAssertEqual(selected, [items[1].terminal, items[2].terminal])
+        XCTAssertEqual(selected, [items[1].terminal, items[0].terminal], "back on the terminal in view")
     }
 }

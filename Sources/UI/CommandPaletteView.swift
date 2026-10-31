@@ -8,6 +8,9 @@ import AppKit
 /// place and ⌘I I to the agent that has waited longest.
 final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let mode: CommandPalette.Mode
+    /// The terminal in view, which the palette starts on so that stepping once
+    /// goes to the previous place or the agent that has waited longest.
+    private let current: UUID?
     /// The terminal the palette was opened from. Its menu commands, such as
     /// Find or a font size change, stay enabled while the palette has the
     /// keyboard; the palette is cancelled before they are sent, which puts
@@ -38,8 +41,10 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private let panel = PalettePanel()
     private var tableHeight: NSLayoutConstraint!
 
-    init(_ mode: CommandPalette.Mode, items: [CommandPalette.Item], agentIndicator: @escaping @MainActor (UUID) -> AgentIndicator?) {
+    init(_ mode: CommandPalette.Mode, items: [CommandPalette.Item], current: UUID?,
+         agentIndicator: @escaping @MainActor (UUID) -> AgentIndicator?) {
         self.mode = mode
+        self.current = current
         self.items = items
         self.agentIndicator = agentIndicator
         super.init(frame: .zero)
@@ -224,8 +229,9 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         cancel()
     }
 
-    /// The best match is selected, and so previewed, unless the mode starts
-    /// on nothing and there is no search, or the terminal to keep is shown.
+    /// The terminal to keep stays selected while it is shown. Otherwise a
+    /// search selects, and so previews, its best match, and no search the
+    /// terminal in view.
     private func update(keeping terminal: UUID? = nil) {
         isUpdating = true
         shown = CommandPalette.filter(items, query: field.stringValue)
@@ -233,12 +239,11 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         message.isHidden = !shown.isEmpty
         message.stringValue = items.isEmpty ? mode.emptyMessage : "No matches"
         tableHeight.constant = Self.rowHeight * CGFloat(min(max(shown.count, 1), Self.visibleRows))
-        if let row = shown.firstIndex(where: { $0.terminal == terminal }) {
+        let isSearching = !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty
+        if let row = row(of: terminal) ?? (isSearching ? shown.indices.first : row(of: current)) {
             select(row)
-        } else if mode.startsUnselected && field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty {
-            tableView.deselectAll(nil)
         } else {
-            select(0)
+            tableView.deselectAll(nil)
         }
         isUpdating = false
         reportSelection()
@@ -249,6 +254,10 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
         guard item?.terminal != selectedTerminal else { return }
         selectedTerminal = item?.terminal
         onSelect?(item)
+    }
+
+    private func row(of terminal: UUID?) -> Int? {
+        shown.firstIndex { $0.terminal == terminal }
     }
 
     private func select(_ row: Int) {

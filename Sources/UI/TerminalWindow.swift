@@ -205,7 +205,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
         let origin = store.places
         paletteOrigin = origin
         setDefersStart(true)
-        let palette = CommandPaletteView(mode, items: items(), agentIndicator: controller.agentIndicator)
+        let palette = CommandPaletteView(mode, items: items(), current: focusedSurface?.id, agentIndicator: controller.agentIndicator)
         palette.commandTarget = focusedSurface
         palette.onSelect = { [weak self] item in
             guard let self else { return }

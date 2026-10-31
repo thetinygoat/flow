@@ -338,6 +338,29 @@ final class CommandPaletteViewTests: XCTestCase {
         }
     }
 
+    private func type(_ text: String, in palette: CommandPaletteView) throws {
+        func fields(in view: NSView) -> [NSTextField] {
+            view.subviews.flatMap { ([$0 as? NSTextField].compactMap { $0 }.filter(\.isEditable)) + fields(in: $0) }
+        }
+        let field = try XCTUnwrap(fields(in: palette).first)
+        field.stringValue = text
+        palette.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: field))
+    }
+
+    func testASearchSelectsItsBestMatchOverTheTerminalInView() throws {
+        var items = items(2)
+        items[0].title = "apiary"
+        items[1].title = "api"
+        let (current, api) = (items[0], items[1])
+        let palette = CommandPaletteView(.places, items: items, current: current.terminal, agentIndicator: { _ in nil })
+        var selected: [UUID?] = []
+        palette.onSelect = { selected.append($0?.terminal) }
+        try type("api", in: palette)
+        XCTAssertEqual(selected, [api.terminal], "the terminal in view matches too, but less well")
+        try type("", in: palette)
+        XCTAssertEqual(selected, [api.terminal, current.terminal])
+    }
+
     func testStartsOnTheTerminalInViewSoSteppingOnceGoesToTheNext() {
         let items = items(3)
         let palette = CommandPaletteView(.agents, items: items, current: items[0].terminal, agentIndicator: { _ in nil })

@@ -407,7 +407,10 @@ private final class PaletteItemView: NSTableCellView {
 
     var agentIndicator: AgentIndicator? {
         get { agentDot.indicator }
-        set { agentDot.indicator = newValue }
+        set {
+            agentDot.indicator = newValue
+            agentDot.isHidden = newValue == nil
+        }
     }
 
     init(item: CommandPalette.Item) {
@@ -428,6 +431,7 @@ private final class PaletteItemView: NSTableCellView {
         location.alignment = .right
         location.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        zoomIcon.isHidden = item.layout.zoom == nil
         if let zoom = item.layout.zoom {
             // The same arrows as zooming a pane and the title bar's Reset zoom.
             let (symbol, label) = switch zoom {
@@ -445,10 +449,12 @@ private final class PaletteItemView: NSTableCellView {
         text.alignment = .leading
         text.spacing = 1
 
-        // Fixed columns, so every row's parts line up whatever it holds. The
-        // zoom and agent columns are kept on rows without them for the same
-        // reason. The agent dot sits at the trailing edge, as in the sidebar.
-        for view in [icon, text, location, zoomIcon, agentDot] {
+        // The location is on every row, so it takes the trailing edge and
+        // lines up down the list. What only some rows show goes to its left.
+        let trailing = NSStackView(views: [zoomIcon, agentDot, location])
+        trailing.orientation = .horizontal
+        trailing.spacing = 10
+        for view in [icon, text, trailing] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -459,14 +465,9 @@ private final class PaletteItemView: NSTableCellView {
             icon.heightAnchor.constraint(equalToConstant: 16),
             text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
             text.centerYAnchor.constraint(equalTo: centerYAnchor),
-            text.trailingAnchor.constraint(lessThanOrEqualTo: location.leadingAnchor, constant: -16),
-            location.trailingAnchor.constraint(equalTo: zoomIcon.leadingAnchor, constant: -10),
-            location.centerYAnchor.constraint(equalTo: centerYAnchor),
-            zoomIcon.trailingAnchor.constraint(equalTo: agentDot.leadingAnchor, constant: -10),
-            zoomIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            zoomIcon.widthAnchor.constraint(equalToConstant: 16),
-            agentDot.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-            agentDot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            text.trailingAnchor.constraint(lessThanOrEqualTo: trailing.leadingAnchor, constant: -16),
+            trailing.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            trailing.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 

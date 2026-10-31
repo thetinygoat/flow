@@ -32,7 +32,7 @@ struct AgentNotification: Equatable {
             return AgentNotification(title: title, body: session.detail.nonEmpty ?? finishedBody)
         case .attention:
             return session.attention.nonEmpty.map { AgentNotification(title: title, body: $0) }
-        case .launched, .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown:
+        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown:
             return nil
         }
     }

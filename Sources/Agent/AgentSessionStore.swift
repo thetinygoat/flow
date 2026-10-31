@@ -29,7 +29,7 @@ final class AgentSessionStore {
         var alerts: Bool {
             switch kind {
             case .needsInput, .turnEnded, .attention: true
-            case .launched, .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: false
+            case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: false
             }
         }
 
@@ -83,7 +83,7 @@ final class AgentSessionStore {
         // startup hooks can land after its turn has begun.
         let restatesLiveSession = event.kind == .sessionStarted && previous.map { $0.sessionID == event.sessionID && $0.state != .ended } == true
         // Each hook reaches the socket in its own process, so a later hook can
-        // overtake an earlier one, and the agent's own events its launch.
+        // overtake an earlier one.
         if let previous, event.kind != .sessionStarted, event.at < previous.updatedAt {
             logger.notice("agent event \(event.kind.rawValue, privacy: .public) ignored: older than the last one for terminal \(surface.uuidString, privacy: .public)")
             return
@@ -92,8 +92,7 @@ final class AgentSessionStore {
 
         // A session that ended, or was never announced, is started afresh by
         // whatever the agent says next, in case its sessionStarted was missed.
-        let startsSession = event.kind == .launched || (event.kind == .sessionStarted && !restatesLiveSession)
-        var session = previous.flatMap { startsSession || $0.state == .ended ? nil : $0 }
+        var session = previous.flatMap { (event.kind == .sessionStarted && !restatesLiveSession) || $0.state == .ended ? nil : $0 }
             ?? Session(agent: event.agent, sessionID: event.sessionID, startedAt: event.at, updatedAt: event.at)
         session.agent = event.agent
         session.sessionID = event.sessionID
@@ -103,7 +102,7 @@ final class AgentSessionStore {
         }
 
         switch event.kind {
-        case .launched, .sessionStarted, .unknown:
+        case .sessionStarted, .unknown:
             break
         case .turnStarted, .working:
             session.state = .working
@@ -150,14 +149,6 @@ final class AgentSessionStore {
     func runningAgent(in surface: UUID) -> String? {
         guard let session = sessions[surface], session.state != .ended else { return nil }
         return session.agent
-    }
-
-    /// The shell has its prompt back, so whatever agent ran in the terminal
-    /// has exited, whether or not it said so.
-    func endSession(in surface: UUID, at: Date) {
-        guard let session = sessions[surface], session.state != .ended else { return }
-        apply(AgentEvent(agent: session.agent, kind: .sessionEnded, sessionID: session.sessionID, surfaceID: surface,
-                         workspaceID: nil, cwd: "", at: max(at, session.updatedAt)))
     }
 
     func remove(_ surface: UUID) {

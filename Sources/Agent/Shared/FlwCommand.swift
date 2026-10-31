@@ -25,7 +25,7 @@ enum FlwCommand: Equatable {
                flw agents refresh
                flw ping
 
-        kinds: launched sessionStarted turnStarted working needsInput turnEnded sessionEnded attention
+        kinds: sessionStarted turnStarted working needsInput turnEnded sessionEnded attention
         """
 
     static func parse(_ arguments: [String], environment: [String: String], currentDirectory: String, now: Date) throws -> FlwCommand {

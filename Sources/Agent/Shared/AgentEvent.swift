@@ -7,9 +7,6 @@ struct AgentEvent: Codable, Equatable {
 
     enum Kind: String, Codable {
         case sessionStarted, turnStarted, working, needsInput, turnEnded, sessionEnded, attention
-        /// `flw` is starting the agent, which has no session yet. Some agents
-        /// report nothing until the first prompt.
-        case launched
         /// A kind from a newer `flw` than this app, which it can safely skip.
         case unknown
 

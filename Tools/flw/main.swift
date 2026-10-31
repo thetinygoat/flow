@@ -17,10 +17,7 @@ func resolve(_ socket: String?) -> String? {
     socket ?? AgentEnvironment.newestRunningSocket()?.path
 }
 
-/// Waiting tells the agent's hook that Flow has the event. `launch` can't
-/// wait: it has no deadline to give up at, as the agent must start whatever
-/// Flow is doing.
-func send(_ event: AgentEvent, to socket: String?, waits: Bool = true) throws {
+func send(_ event: AgentEvent, to socket: String?) throws {
     guard let socket = resolve(socket) else {
         debug("no Flow is running")
         return
@@ -30,7 +27,7 @@ func send(_ event: AgentEvent, to socket: String?, waits: Bool = true) throws {
         return
     }
     if UnixSocket.write(try event.line(), to: fd) {
-        if waits { UnixSocket.awaitClose(fd) }
+        UnixSocket.awaitClose(fd)
     } else {
         debug("cannot write to \(socket): \(String(cString: strerror(errno)))")
     }
@@ -92,10 +89,6 @@ do {
         guard let launcher = AgentLauncher(adapter, arguments: arguments, environment: environment, flw: flw) else {
             FileHandle.standardError.write(Data("\(adapter.binary): command not found\n".utf8))
             exit(127)
-        }
-        if let announcement = AgentLauncher.announcement(of: adapter, environment: environment,
-                                                         cwd: FileManager.default.currentDirectoryPath, at: now) {
-            try? send(announcement, to: environment[AgentEnvironment.socketKey], waits: false)
         }
         launcher.exec()
     case let .shims(directory):

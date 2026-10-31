@@ -30,15 +30,6 @@ struct AgentLauncher: Equatable {
         self.environment = environment
     }
 
-    /// Tells Flow which agent is starting in the terminal. Nil outside Flow,
-    /// or when the user starts agents as typed.
-    static func announcement(of adapter: AgentAdapter, environment: [String: String], cwd: String, at: Date) -> AgentEvent? {
-        guard environment[AgentEnvironment.disabledKey] == nil,
-              let surface = environment[AgentEnvironment.surfaceKey].flatMap(UUID.init) else { return nil }
-        return AgentEvent(agent: adapter.name, kind: .launched, surfaceID: surface,
-                          workspaceID: environment[AgentEnvironment.workspaceKey].flatMap(UUID.init), cwd: cwd, at: at)
-    }
-
     /// The first executable file named `binary` in `path`, skipping `excluding`
     /// and the empty entries a shell would read as the current directory.
     static func resolve(_ binary: String, path: String?, excluding: String? = nil) -> String? {

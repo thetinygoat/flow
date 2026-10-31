@@ -453,6 +453,16 @@ final class AgentLauncherTests: XCTestCase {
         XCTAssertEqual(AgentLauncher(untouched, arguments: [], environment: ["PATH": path("bin")], flw: "/flw")?.executable, real)
     }
 
+    func testALaunchInFlowAnnouncesTheAgent() throws {
+        let surface = UUID(), workspace = UUID(), at = Date(timeIntervalSince1970: 5)
+        let environment = ["FLOW_SURFACE_ID": surface.uuidString, "FLOW_WORKSPACE_ID": workspace.uuidString]
+        let event = try XCTUnwrap(AgentLauncher.announcement(of: .codex, environment: environment, cwd: "/src", at: at))
+        XCTAssertEqual(event, AgentEvent(agent: "codex", kind: .launched, surfaceID: surface, workspaceID: workspace, cwd: "/src", at: at))
+        XCTAssertNil(AgentLauncher.announcement(of: .codex, environment: [:], cwd: "/src", at: at), "outside Flow")
+        XCTAssertNil(AgentLauncher.announcement(of: .codex, environment: environment.merging(["FLOW_AGENTS_DISABLED": "1"]) { $1 },
+                                                cwd: "/src", at: at))
+    }
+
     func testDisabledLaunchesAsTyped() throws {
         try makeExecutable("bin", "claude")
         let launcher = AgentLauncher(.claudeCode, arguments: ["-p", "hi"], environment: ["PATH": path("bin"), "FLOW_AGENTS_DISABLED": "1"], flw: "/flw")

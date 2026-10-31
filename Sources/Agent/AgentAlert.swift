@@ -24,7 +24,7 @@ struct AgentAlert: Equatable {
         switch kind {
         case .needsInput: .needsInput
         case .turnEnded, .attention: .finished
-        case .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: nil
+        case .launched, .sessionStarted, .turnStarted, .working, .sessionEnded, .unknown: nil
         }
     }
 

@@ -685,6 +685,7 @@ extension AppDelegate: GhosttyRuntimeDelegate {
     }
 
     func runtime(_ runtime: GhosttyRuntime, didFinish command: CommandFinish, in surface: TerminalSurfaceView) {
+        MainActor.assumeIsolated { agentSessions.endSession(in: surface.id, at: Date()) }
         guard let window = window(containing: surface) else { return }
         let config = runtime.config
         let when = config.notifyOnCommandFinish

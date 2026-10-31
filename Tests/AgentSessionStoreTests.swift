@@ -109,6 +109,42 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertNil(store.runningAgent(in: surface))
     }
 
+    func testTheAgentsOwnStartTakesOverFromItsLaunch() {
+        let launch = Date(timeIntervalSince1970: 1)
+        send(.launched, session: "", at: launch, agent: "codex")
+        XCTAssertEqual(store.runningAgent(in: surface), "codex")
+        XCTAssertNil(store.status(of: surface), "no dot until the agent does something")
+        send(.sessionStarted, session: "s1", at: launch.addingTimeInterval(1), agent: "codex")
+        send(.turnStarted, session: "s1", at: launch.addingTimeInterval(2), agent: "codex")
+        XCTAssertEqual(session?.sessionID, "s1")
+        XCTAssertEqual(session?.state, .working)
+    }
+
+    func testALaunchOvertakenByTheAgentsOwnStartIsIgnored() {
+        let launch = Date(timeIntervalSince1970: 1)
+        send(.sessionStarted, session: "s1", at: launch.addingTimeInterval(1), agent: "claude")
+        send(.turnStarted, session: "s1", at: launch.addingTimeInterval(2), agent: "claude")
+        send(.launched, session: "", at: launch, agent: "claude")
+        XCTAssertEqual(session?.sessionID, "s1")
+        XCTAssertEqual(session?.state, .working)
+    }
+
+    func testALaunchReplacesASessionThatNeverSaidItEnded() {
+        send(.turnStarted, session: "s1", at: Date(timeIntervalSince1970: 1), agent: "claude")
+        send(.launched, session: "", at: Date(timeIntervalSince1970: 2), agent: "codex")
+        XCTAssertEqual(store.runningAgent(in: surface), "codex")
+        XCTAssertEqual(session?.state, .idle)
+    }
+
+    func testTheSessionEndsWhenTheShellGetsItsPromptBack() {
+        store.endSession(in: surface, at: Date())
+        XCTAssertNil(session)
+        send(.launched, session: "", agent: "codex")
+        store.endSession(in: surface, at: Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(session?.state, .ended, "even with a clock behind the session's")
+        XCTAssertNil(store.runningAgent(in: surface))
+    }
+
     func testAttentionRecordsAMessageWithoutChangingState() {
         send(.turnStarted, detail: "Read")
         send(.attention, detail: "look here")

@@ -14,12 +14,7 @@ final class TerminalSurfaceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let config = directory.appendingPathComponent("config")
         try "shell-integration = none\n".write(to: config, atomically: true, encoding: .utf8)
-        let previous = ProcessInfo.processInfo.environment["FLOW_CONFIG"]
-        setenv("FLOW_CONFIG", config.path, 1)
-        defer {
-            if let previous { setenv("FLOW_CONFIG", previous, 1) } else { unsetenv("FLOW_CONFIG") }
-        }
-        let runtime = try GhosttyRuntime()
+        let runtime = try GhosttyRuntime(configFile: config)
         try autoreleasepool { try body(runtime) }
     }
 
@@ -118,7 +113,7 @@ final class TerminalSurfaceTests: XCTestCase {
     func testDeferredTerminalUsesConfigReloadedBeforeItStarts() throws {
         try withRuntime { runtime in
             let view = terminal(runtime)
-            let path = try XCTUnwrap(ProcessInfo.processInfo.environment["FLOW_CONFIG"])
+            let path = runtime.configFile.path
             try "shell-integration = none\nfont-size = 24\nscrollbar = never\n".write(toFile: path, atomically: true, encoding: .utf8)
             runtime.reloadConfig()
             XCTAssertNil(view.surface)
@@ -143,7 +138,7 @@ final class TerminalSurfaceTests: XCTestCase {
             var changes = 0
             runtime.onConfigChange = { changes += 1 }
 
-            let path = try XCTUnwrap(ProcessInfo.processInfo.environment["FLOW_CONFIG"])
+            let path = runtime.configFile.path
             try "shell-integration = none\nfont-size = 24\nscrollbar = never\n".write(toFile: path, atomically: true, encoding: .utf8)
             runtime.reloadConfig()
 

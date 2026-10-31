@@ -42,12 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let resources = Bundle.main.resourcePath {
-            let directory = (resources as NSString).appendingPathComponent("shell-integration")
-            for (key, value) in ShellIntegration.environment(directory: directory, current: ProcessInfo.processInfo.environment) {
-                setenv(key, value, 1)
-            }
-        }
         Preferences.register()
         ConfigFile.createIfMissing()
         do {

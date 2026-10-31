@@ -20,7 +20,7 @@ enum CommandPalette {
         var emptyMessage: String {
             switch self {
             case .places: "No terminals"
-            case .agents: "No agents"
+            case .agents: "No running agents"
             }
         }
 

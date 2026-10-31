@@ -450,10 +450,10 @@ private final class PaletteItemView: NSTableCellView {
 
         // The workspace is on every row, so it takes the trailing edge and
         // lines up down the list. What only some rows show goes to its left.
-        let trailing = NSStackView(views: [zoomIcon, agentDot, workspace])
-        trailing.orientation = .horizontal
-        trailing.spacing = 10
-        for view in [icon, text, trailing] {
+        let accessories = NSStackView(views: [zoomIcon, agentDot])
+        accessories.orientation = .horizontal
+        accessories.spacing = 10
+        for view in [icon, text, accessories, workspace] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -464,9 +464,13 @@ private final class PaletteItemView: NSTableCellView {
             icon.heightAnchor.constraint(equalToConstant: 16),
             text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
             text.centerYAnchor.constraint(equalTo: centerYAnchor),
-            text.trailingAnchor.constraint(lessThanOrEqualTo: trailing.leadingAnchor, constant: -16),
-            trailing.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-            trailing.centerYAnchor.constraint(equalTo: centerYAnchor),
+            text.trailingAnchor.constraint(lessThanOrEqualTo: accessories.leadingAnchor, constant: -16),
+            accessories.trailingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: -10),
+            // On the middle of the lowercase letters, which sit below the
+            // middle of the label.
+            accessories.centerYAnchor.constraint(equalTo: workspace.firstBaselineAnchor, constant: -workspace.font!.xHeight / 2),
+            workspace.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            workspace.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
 

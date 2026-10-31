@@ -398,6 +398,8 @@ private final class PaletteRowView: NSTableRowView {
 }
 
 private final class PaletteItemView: NSTableCellView {
+    private static let accessorySpacing: CGFloat = 8
+
     private let icon: PaneLayoutIcon
     private let title = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
@@ -460,8 +462,7 @@ private final class PaletteItemView: NSTableCellView {
 
         let accessories = NSStackView(views: [zoomIcon, agentDot, agentIcon])
         accessories.orientation = .horizontal
-        accessories.spacing = 10
-        accessories.setCustomSpacing(6, after: agentDot)
+        accessories.spacing = Self.accessorySpacing
         for view in [icon, text, accessories, workspace] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
@@ -476,7 +477,7 @@ private final class PaletteItemView: NSTableCellView {
             text.trailingAnchor.constraint(lessThanOrEqualTo: accessories.leadingAnchor, constant: -16),
             agentIcon.widthAnchor.constraint(equalToConstant: 14),
             agentIcon.heightAnchor.constraint(equalToConstant: 14),
-            accessories.trailingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: -10),
+            accessories.trailingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: -Self.accessorySpacing),
             // On the middle of the lowercase letters, which sit below the
             // middle of the label.
             accessories.centerYAnchor.constraint(equalTo: workspace.firstBaselineAnchor, constant: -workspace.font!.xHeight / 2),

@@ -109,6 +109,11 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertNil(store.runningAgent(in: surface))
     }
 
+    func testAnEventWithoutAnAgentNameNamesNoAgent() {
+        send(.turnStarted, agent: "")
+        XCTAssertNil(store.runningAgent(in: surface))
+    }
+
     func testAttentionRecordsAMessageWithoutChangingState() {
         send(.turnStarted, detail: "Read")
         send(.attention, detail: "look here")

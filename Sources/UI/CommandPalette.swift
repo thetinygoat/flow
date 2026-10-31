@@ -143,13 +143,20 @@ enum CommandPalette {
     /// first, except idle agents, which have no time to go by and keep the
     /// sidebar's order. Terminals without a running agent are left out.
     static func agents(_ items: [Item], current: UUID?, statuses: [UUID: AgentStatus]) -> [Item] {
-        // An idle agent can take its next prompt, which one still working can't.
-        let rank: [AgentIndicator?: Int] = [.waiting: 0, .done: 1, nil: 2, .working: 3]
+        func rank(_ indicator: AgentIndicator?) -> Int {
+            switch indicator {
+            case .waiting: 0
+            case .done: 1
+            // An idle agent can take its next prompt, which one still working can't.
+            case nil: 2
+            case .working: 3
+            }
+        }
         return items.enumerated()
             .compactMap { index, item -> (item: Item, key: (Int, Int, Date, Int))? in
                 guard item.agent != nil else { return nil }
                 let status = statuses[item.terminal]
-                return (item, (item.terminal == current ? 0 : 1, rank[status?.indicator]!, status?.since ?? .distantPast, index))
+                return (item, (item.terminal == current ? 0 : 1, rank(status?.indicator), status?.since ?? .distantPast, index))
             }
             .sorted { $0.key < $1.key }
             .map(\.item)

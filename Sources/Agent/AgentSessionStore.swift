@@ -145,9 +145,10 @@ final class AgentSessionStore {
         if previous != AgentIndicator(session) { onChange?(surface) }
     }
 
-    /// The name the terminal's agent reports, until its session ends.
+    /// The name the terminal's agent reports, until its session ends. An
+    /// event sent by hand without a name has no agent to show.
     func runningAgent(in surface: UUID) -> String? {
-        guard let session = sessions[surface], session.state != .ended else { return nil }
+        guard let session = sessions[surface], session.state != .ended, !session.agent.isEmpty else { return nil }
         return session.agent
     }
 

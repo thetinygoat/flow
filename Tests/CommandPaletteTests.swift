@@ -276,6 +276,26 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(CommandPalette.filter(items, query: "term").map(\.location), ["getflowterm › Tab 12"])
     }
 
+    func testLettersInOrderStayWithinOneField() {
+        let items = [
+            item("~/Code/any2any", location: "any2any › Tab 1"),
+            item("~/Code/segment", location: "segment › Tab 1"),
+        ]
+        XCTAssertEqual(CommandPalette.filter(items, query: "an").map(\.title), ["~/Code/any2any"])
+        XCTAssertEqual(CommandPalette.filter(items, query: "sgmt").map(\.title), ["~/Code/segment"])
+    }
+
+    func testFindsTabsAndPanesByTheirNames() {
+        let items = [
+            item("zsh", location: "flow › Tab 1 › Left"),
+            item("vim", location: "flow › Tab 1 › Right"),
+            item("zsh", location: "api › Tab 2 › Left"),
+        ]
+        XCTAssertEqual(CommandPalette.filter(items, query: "tab 1").map(\.title), ["zsh", "vim"])
+        XCTAssertEqual(CommandPalette.filter(items, query: "right").map(\.title), ["vim"])
+        XCTAssertEqual(CommandPalette.filter(items, query: "flow lef").map(\.location), ["flow › Tab 1 › Left"])
+    }
+
     func testNumbersMatchWholeNumbersOnly() {
         let items = [
             item("~/C/any2any", location: "any2any › Tab 1"),

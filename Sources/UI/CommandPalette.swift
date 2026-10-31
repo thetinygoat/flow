@@ -167,18 +167,19 @@ enum CommandPalette {
     /// A query found in the title alone outranks one that needs the location
     /// or directory too.
     private static func score(_ words: [String], in item: Item) -> Int? {
-        if let score = score(words, in: item.title) { return score + 1000 }
-        return score(words, in: "\(item.fullLocation) \(item.title) \(item.detail)")
+        if let score = score(words, in: [item.title]) { return score + 1000 }
+        return score(words, in: [item.fullLocation, item.title, item.detail])
     }
 
-    /// Nil unless every word of the query is found in the text, in any order,
-    /// ignoring case. A word counts for most as a whole word of the text, then
-    /// as the start of one, then anywhere in the text, and least as its letters
-    /// in order. A number has to be a whole word, so "2" finds "Tab 2" but not
-    /// "any2any" or "Tab 12".
-    static func score(_ words: [String], in text: String) -> Int? {
-        let text = text.lowercased()
-        let textWords = text.split { !$0.isLetter && !$0.isNumber }
+    /// Nil unless every word of the query is found in one of the texts, in
+    /// any order, ignoring case. A word counts for most as a whole word of a
+    /// text, then as the start of one, then anywhere in a text, and least as
+    /// its letters in order within one text, so "an" doesn't take its "a" from
+    /// the location and its "n" from the title. A number has to be a whole
+    /// word, so "2" finds "Tab 2" but not "any2any" or "Tab 12".
+    private static func score(_ words: [String], in texts: [String]) -> Int? {
+        let texts = texts.map { $0.lowercased() }
+        let textWords = texts.flatMap { $0.split { !$0.isLetter && !$0.isNumber } }
         var total = 0
         for word in words {
             if textWords.contains(where: { $0 == word }) {
@@ -187,9 +188,9 @@ enum CommandPalette {
                 return nil
             } else if textWords.contains(where: { $0.hasPrefix(word) }) {
                 total += 30
-            } else if text.contains(word) {
+            } else if texts.contains(where: { $0.contains(word) }) {
                 total += 20
-            } else if isSubsequence(word, of: text) {
+            } else if texts.contains(where: { isSubsequence(word, of: $0) }) {
                 total += 10
             } else {
                 return nil

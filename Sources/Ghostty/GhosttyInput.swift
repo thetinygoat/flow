@@ -1,7 +1,6 @@
 import AppKit
 import Carbon
 import GhosttyKit
-import UniformTypeIdentifiers
 
 /// Conversions between AppKit input types and the libghostty input enums.
 /// Adapted from Ghostty's macOS app (Ghostty.Input.swift, NSEvent+Extension.swift).
@@ -132,43 +131,6 @@ extension NSEvent {
         }
 
         return characters
-    }
-}
-
-extension NSPasteboard.PasteboardType {
-    init?(mimeType: String) {
-        if mimeType == "text/plain" {
-            self = .string
-            return
-        }
-        guard let utType = UTType(mimeType: mimeType) else {
-            self.init(mimeType)
-            return
-        }
-        self.init(utType.identifier)
-    }
-}
-
-extension NSPasteboard {
-    /// The pasteboard used for Ghostty's selection clipboard (middle-click paste style).
-    static let ghosttySelection = NSPasteboard(name: .init("dev.thetinygoat.flow.selection"))
-
-    static func ghostty(_ clipboard: ghostty_clipboard_e) -> NSPasteboard? {
-        switch clipboard {
-        case GHOSTTY_CLIPBOARD_STANDARD: return .general
-        case GHOSTTY_CLIPBOARD_SELECTION: return ghosttySelection
-        default: return nil
-        }
-    }
-
-    /// File URLs become escaped paths, anything else falls back to the plain string.
-    func getOpinionatedStringContents() -> String? {
-        if let urls = readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
-            return urls
-                .map { $0.isFileURL ? Ghostty.shellEscape($0.path) : $0.absoluteString }
-                .joined(separator: " ")
-        }
-        return string(forType: .string)
     }
 }
 

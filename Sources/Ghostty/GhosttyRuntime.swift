@@ -35,9 +35,11 @@ final class GhosttyRuntime {
     private var observers: [NSObjectProtocol] = []
     private var appearanceObserver: NSKeyValueObservation?
     private(set) var colorScheme = GHOSTTY_COLOR_SCHEME_LIGHT
+    let configFile: URL
 
-    init() throws {
-        config = try GhosttyConfig()
+    init(configFile: URL = ConfigFile.url) throws {
+        self.configFile = configFile
+        config = try GhosttyConfig(file: configFile)
 
         var runtimeConfig = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
@@ -49,11 +51,12 @@ final class GhosttyRuntime {
             action_cb: { app, target, action in
                 GhosttyRuntime.dispatch(app: app!, target: target, action: action)
             },
-            read_clipboard_cb: { userdata, location, state in
-                TerminalSurfaceView.from(userdata: userdata).readClipboard(location, state: state)
+            read_clipboard_cb: { userdata, location, state, mimes, mimeCount, list in
+                TerminalSurfaceView.from(userdata: userdata).readClipboard(
+                    location, state: state, mimes: mimes, mimeCount: mimeCount, list: list)
             },
-            confirm_read_clipboard_cb: { userdata, text, state, request in
-                TerminalSurfaceView.from(userdata: userdata).confirmReadClipboard(text, state: state, request: request)
+            confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                TerminalSurfaceView.from(userdata: userdata).confirmReadClipboard(confirm, state: state, request: request)
             },
             write_clipboard_cb: { userdata, location, content, count, confirm in
                 TerminalSurfaceView.from(userdata: userdata).writeClipboard(location, content: content, count: count, confirm: confirm)
@@ -118,7 +121,7 @@ final class GhosttyRuntime {
     /// it back as a config change, which is when the windows take it up.
     /// Updating the terminals again here would give each one the config twice.
     func reloadConfig() {
-        guard let newConfig = try? GhosttyConfig() else { return }
+        guard let newConfig = try? GhosttyConfig(file: configFile) else { return }
         config = newConfig
         for surface in surfaces.allObjects {
             surface.configDidChange(newConfig)
@@ -241,13 +244,22 @@ final class GhosttyRuntime {
         case GHOSTTY_ACTION_OPEN_URL:
             let openURL = action.action.open_url
             guard let bytes = openURL.url,
-                  let string = String(data: Data(bytes: bytes, count: Int(openURL.len)), encoding: .utf8),
-                  let url = LinkTarget.url(for: string, relativeTo: surface?.workingDirectory) else { return false }
-            if openURL.kind == GHOSTTY_ACTION_OPEN_URL_KIND_TEXT,
-               let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
-                NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
-            } else {
-                NSWorkspace.shared.open(url)
+                  let string = String(data: Data(bytes: bytes, count: Int(openURL.len)), encoding: .utf8) else { return false }
+            switch openURL.kind {
+            // Only these come from Ghostty itself; any program can print the others.
+            case GHOSTTY_ACTION_OPEN_URL_KIND_TEXT, GHOSTTY_ACTION_OPEN_URL_KIND_HTML:
+                guard let url = LinkTarget.url(for: string, relativeTo: surface?.workingDirectory) else { return false }
+                if openURL.kind == GHOSTTY_ACTION_OPEN_URL_KIND_TEXT,
+                   let editor = NSWorkspace.shared.urlForApplication(toOpen: .plainText) {
+                    NSWorkspace.shared.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(url)
+                }
+            // Handled even when blocked, since otherwise Ghostty opens the link itself.
+            case GHOSTTY_ACTION_OPEN_URL_KIND_OSC8:
+                UntrustedLinkAlert.open(UntrustedLink(string), in: surface?.window)
+            default:
+                UntrustedLinkAlert.open(.matched(string, relativeTo: surface?.workingDirectory), in: surface?.window)
             }
 
         case GHOSTTY_ACTION_RELOAD_CONFIG:

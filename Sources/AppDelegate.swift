@@ -8,6 +8,10 @@ import Sparkle
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: GhosttyRuntime!
     private var windows: [TerminalWindow] = []
+    /// Closing the last window is how many people quit, and Flow stays
+    /// running after it, so the session keeps that window and the next window
+    /// opened is that one.
+    private var closedLastWindow: Session.Window?
     private var workspaceMenu: WorkspaceMenu!
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
@@ -109,13 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = serviceProvider
 
         let saved = Session.load()?.windows.filter { !$0.workspaces.isEmpty } ?? []
-        for savedWindow in saved {
-            let window = makeWindow(frame: savedWindow.frame)
-            window.restore(savedWindow)
-            if window.store.workspaces.isEmpty {
-                window.newWorkspace()
-            }
-        }
+        saved.forEach { makeWindow(restoring: $0) }
         if windows.isEmpty {
             newWindow()
         }
@@ -197,7 +195,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Clicking the Dock icon with every window closed opens a new one.
+    /// Clicking the Dock icon with every window closed brings back the window
+    /// closed last, or opens a new one.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if windows.isEmpty {
             newWindow()
@@ -257,26 +256,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return window
     }
 
+    @discardableResult
+    private func makeWindow(restoring saved: Session.Window) -> TerminalWindow {
+        let window = makeWindow(frame: saved.frame)
+        window.restore(saved)
+        if window.store.workspaces.isEmpty {
+            window.newWorkspace()
+        }
+        return window
+    }
+
+    private func reopenClosedLastWindow() -> TerminalWindow? {
+        guard windows.isEmpty, let saved = closedLastWindow else { return nil }
+        closedLastWindow = nil
+        return makeWindow(restoring: saved)
+    }
+
     @objc private func newWindow() {
-        openWorkspace(in: nil, newWindow: true)
+        guard let window = reopenClosedLastWindow() else { return openWorkspace(in: nil, newWindow: true) }
+        window.show()
+        NSApp.activate()
     }
 
     /// Opens a workspace in the directory, in the front window unless a new one
     /// is asked for or there is no window.
     func openWorkspace(in directory: String?, newWindow: Bool) {
-        if !newWindow, let window = currentWindow {
-            window.newWorkspace(in: directory)
-            window.show()
-        } else {
-            let window = makeWindow(frame: nil)
-            window.newWorkspace(in: directory)
-            window.show()
-        }
+        let window = (newWindow ? nil : currentWindow) ?? reopenClosedLastWindow() ?? makeWindow(frame: nil)
+        window.newWorkspace(in: directory)
+        window.show()
         NSApp.activate()
     }
 
     private func session() -> Session {
-        Session(windows: windows.map { $0.snapshot() })
+        guard !windows.isEmpty else { return Session(windows: closedLastWindow.map { [$0] } ?? []) }
+        return Session(windows: windows.map { $0.snapshot() })
     }
 
     /// Changes arrive in bursts (every shell prompt updates the directory), so
@@ -299,12 +312,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Menu actions
 
     @objc func newWorkspace() {
-        guard let window = currentWindow else { return newWindow() }
-        window.newWorkspace()
+        openWorkspace(in: nil, newWindow: false)
     }
 
     @objc func newTab() {
-        guard let window = currentWindow else { return newWindow() }
+        guard let window = currentWindow else { return openWorkspace(in: nil, newWindow: false) }
         window.newTab()
     }
 
@@ -730,6 +742,10 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
 
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
+        if windows.isEmpty {
+            let snapshot = window.snapshot()
+            closedLastWindow = snapshot.workspaces.isEmpty ? nil : snapshot
+        }
         forgetClosedTerminals(after: window)
         scheduleSave()
     }

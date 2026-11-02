@@ -5,7 +5,8 @@ extension AgentAdapter {
         name: "claude",
         binary: "claude",
         launch: .flags(ClaudeCode.arguments),
-        translate: ClaudeCode.translate
+        translate: ClaudeCode.translate,
+        resume: { ["--resume", $0] }
     )
 }
 

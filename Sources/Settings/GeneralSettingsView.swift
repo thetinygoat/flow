@@ -5,6 +5,7 @@ struct GeneralSettingsView: View {
     let store: SettingsStore
     let updater: SPUUpdater
     @AppStorage(Preferences.secureKeyboardEntry) private var secureKeyboardEntry = false
+    @AppStorage(Preferences.resumeAgents) private var resumeAgents = true
     @State private var command = ""
     @State private var choosesCustomCommand = false
     @State private var checksForUpdates = false
@@ -43,6 +44,13 @@ struct GeneralSettingsView: View {
                     get: { ["true", "clipboard", "both"].contains(store.value(Option.copyOnSelect)) },
                     set: { store.set(Option.copyOnSelect, $0 ? "clipboard" : "none") }))
                 Toggle("Hide mouse pointer while typing", isOn: store.binding(Option.mouseHideWhileTyping))
+            }
+
+            Section {
+                Toggle("Resume agents", isOn: $resumeAgents)
+            } footer: {
+                Text("Claude Code, Codex and OpenCode sessions open when Flow quits start again in their terminals.")
+                    .settingsFooter()
             }
 
             Section {

@@ -25,11 +25,21 @@ struct AgentAdapter {
     /// nil for one Flow has no use for. An agent without it has its
     /// notifications posted as the terminal's.
     var translateNotification: ((_ message: String) -> (kind: AgentEvent.Kind, detail: String?)?)? = nil
+    /// The arguments that reopen a session, for an agent that can.
+    var resume: ((_ sessionID: String) -> [String])? = nil
 
     static let all: [AgentAdapter] = [.claudeCode, .openCode, .codex]
 
     static func named(_ name: String) -> AgentAdapter? {
         all.first { $0.name == name }
+    }
+
+    /// The command line that reopens the session. It is typed into the
+    /// user's shell, so an id that is not a plain word gets none.
+    func resumeCommand(sessionID: String) -> String? {
+        guard let resume, !sessionID.isEmpty,
+              sessionID.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }) else { return nil }
+        return ([binary] + resume(sessionID)).joined(separator: " ")
     }
 }
 

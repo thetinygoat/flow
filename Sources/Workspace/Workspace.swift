@@ -134,6 +134,19 @@ final class WorkspaceModel<Leaf: PaneLeaf> {
     func tab(containing leaf: Leaf) -> TabModel<Leaf>? {
         tabs.first { $0.panes.contains(leaf) }
     }
+
+    /// The title an agent gave its terminal. With several agents, the one in
+    /// view wins, then the one used last. A shell's title is left out, as it
+    /// mostly repeats the directory.
+    func agentTitle(recentlyFocused: [UUID], runsAgent: (UUID) -> Bool) -> String? {
+        let leaves = tabs.flatMap(\.panes.leaves).filter { runsAgent($0.id) && !$0.title.isEmpty }
+        let rank = Dictionary(recentlyFocused.enumerated().map { ($1, $0) }) { first, _ in first }
+        let inView = selectedTab?.focusedLeaf
+        return leaves.min { lhs, rhs in
+            if lhs === inView || rhs === inView { return lhs === inView }
+            return rank[lhs.id, default: .max] < rank[rhs.id, default: .max]
+        }?.title
+    }
 }
 
 /// All workspaces plus which one is selected. Observers get `onChange` after

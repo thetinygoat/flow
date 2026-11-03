@@ -66,6 +66,31 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertTrue(tab.focusedLeaf === b)
     }
 
+    func testAgentTitlePrefersTheAgentInViewThenTheOneUsedLast() {
+        let shell = FakeLeaf("~/Code/flow")
+        let first = FakeLeaf("Fix the build")
+        let second = FakeLeaf("Write the docs")
+        let unnamed = FakeLeaf("")
+        let workspace = WorkspaceModel<FakeLeaf>()
+        let tab = TestTab(leaf: shell)
+        tab.panes.split(shell, direction: .right, with: first)
+        tab.panes.split(first, direction: .down, with: unnamed)
+        workspace.add(tab)
+        workspace.add(TestTab(leaf: second))
+        let agents: Set = [first.id, second.id, unnamed.id]
+        func title(_ recentlyFocused: [FakeLeaf]) -> String? {
+            workspace.agentTitle(recentlyFocused: recentlyFocused.map(\.id), runsAgent: agents.contains)
+        }
+
+        XCTAssertEqual(title([first]), "Write the docs", "the agent in view")
+        workspace.select(tab)
+        XCTAssertEqual(title([second, first]), "Write the docs", "the shell in view has no agent")
+        XCTAssertEqual(title([first, second]), "Fix the build")
+        tab.focus(unnamed)
+        XCTAssertEqual(title([unnamed, first, second]), "Fix the build", "an agent that set no title")
+        XCTAssertNil(WorkspaceModel<FakeLeaf>().agentTitle(recentlyFocused: [], runsAgent: { _ in true }))
+    }
+
     func testTabsClosedByEachMode() {
         let workspace = WorkspaceModel<FakeLeaf>()
         let tabs = ["a", "b", "c", "d"].map { TestTab(leaf: FakeLeaf($0)) }

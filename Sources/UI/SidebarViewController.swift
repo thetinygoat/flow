@@ -8,11 +8,13 @@ protocol SidebarViewControllerDelegate: AnyObject {
 }
 
 /// The vertical list of workspaces on the left of the window. Each row shows
-/// the workspace name, the working directory of its selected tab, and a dot
-/// for what the agents in its terminals are doing.
+/// the workspace name, the title an agent gave its terminal, the working
+/// directory of its selected tab, and a dot for what the agents in its
+/// terminals are doing.
 final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     weak var delegate: SidebarViewControllerDelegate?
     var agentIndicator: @MainActor (Workspace) -> AgentIndicator? = { _ in nil }
+    var agentTitle: @MainActor (Workspace) -> String? = { _ in nil }
 
     private let store: WorkspaceStore
     private let tableView = WorkspaceTableView()
@@ -149,13 +151,21 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         }
     }
 
-    /// Agents change state far more often than rows need rebuilding, so only
-    /// the dots are updated.
-    func updateAgentIndicator(for workspace: Workspace) {
+    /// Agents change state, and retitle their terminals, far more often than
+    /// rows need rebuilding, so only the dot and the title are updated. The
+    /// row's height changes only when the title comes or goes.
+    func updateAgents(in workspace: Workspace) {
         guard let row = row(of: workspace),
               row < tableView.numberOfRows,
               let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? WorkspaceCellView else { return }
         cell.agentIndicator = agentIndicator(workspace)
+        let hadTitle = cell.agentTitle != nil
+        cell.agentTitle = agentTitle(workspace)
+        guard hadTitle != (cell.agentTitle != nil) else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            tableView.noteHeightOfRows(withIndexesChanged: [row])
+        }
     }
 
     private func row(of workspace: Workspace) -> Int? {
@@ -272,7 +282,8 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        gitStatus(forRow: row) == nil ? 52 : 68
+        let lines = [workspace(at: row).flatMap(agentTitle) != nil, gitStatus(forRow: row) != nil].filter { $0 }.count
+        return 52 + CGFloat(lines) * 16
     }
 
     private func gitStatus(forRow row: Int) -> GitStatus? {
@@ -289,6 +300,7 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
             return cell
         }()
         cell.titleLabel.stringValue = workspace.name
+        cell.agentTitle = agentTitle(workspace)
         cell.subtitleLabel.stringValue = workspace.selectedTab?.focusedSurface.workingDirectory?.abbreviatingHome ?? ""
         cell.gitStatus = gitStatus(forRow: row)
         cell.isHovered = row == hoveredRow
@@ -389,6 +401,7 @@ private final class WorkspaceRowView: NSTableRowView {
 private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
     let titleLabel = NSTextField(labelWithString: "")
     let subtitleLabel = NSTextField(labelWithString: "")
+    private let agentTitleLabel = NSTextField(labelWithString: "")
     private let gitLabel = NSTextField(labelWithString: "")
     private let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close workspace")!, target: nil, action: nil)
     private let agentDot = AgentDotView()
@@ -436,12 +449,17 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
         subtitleLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         subtitleLabel.lineBreakMode = .byTruncatingMiddle
 
+        agentTitleLabel.font = .systemFont(ofSize: 11)
+        agentTitleLabel.textColor = .secondaryLabelColor
+        agentTitleLabel.lineBreakMode = .byTruncatingTail
+        agentTitleLabel.isHidden = true
+
         gitLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         gitLabel.textColor = .secondaryLabelColor
         gitLabel.lineBreakMode = .byTruncatingTail
         gitLabel.isHidden = true
 
-        let stack = NSStackView(views: [titleLabel, subtitleLabel, gitLabel])
+        let stack = NSStackView(views: [titleLabel, agentTitleLabel, subtitleLabel, gitLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 2
@@ -491,6 +509,14 @@ private final class WorkspaceCellView: NSTableCellView, NSTextFieldDelegate {
 
     @objc private func closeTapped() {
         onClose?()
+    }
+
+    var agentTitle: String? {
+        get { agentTitleLabel.isHidden ? nil : agentTitleLabel.stringValue }
+        set {
+            agentTitleLabel.isHidden = newValue == nil
+            if let newValue, newValue != agentTitleLabel.stringValue { agentTitleLabel.stringValue = newValue }
+        }
     }
 
     var gitStatus: GitStatus? {

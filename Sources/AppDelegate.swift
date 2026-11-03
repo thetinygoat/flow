@@ -245,6 +245,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.controller.sidebar.agentIndicator = { [unowned self] workspace in
             agentSessions.indicator(for: workspace.surfaces.map(\.id))
         }
+        window.controller.sidebar.agentTitle = { [unowned self, unowned window] workspace in
+            workspace.agentTitle(recentlyFocused: window.store.recentlyFocused) { agentSessions.runningAgent(in: $0) != nil }
+        }
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
         }
@@ -750,7 +753,8 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
         scheduleSave()
     }
 
-    /// Titles are shown only in the tab strip and window title, and are not saved.
+    /// Titles are shown in the tab strip, the window title and the sidebar,
+    /// and are not saved.
     func surfaceTitleDidChange(_ surface: TerminalSurfaceView) {
         window(containing: surface)?.controller.titleDidChange(of: surface)
     }

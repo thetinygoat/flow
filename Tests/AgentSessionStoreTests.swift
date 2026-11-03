@@ -300,7 +300,7 @@ final class AgentRefreshTests: XCTestCase {
         send(.turnStarted)
         for index in 0..<100 { send(.working, detail: "tool\(index)") }
         send(.attention, detail: "look here")
-        XCTAssertEqual(changes, [id])
+        XCTAssertEqual(changes, [id, id])
         XCTAssertEqual(updates.count, 103)
         XCTAssertEqual(store.sessions[id]?.detail, "tool99")
         XCTAssertEqual(store.sessions[id]?.attention, "look here")
@@ -308,6 +308,24 @@ final class AgentRefreshTests: XCTestCase {
         send(.working)
         send(.turnEnded)
         store.markSeen(id)
-        XCTAssertEqual(changes, Array(repeating: id, count: 5))
+        XCTAssertEqual(changes, Array(repeating: id, count: 6))
+    }
+
+    func testAnAgentStartingOrEndingRefreshesWithoutAnIndicator() {
+        let id = UUID()
+        let store = AgentSessionStore(isLive: { $0 == id })
+        var changes = 0
+        store.onChange = { _ in changes += 1 }
+        func send(_ kind: AgentEvent.Kind, agent: String = "test") {
+            store.apply(AgentEvent(agent: agent, kind: kind, surfaceID: id, workspaceID: nil, cwd: "/", at: Date()))
+        }
+        send(.sessionStarted)
+        XCTAssertEqual(changes, 1)
+        send(.sessionStarted)
+        XCTAssertEqual(changes, 1, "the same agent announced again")
+        send(.sessionEnded)
+        XCTAssertEqual(changes, 2)
+        send(.sessionStarted, agent: "")
+        XCTAssertEqual(changes, 2, "an event without an agent's name")
     }
 }

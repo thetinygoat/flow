@@ -1,7 +1,8 @@
 import Foundation
 
 /// What each terminal's coding agent is doing, built from the events `flw`
-/// sends. Indicator observers are notified only when the visible state changes.
+/// sends. Observers are notified only when the visible state changes: the
+/// indicator, or whether an agent runs.
 @MainActor
 final class AgentSessionStore {
     enum State: Equatable {
@@ -22,6 +23,12 @@ final class AgentSessionStore {
         /// taken in the order they started waiting or finished. Repeated
         /// events keep it; nil while it shows none.
         var indicatorSince: Date?
+
+        /// The name the agent reports, until its session ends. An event sent
+        /// by hand without a name has no agent to show.
+        var runningAgent: String? {
+            state == .ended || agent.isEmpty ? nil : agent
+        }
     }
 
     /// One applied event, with the terminal's session before and after it.
@@ -122,7 +129,7 @@ final class AgentSessionStore {
         }
         sessions[surface] = session
         onUpdate?(Update(surface: surface, kind: event.kind, previous: previous, session: session))
-        if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) {
+        if previous.flatMap(AgentIndicator.init) != AgentIndicator(session) || previous?.runningAgent != session.runningAgent {
             onChange?(surface)
         }
     }
@@ -145,11 +152,8 @@ final class AgentSessionStore {
         if previous != AgentIndicator(session) { onChange?(surface) }
     }
 
-    /// The name the terminal's agent reports, until its session ends. An
-    /// event sent by hand without a name has no agent to show.
     func runningAgent(in surface: UUID) -> String? {
-        guard let session = sessions[surface], session.state != .ended, !session.agent.isEmpty else { return nil }
-        return session.agent
+        sessions[surface]?.runningAgent
     }
 
     func remove(_ surface: UUID) {

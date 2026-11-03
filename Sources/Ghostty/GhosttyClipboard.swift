@@ -93,8 +93,7 @@ extension NSPasteboard {
         }
     }
 
-    /// File URLs become escaped paths, then comes the plain string, and an
-    /// image with neither becomes the escaped path of a file holding it.
+    /// Copied files, and an image copied without text, paste as escaped paths.
     func getOpinionatedStringContents() -> String? {
         if let urls = readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
             return urls
@@ -126,7 +125,7 @@ extension NSPasteboard {
     func ghosttyAvailableMimes() -> [String] {
         let types = types ?? []
         let hasFiles = types.contains(.fileURL)
-        let hasImage = types.contains { UTType($0.rawValue)?.conforms(to: .image) == true }
+        let hasImage = PastedImage.type(in: self) != nil
         let mimes = types.compactMap { type -> String? in
             guard let mime = UTType(type.rawValue)?.preferredMIMEType else { return nil }
             return mime == "text/plain;charset=utf-8" ? "text/plain" : mime

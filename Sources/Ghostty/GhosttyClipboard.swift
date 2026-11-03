@@ -104,7 +104,9 @@ extension NSPasteboard {
         if urls.contains(where: \.isFileURL) || PastedImage.types(in: self).isEmpty {
             return urlText ?? string(forType: .string)
         }
-        return string(forType: .string) ?? PastedImage.save(from: self).map { Ghostty.shellEscape($0.path) } ?? urlText
+        // Empty text beside an image is no text, and pasting it would paste nothing.
+        let text = string(forType: .string).flatMap { $0.isEmpty ? nil : $0 }
+        return text ?? PastedImage.save(from: self).map { Ghostty.shellEscape($0.path) } ?? urlText
     }
 
     /// Text is what a paste would type, so copied files and images read as

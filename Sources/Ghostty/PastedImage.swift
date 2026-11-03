@@ -43,12 +43,15 @@ enum PastedImage {
         return url
     }
 
+    private static let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
     /// An app can offer a format that cannot be decoded, such as SVG, ahead
-    /// of one that can.
+    /// of one that can, or label other data as PNG, so PNG data is kept as
+    /// it is only when it is PNG.
     private static func png(from pasteboard: NSPasteboard) -> Data? {
         for type in types(in: pasteboard) {
             guard let data = pasteboard.data(forType: type) else { continue }
-            if type == .png { return data }
+            if type == .png, data.starts(with: pngSignature) { return data }
             if let png = NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]) { return png }
         }
         return nil

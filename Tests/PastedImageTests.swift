@@ -84,6 +84,25 @@ final class PastedImageTests: XCTestCase {
         XCTAssertTrue(try pastedPath().hasPrefix(PastedImage.folder.path))
     }
 
+    func testDataLabelledPNGThatIsNotGivesWayToTheNext() throws {
+        let tiff = try XCTUnwrap(NSBitmapImageRep(data: pngData())?.tiffRepresentation)
+        pasteboard.declareTypes([.png, .tiff], owner: nil)
+        pasteboard.setData(Data("not a png".utf8), forType: .png)
+        pasteboard.setData(tiff, forType: .tiff)
+
+        let saved = try Data(contentsOf: URL(fileURLWithPath: try pastedPath()))
+        XCTAssertNotNil(NSBitmapImageRep(data: saved))
+        XCTAssertEqual(saved.prefix(4), Data([0x89, 0x50, 0x4E, 0x47]))
+    }
+
+    func testEmptyTextGivesWayToImage() throws {
+        pasteboard.declareTypes([.string, .png], owner: nil)
+        pasteboard.setString("", forType: .string)
+        pasteboard.setData(pngData(), forType: .png)
+
+        XCTAssertTrue(try pastedPath().hasPrefix(PastedImage.folder.path))
+    }
+
     func testImageWinsOverWebAddress() throws {
         pasteboard.declareTypes([.URL, .png], owner: nil)
         pasteboard.setString("https://example.com/a.png", forType: .URL)

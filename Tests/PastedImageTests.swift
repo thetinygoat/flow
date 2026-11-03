@@ -72,6 +72,40 @@ final class PastedImageTests: XCTestCase {
 
         let saved = try Data(contentsOf: URL(fileURLWithPath: try pastedPath()))
         XCTAssertEqual(saved.prefix(4), Data([0x89, 0x50, 0x4E, 0x47]))
+        XCTAssertEqual(pasteboard.ghosttyAvailableMimes().first, "text/plain")
+    }
+
+    func testUndecodableTypeGivesWayToTheNext() throws {
+        let tiff = try XCTUnwrap(NSBitmapImageRep(data: pngData())?.tiffRepresentation)
+        pasteboard.declareTypes([.init("public.jpeg"), .tiff], owner: nil)
+        pasteboard.setData(Data("not a jpeg".utf8), forType: .init("public.jpeg"))
+        pasteboard.setData(tiff, forType: .tiff)
+
+        XCTAssertTrue(try pastedPath().hasPrefix(PastedImage.folder.path))
+    }
+
+    func testImageWinsOverWebAddress() throws {
+        pasteboard.declareTypes([.URL, .png], owner: nil)
+        pasteboard.setString("https://example.com/a.png", forType: .URL)
+        pasteboard.setData(pngData(), forType: .png)
+
+        XCTAssertTrue(try pastedPath().hasPrefix(PastedImage.folder.path))
+    }
+
+    func testTextWinsOverImageWithWebAddress() {
+        pasteboard.declareTypes([.URL, .string, .png], owner: nil)
+        pasteboard.setString("https://example.com/a.png", forType: .URL)
+        pasteboard.setString("hello", forType: .string)
+        pasteboard.setData(pngData(), forType: .png)
+
+        XCTAssertEqual(pasteboard.getOpinionatedStringContents(), "hello")
+    }
+
+    func testWebAddressWithoutImagePastes() {
+        pasteboard.declareTypes([.URL], owner: nil)
+        pasteboard.setString("https://example.com/", forType: .URL)
+
+        XCTAssertEqual(pasteboard.getOpinionatedStringContents(), "https://example.com/")
     }
 
     func testTextWinsOverImage() {

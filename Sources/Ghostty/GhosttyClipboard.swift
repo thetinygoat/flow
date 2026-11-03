@@ -94,16 +94,17 @@ extension NSPasteboard {
     }
 
     /// Copied files, and an image copied without text, paste as escaped paths.
+    /// A web address copied with an image is where the image came from, not
+    /// what was copied, so the image wins over it.
     func getOpinionatedStringContents() -> String? {
-        if let urls = readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
-            return urls
-                .map { $0.isFileURL ? Ghostty.shellEscape($0.path) : $0.absoluteString }
-                .joined(separator: " ")
+        let urls = readObjects(forClasses: [NSURL.self]) as? [URL] ?? []
+        let urlText = urls.isEmpty ? nil : urls
+            .map { $0.isFileURL ? Ghostty.shellEscape($0.path) : $0.absoluteString }
+            .joined(separator: " ")
+        if urls.contains(where: \.isFileURL) || PastedImage.types(in: self).isEmpty {
+            return urlText ?? string(forType: .string)
         }
-        if let string = string(forType: .string) {
-            return string
-        }
-        return PastedImage.save(from: self).map { Ghostty.shellEscape($0.path) }
+        return string(forType: .string) ?? PastedImage.save(from: self).map { Ghostty.shellEscape($0.path) } ?? urlText
     }
 
     /// Text is what a paste would type, so copied files and images read as
@@ -125,7 +126,7 @@ extension NSPasteboard {
     func ghosttyAvailableMimes() -> [String] {
         let types = types ?? []
         let hasFiles = types.contains(.fileURL)
-        let hasImage = PastedImage.type(in: self) != nil
+        let hasImage = !PastedImage.types(in: self).isEmpty
         let mimes = types.compactMap { type -> String? in
             guard let mime = UTType(type.rawValue)?.preferredMIMEType else { return nil }
             return mime == "text/plain;charset=utf-8" ? "text/plain" : mime

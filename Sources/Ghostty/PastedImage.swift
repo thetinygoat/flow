@@ -14,11 +14,11 @@ enum PastedImage {
     private static var saved: (pasteboard: NSPasteboard.Name, changeCount: Int, url: URL)?
 
     /// Found from the declared types alone, so asking does not make the app
-    /// that owns the clipboard produce the image.
-    static func type(in pasteboard: NSPasteboard) -> NSPasteboard.PasteboardType? {
-        let types = pasteboard.types ?? []
-        if types.contains(.png) { return .png }
-        return types.first { UTType($0.rawValue)?.conforms(to: .image) == true }
+    /// that owns the clipboard produce the image. PNG comes first because it
+    /// is saved as it is.
+    static func types(in pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        let images = (pasteboard.types ?? []).filter { UTType($0.rawValue)?.conforms(to: .image) == true }
+        return images.filter { $0 == .png } + images.filter { $0 != .png }
     }
 
     static func save(from pasteboard: NSPasteboard) -> URL? {
@@ -43,9 +43,14 @@ enum PastedImage {
         return url
     }
 
+    /// An app can offer a format that cannot be decoded, such as SVG, ahead
+    /// of one that can.
     private static func png(from pasteboard: NSPasteboard) -> Data? {
-        guard let type = type(in: pasteboard), let data = pasteboard.data(forType: type) else { return nil }
-        if type == .png { return data }
-        return NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:])
+        for type in types(in: pasteboard) {
+            guard let data = pasteboard.data(forType: type) else { continue }
+            if type == .png { return data }
+            if let png = NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]) { return png }
+        }
+        return nil
     }
 }

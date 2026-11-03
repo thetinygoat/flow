@@ -93,18 +93,22 @@ extension NSPasteboard {
         }
     }
 
-    /// File URLs become escaped paths, anything else falls back to the plain string.
+    /// File URLs become escaped paths, then comes the plain string, and an
+    /// image with neither becomes the escaped path of a file holding it.
     func getOpinionatedStringContents() -> String? {
         if let urls = readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty {
             return urls
                 .map { $0.isFileURL ? Ghostty.shellEscape($0.path) : $0.absoluteString }
                 .joined(separator: " ")
         }
-        return string(forType: .string)
+        if let string = string(forType: .string) {
+            return string
+        }
+        return PastedImage.save(from: self).map { Ghostty.shellEscape($0.path) }
     }
 
-    /// Text is what a paste would type, so copied files read as their escaped
-    /// paths. Copied files are also served as a URI list, as on Linux.
+    /// Text is what a paste would type, so copied files and images read as
+    /// escaped paths. Copied files are also served as a URI list, as on Linux.
     func ghosttyData(forMime mime: String) -> Data? {
         switch mime {
         case "text/plain":
@@ -122,13 +126,14 @@ extension NSPasteboard {
     func ghosttyAvailableMimes() -> [String] {
         let types = types ?? []
         let hasFiles = types.contains(.fileURL)
+        let hasImage = types.contains { UTType($0.rawValue)?.conforms(to: .image) == true }
         let mimes = types.compactMap { type -> String? in
             guard let mime = UTType(type.rawValue)?.preferredMIMEType else { return nil }
             return mime == "text/plain;charset=utf-8" ? "text/plain" : mime
         }
 
         var leading: [String] = []
-        if hasFiles || mimes.contains("text/plain") { leading.append("text/plain") }
+        if hasFiles || hasImage || mimes.contains("text/plain") { leading.append("text/plain") }
         if hasFiles { leading.append("text/uri-list") }
         var seen = Set<String>()
         return (leading + mimes).filter { seen.insert($0).inserted }

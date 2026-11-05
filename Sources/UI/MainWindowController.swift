@@ -123,11 +123,14 @@ final class MainWindowController: NSWindowController {
     }
 
     func agentsDidChange(in workspace: Workspace, tab: TerminalTab) {
-        sidebar.updateAgentIndicator(for: workspace)
+        sidebar.updateAgents(in: workspace)
         terminalArea.updateAgentIndicator(for: tab)
     }
 
     func titleDidChange(of surface: TerminalSurfaceView) {
+        if let (workspace, _) = store.workspace(containing: surface) {
+            sidebar.updateAgents(in: workspace)
+        }
         guard let workspace = store.selected,
               workspace.tabs.contains(where: { $0.panes.surfaces.contains { $0 === surface } }) else { return }
         terminalArea.reloadTabs()

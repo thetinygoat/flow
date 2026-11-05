@@ -281,6 +281,29 @@ final class AgentSessionStoreTests: XCTestCase {
         XCTAssertEqual(route("Approval requested: x"), .post, "an ended session")
         XCTAssertEqual(route("Approval requested: x", from: UUID()), .post, "another terminal")
     }
+
+    func testAnAgentIsResumableUntilItsSessionEnds() {
+        send(.sessionStarted, agent: "claude")
+        XCTAssertEqual(store.resumable(in: surface)?.sessionID, "s1")
+        send(.turnStarted, session: "s2", agent: "claude")
+        XCTAssertEqual(store.resumable(in: surface)?.sessionID, "s2")
+        send(.sessionEnded, session: "s2", agent: "claude")
+        XCTAssertNil(store.resumable(in: surface))
+    }
+
+    func testAnAgentFlowCannotResumeIsNotResumable() {
+        send(.sessionStarted, agent: "test")
+        XCTAssertNil(store.resumable(in: surface))
+    }
+
+    func testOnlyStartingEndingOrSwitchingSessionsChangesTheResume() {
+        send(.sessionStarted, agent: "claude")
+        send(.turnStarted, agent: "claude")
+        send(.working, detail: "Bash", agent: "claude")
+        send(.turnStarted, session: "s2", agent: "claude")
+        send(.sessionEnded, session: "s2", agent: "claude")
+        XCTAssertEqual(updates.map(\.changesResume), [true, false, false, true, true])
+    }
 }
 
 @MainActor

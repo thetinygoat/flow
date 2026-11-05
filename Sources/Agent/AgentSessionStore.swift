@@ -38,6 +38,12 @@ final class AgentSessionStore {
         var previous: Session?
         var session: Session
 
+        /// Whether the terminal would resume another session, or none, after it.
+        var changesResume: Bool {
+            previous?.agent != session.agent || previous?.sessionID != session.sessionID
+                || (previous?.state == .ended) != (session.state == .ended)
+        }
+
         /// A wait for the same reason the terminal was already waiting for,
         /// which the user has already been told about.
         var repeatsWait: Bool {
@@ -150,6 +156,13 @@ final class AgentSessionStore {
     func runningAgent(in surface: UUID) -> String? {
         guard let session = sessions[surface], session.state != .ended, !session.agent.isEmpty else { return nil }
         return session.agent
+    }
+
+    /// The session the terminal's agent would resume, until it ends.
+    func resumable(in surface: UUID) -> Session? {
+        guard let session = sessions[surface], session.state != .ended,
+              AgentAdapter.named(session.agent)?.resumeCommand(sessionID: session.sessionID) != nil else { return nil }
+        return session
     }
 
     func remove(_ surface: UUID) {

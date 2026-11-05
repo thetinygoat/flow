@@ -6,7 +6,8 @@ extension AgentAdapter {
         binary: "codex",
         launch: .flags(Codex.arguments),
         translate: Codex.translate,
-        translateNotification: Codex.translateNotification
+        translateNotification: Codex.translateNotification,
+        resume: { ["resume", $0] }
     )
 }
 

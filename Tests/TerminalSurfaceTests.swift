@@ -163,7 +163,7 @@ final class TerminalSurfaceTests: XCTestCase {
                 ], selectedTab: 0),
             ], selectedWorkspace: 0, frame: nil)
             let store = WorkspaceStore()
-            store.restore(saved) { id, directory, _ in terminal(runtime, id: id, directory: directory) }
+            store.restore(saved) { id, directory, _, _ in terminal(runtime, id: id, directory: directory) }
             let views = store.workspaces.flatMap(\.surfaces)
             @MainActor func started() -> Set<UUID> { Set(views.filter { $0.surface != nil }.map(\.id)) }
             XCTAssertEqual(started(), [])

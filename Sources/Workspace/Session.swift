@@ -2,8 +2,9 @@ import Foundation
 
 /// What survives a relaunch: each window's position and workspaces, the
 /// workspaces' names, their tabs' working directories and zoomed panes, the
-/// ids of workspaces and terminals, and which of each is selected. Shell
-/// processes and screen contents do not.
+/// ids of workspaces and terminals, which of each is selected, and the coding
+/// agent session running in each terminal. Shell processes and screen
+/// contents do not.
 struct Session: Codable, Equatable {
     struct Window: Codable, Equatable {
         var workspaces: [Workspace]
@@ -26,23 +27,30 @@ struct Session: Codable, Equatable {
         var zoomedPane: Int?
     }
 
+    /// A coding agent session a terminal can resume.
+    struct Agent: Codable, Equatable {
+        /// The agent's adapter name, such as `claude`.
+        var name: String
+        var sessionID: String
+    }
+
     indirect enum Layout: Codable, Equatable {
-        case terminal(id: UUID, workingDirectory: String?)
+        case terminal(id: UUID, workingDirectory: String?, agent: Agent? = nil)
         case split(axis: SplitAxis, ratio: Double, first: Layout, second: Layout)
 
-        init<Leaf>(node: PaneNode<Leaf>) {
+        init<Leaf>(node: PaneNode<Leaf>, agent: (Leaf) -> Agent? = { _ in nil }) {
             if let leaf = node.leaf {
-                self = .terminal(id: leaf.id, workingDirectory: leaf.workingDirectory)
+                self = .terminal(id: leaf.id, workingDirectory: leaf.workingDirectory, agent: agent(leaf))
             } else {
                 self = .split(axis: node.axis ?? .horizontal, ratio: node.ratio,
-                              first: Layout(node: node.first!), second: Layout(node: node.second!))
+                              first: Layout(node: node.first!, agent: agent), second: Layout(node: node.second!, agent: agent))
             }
         }
 
-        func makeNode<Leaf>(_ makeLeaf: (UUID, String?) -> Leaf) -> PaneNode<Leaf> {
+        func makeNode<Leaf>(_ makeLeaf: (UUID, String?, Agent?) -> Leaf) -> PaneNode<Leaf> {
             switch self {
-            case .terminal(let id, let workingDirectory):
-                return PaneNode(leaf: makeLeaf(id, workingDirectory))
+            case .terminal(let id, let workingDirectory, let agent):
+                return PaneNode(leaf: makeLeaf(id, workingDirectory, agent))
             case .split(let axis, let ratio, let first, let second):
                 return PaneNode(axis: axis, first: first.makeNode(makeLeaf), second: second.makeNode(makeLeaf), ratio: ratio)
             }
@@ -78,8 +86,9 @@ struct Session: Codable, Equatable {
 }
 
 extension WorkspaceStoreModel {
-    /// `places`, when given, are saved in place of the ones in view.
-    func snapshot(frame: CGRect? = nil, places: Places? = nil) -> Session.Window {
+    /// `places`, when given, are saved in place of the ones in view. `agent`
+    /// gives the agent session each terminal would resume.
+    func snapshot(frame: CGRect? = nil, places: Places? = nil, agent: (Leaf) -> Session.Agent? = { _ in nil }) -> Session.Window {
         let places = places ?? self.places
         return Session.Window(
             workspaces: workspaces.map { workspace in
@@ -88,7 +97,7 @@ extension WorkspaceStoreModel {
                     customName: workspace.customName,
                     tabs: workspace.tabs.map { tab in
                         Session.Tab(
-                            layout: Session.Layout(node: tab.panes.root),
+                            layout: Session.Layout(node: tab.panes.root, agent: agent),
                             zoomedPane: tab.panes.zoomed.flatMap { zoomed in tab.panes.leaves.firstIndex { $0 === zoomed } })
                     },
                     selectedTab: workspace.tabs.firstIndex { $0 === places.selectedTab(in: workspace) } ?? 0)
@@ -98,16 +107,16 @@ extension WorkspaceStoreModel {
     }
 
     /// Rebuilds one window's workspaces. `makeLeaf` recreates a terminal from
-    /// its saved id and working directory, given the id of its workspace.
-    /// Workspaces whose tabs were all lost are skipped.
-    func restore(_ window: Session.Window, makeLeaf: (_ id: UUID, _ workingDirectory: String?, _ workspace: UUID) -> Leaf) {
+    /// its saved id, working directory and agent, given the id of its
+    /// workspace. Workspaces whose tabs were all lost are skipped.
+    func restore(_ window: Session.Window, makeLeaf: (_ id: UUID, _ workingDirectory: String?, _ workspace: UUID, _ agent: Session.Agent?) -> Leaf) {
         performBatch {
             var selectedWorkspace: WorkspaceModel<Leaf>?
             for (workspaceIndex, saved) in window.workspaces.enumerated() {
                 let workspace = addWorkspace(id: saved.id, customName: saved.customName)
                 var selectedTab: TabModel<Leaf>?
                 for (tabIndex, tab) in saved.tabs.enumerated() {
-                    let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id) }
+                    let root = tab.layout.makeNode { makeLeaf($0, $1, workspace.id, $2) }
                     let leaves = root.leaves
                     guard let first = leaves.first else { continue }
                     let panes = PaneTreeModel(root: root)

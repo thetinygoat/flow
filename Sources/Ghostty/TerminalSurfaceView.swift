@@ -231,6 +231,9 @@ final class TerminalSurfaceView: NSView {
         }
     }
 
+    /// Restored terminals start only once they are shown.
+    var isStarted: Bool { surface != nil }
+
     var needsConfirmQuit: Bool {
         guard let surface else { return false }
         return ghostty_surface_needs_confirm_quit(surface)

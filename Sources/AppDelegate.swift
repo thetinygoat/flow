@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// running after it, so the session keeps that window and the next window
     /// opened is that one.
     private var closedLastWindow: Session.Window?
+    /// The agents of restored terminals, kept in the session until each
+    /// terminal starts and its agent reports for itself.
+    private var restoredAgents: [UUID: Session.Agent] = [:]
     private var workspaceMenu: WorkspaceMenu!
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
@@ -89,6 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         agentSessions.onUpdate = { [weak self] update in
             self?.notify(update)
+            if update.changesResume {
+                self?.scheduleSave()
+            }
         }
         AgentSocketListener.removeStaleSockets()
         let listener = AgentSocketListener(url: agentSocket) { [weak self] event in
@@ -289,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func session() -> Session {
         guard !windows.isEmpty else { return Session(windows: closedLastWindow.map { [$0] } ?? []) }
-        return Session(windows: windows.map { $0.snapshot() })
+        return Session(windows: windows.map { $0.snapshot(agent: resumableAgent) })
     }
 
     /// Changes arrive in bursts (every shell prompt updates the directory), so
@@ -419,17 +425,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
+    private func makeSurface(id: UUID, workingDirectory: String?, workspace: UUID, resuming agent: Session.Agent?, startImmediately: Bool) -> TerminalSurfaceView {
         var configuration = TerminalSurfaceConfiguration()
         configuration.workingDirectory = workingDirectory
         configuration.environment = AgentEnvironment.variables(
             surface: id, workspace: workspace, socket: agentSocket.path, flw: Self.flwPath, shims: AgentShims.root())
+        if let agent, Self.resumesAgents,
+           let command = AgentAdapter.named(agent.name)?.resumeCommand(sessionID: agent.sessionID) {
+            configuration.environment[AgentEnvironment.resumeKey] = command
+            restoredAgents[id] = agent
+        }
         let surface = TerminalSurfaceView(runtime: runtime, id: id, configuration: configuration, startImmediately: startImmediately)
         surface.delegate = self
         return surface
     }
 
     // MARK: Agents
+
+    private static var resumesAgents: Bool {
+        UserDefaults.standard.bool(forKey: Preferences.resumeAgents)
+    }
+
+    /// The agent session the terminal opens again on the next launch.
+    private func resumableAgent(in surface: TerminalSurfaceView) -> Session.Agent? {
+        guard Self.resumesAgents else { return nil }
+        if let session = MainActor.assumeIsolated({ agentSessions.resumable(in: surface.id) }) {
+            return Session.Agent(name: session.agent, sessionID: session.sessionID)
+        }
+        return surface.isStarted ? nil : restoredAgents[surface.id]
+    }
 
     /// A done dot and the notifications a terminal posted go once the user
     /// looks at it. Waiting stays until the agent moves on.
@@ -462,6 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 notifications.clear(for: id)
             }
         }
+        restoredAgents = restoredAgents.filter { surface(withID: $0.key)?.1.isStarted == false }
     }
 
     // MARK: App
@@ -731,8 +756,8 @@ extension AppDelegate: GhosttyRuntimeDelegate {
 // MARK: - Windows and terminals
 
 extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
-    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID, startImmediately: Bool) -> TerminalSurfaceView {
-        makeSurface(id: id, workingDirectory: directory, workspace: workspace, startImmediately: startImmediately)
+    func terminalWindow(_ window: TerminalWindow, makeSurface id: UUID, in directory: String?, workspace: UUID, resuming agent: Session.Agent?, startImmediately: Bool) -> TerminalSurfaceView {
+        makeSurface(id: id, workingDirectory: directory, workspace: workspace, resuming: agent, startImmediately: startImmediately)
     }
 
     func terminalWindowDidChange(_ window: TerminalWindow) {
@@ -743,7 +768,7 @@ extension AppDelegate: TerminalWindowDelegate, TerminalSurfaceViewDelegate {
     func terminalWindowWillClose(_ window: TerminalWindow) {
         windows.removeAll { $0 === window }
         if windows.isEmpty {
-            let snapshot = window.snapshot()
+            let snapshot = window.snapshot(agent: resumableAgent)
             closedLastWindow = snapshot.workspaces.isEmpty ? nil : snapshot
         }
         forgetClosedTerminals(after: window)

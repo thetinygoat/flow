@@ -5,7 +5,7 @@
 # ///
 """Builds, signs, notarizes and packages a Flow release, and writes the
 Sparkle feed entry for it. Nothing leaves this Mac except the notarization
-upload to Apple, unless --publish is given.
+upload to Apple, unless --publish or --tap is given.
 
   uv run scripts/release.py 0.1.0            build dist/Flow-0.1.0.dmg and dist/appcast.xml
   uv run scripts/release.py 0.1.0 --no-wait  the same, but return while Apple is still
@@ -13,14 +13,18 @@ upload to Apple, unless --publish is given.
   uv run scripts/release.py 0.1.1-rc.1       a release candidate: a GitHub pre-release with
                                              only the DMG, never offered as an update
   uv run scripts/release.py 0.1.0 --publish  publish exactly those files: push the branch
-                                             and tag, and create the GitHub release
+                                             and tag, create the GitHub release, and point
+                                             the Homebrew cask at it
+  uv run scripts/release.py 0.1.0 --tap      point the Homebrew cask at a release that is
+                                             already published
 
 Needs: a Developer ID Application certificate for TEAM, the NOTARY_PROFILE
 notarytool keychain profile, the Sparkle private key in the keychain,
-create-dmg, and gh.
+create-dmg, and gh with push access to TAP.
 """
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -39,6 +43,8 @@ MINIMUM_SYSTEM = "14.0"
 SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 FEED_KEEP = 15
 CHANGELOG = "https://getflowterm.app/changelog/"
+TAP = "thetinygoat/homebrew-tap"
+CASK_PATH = "Casks/flowterm.rb"
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build" / "release"
@@ -124,6 +130,51 @@ def parse_sign_update(text):
 def developer_id(find_identity_output, team):
     match = re.search(rf'"(Developer ID Application: .*\({team}\))"', find_identity_output)
     return match.group(1) if match else None
+
+
+def cask(version, sha256):
+    """The whole cask, rewritten on every release, so it is changed here and
+    never by hand in the tap.
+
+    It leaves out auto_updates: with it, brew upgrade skips the app, and
+    people who turn off Sparkle's checks to update through Homebrew would
+    never be updated."""
+    return f'''cask "flowterm" do
+  version "{version}"
+  sha256 "{sha256}"
+
+  url "https://github.com/{REPO}/releases/download/v#{{version}}/Flow-#{{version}}.dmg"
+  name "Flow"
+  desc "Calmer terminal for everyday work"
+  homepage "https://getflowterm.app/"
+
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on macos: :sonoma
+
+  app "Flow.app"
+
+  zap trash: [
+    "~/.config/flow",
+    "~/Library/Application Support/flow",
+    "~/Library/Caches/dev.thetinygoat.flow",
+    "~/Library/HTTPStorages/dev.thetinygoat.flow",
+    "~/Library/HTTPStorages/dev.thetinygoat.flow.binarycookies",
+    "~/Library/Preferences/dev.thetinygoat.flow.plist",
+    "~/Library/Saved Application State/dev.thetinygoat.flow.savedState",
+  ]
+end
+'''
+
+
+def asset_sha256(digest):
+    algorithm, _, value = (digest or "").partition(":")
+    if algorithm != "sha256" or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ReleaseError(f"GitHub gave no sha256 for the DMG (got {digest!r})")
+    return value
 
 
 def _sparkle(tag):
@@ -400,6 +451,60 @@ class Release:
             self.write_feed(build_number)
         step(f"Done. Review dist/, then run: uv run scripts/release.py {self.version} --publish")
 
+    def can_push_to_tap(self):
+        result = run("gh", "api", f"repos/{TAP}", "--jq", ".permissions.push", capture=True, check=False)
+        return result.stdout.strip() == "true"
+
+    def published_cask(self):
+        """The cask's text and blob sha in the tap, or (None, None) before the
+        first release that has one."""
+        result = subprocess.run(["gh", "api", f"repos/{TAP}/contents/{CASK_PATH}"],
+                                cwd=ROOT, text=True, capture_output=True)
+        if result.returncode != 0:
+            if "HTTP 404" in result.stderr:
+                return None, None
+            raise ReleaseError(f"could not read {CASK_PATH} from {TAP}: {result.stderr.strip()}")
+        try:
+            data = json.loads(result.stdout)
+            return base64.b64decode(data["content"]).decode(), data["sha"]
+        except (ValueError, KeyError, TypeError) as error:
+            raise ReleaseError(f"could not read {CASK_PATH} from {TAP}: {error!r}")
+
+    def published_sha256(self):
+        """GitHub hashes the DMG as it is uploaded, so this is the checksum of
+        exactly what Homebrew will download."""
+        result = run("gh", "api", f"repos/{REPO}/releases/tags/{self.tag}",
+                     "--jq", f'.assets[] | select(.name == "{self.dmg.name}") | .digest',
+                     capture=True, check=False)
+        if result.returncode != 0:
+            raise ReleaseError(f"could not read the assets of {self.tag}")
+        return asset_sha256(result.stdout.strip())
+
+    def update_tap(self):
+        step(f"Pointing the Homebrew cask at {self.tag}")
+        text = cask(self.version, self.published_sha256())
+        published, blob = self.published_cask()
+        if published == text:
+            print(f"{TAP} already has {self.version}")
+            return
+        body = {"message": f"flowterm {self.version}", "content": base64.b64encode(text.encode()).decode()}
+        if blob:
+            body["sha"] = blob
+        result = subprocess.run(["gh", "api", "--method", "PUT", f"repos/{TAP}/contents/{CASK_PATH}", "--input", "-"],
+                                cwd=ROOT, text=True, input=json.dumps(body), capture_output=True)
+        if result.returncode != 0:
+            raise ReleaseError(f"could not write {CASK_PATH} to {TAP}: {result.stderr.strip()}")
+        print(f"https://github.com/{TAP}/blob/HEAD/{CASK_PATH}")
+
+    def tap(self):
+        if self.prerelease:
+            raise ReleaseError("release candidates are never offered through Homebrew")
+        if not self.release_exists():
+            raise ReleaseError(f"publish {self.tag} first")
+        if not self.can_push_to_tap():
+            raise ReleaseError(f"gh cannot push to {TAP}")
+        self.update_tap()
+
     def publish(self):
         step(f"Publishing {self.tag}")
         if not (self.dmg.exists() and (self.prerelease or self.appcast.exists())):
@@ -416,6 +521,8 @@ class Release:
         # Every update dialog loads the notes, and shows an error without them.
         if not self.prerelease and not self.notes_published():
             raise ReleaseError(f"{self.notes_url} is not live; deploy the changelog entry first")
+        if not self.prerelease and not self.can_push_to_tap():
+            raise ReleaseError(f"gh cannot push to {TAP}")
         branch = output("git", "branch", "--show-current")
         if not branch:
             raise ReleaseError("check out the branch being released")
@@ -427,13 +534,21 @@ class Release:
             run("gh", "release", "create", self.tag, self.dmg, self.appcast, "--repo", REPO,
                 "--title", f"Flow {self.version}", "--notes", f"Release notes: {self.page_url}")
         print(f"published https://github.com/{REPO}/releases/tag/{self.tag}")
+        if not self.prerelease:
+            try:
+                self.update_tap()
+            except ReleaseError as error:
+                raise ReleaseError(f"{self.tag} is published, but the cask was not updated ({error}); "
+                                   f"retry with: uv run scripts/release.py {self.version} --tap")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Build, or publish, a Flow release.")
     parser.add_argument("version", help="X.Y.Z, or X.Y.Z-rc.N for a release candidate")
-    parser.add_argument("--publish", action="store_true", help="publish the release already built in dist/")
-    parser.add_argument("--no-wait", action="store_true", help="return while Apple is still notarizing")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--publish", action="store_true", help="publish the release already built in dist/")
+    action.add_argument("--tap", action="store_true", help="point the Homebrew cask at the published release")
+    action.add_argument("--no-wait", action="store_true", help="return while Apple is still notarizing")
     args = parser.parse_args()
     if not VERSION.fullmatch(args.version):
         parser.error("version must be X.Y.Z or X.Y.Z-rc.N")
@@ -442,7 +557,12 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     release = Release(args.version)
     try:
-        release.publish() if args.publish else release.make(wait=not args.no_wait)
+        if args.publish:
+            release.publish()
+        elif args.tap:
+            release.tap()
+        else:
+            release.make(wait=not args.no_wait)
     except ReleaseError as error:
         sys.exit(f"error: {error}")
 

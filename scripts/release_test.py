@@ -10,12 +10,14 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
 from release import (
+    asset_sha256,
     FEED_KEEP,
     SPARKLE_NS,
     VERSION,
     ReleaseError,
     is_prerelease,
     can_resume,
+    cask,
     developer_id,
     notarization_result,
     parse_sign_update,
@@ -144,6 +146,29 @@ class AppcastTests(unittest.TestCase):
         for n in range(FEED_KEEP + 3):
             feed = add(feed, n + 1, now=START + timedelta(days=n))
         self.assertEqual(sorted(builds(feed)), list(range(4, FEED_KEEP + 4)))
+
+
+class CaskTests(unittest.TestCase):
+    def test_names_the_release_and_its_checksum(self):
+        text = cask("0.5.0", "ab" * 32)
+        self.assertIn('version "0.5.0"\n', text)
+        self.assertIn(f'sha256 "{"ab" * 32}"\n', text)
+
+    def test_leaves_the_download_url_to_homebrew(self):
+        self.assertIn("/download/v#{version}/Flow-#{version}.dmg", cask("0.5.0", "ab" * 32))
+
+    def test_lets_brew_upgrade_the_app(self):
+        self.assertNotIn("auto_updates", cask("0.5.0", "ab" * 32))
+
+
+class AssetDigestTests(unittest.TestCase):
+    def test_reads_the_sha256(self):
+        self.assertEqual(asset_sha256("sha256:" + "ab" * 32), "ab" * 32)
+
+    def test_refuses_a_missing_or_other_digest(self):
+        for digest in ["", "null", "sha512:" + "ab" * 64, "sha256:abc"]:
+            with self.assertRaises(ReleaseError):
+                asset_sha256(digest)
 
 
 if __name__ == "__main__":

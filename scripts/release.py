@@ -25,7 +25,6 @@ create-dmg, and gh with push access to TAP.
 
 import argparse
 import base64
-import hashlib
 import json
 import os
 import re
@@ -169,6 +168,13 @@ def cask(version, sha256):
   ]
 end
 '''
+
+
+def asset_sha256(digest):
+    algorithm, _, value = (digest or "").partition(":")
+    if algorithm != "sha256" or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ReleaseError(f"GitHub gave no sha256 for the DMG (got {digest!r})")
+    return value
 
 
 def _sparkle(tag):
@@ -458,13 +464,25 @@ class Release:
             if "HTTP 404" in result.stderr:
                 return None, None
             raise ReleaseError(f"could not read {CASK_PATH} from {TAP}: {result.stderr.strip()}")
-        data = json.loads(result.stdout)
-        return base64.b64decode(data["content"]).decode(), data["sha"]
+        try:
+            data = json.loads(result.stdout)
+            return base64.b64decode(data["content"]).decode(), data["sha"]
+        except (ValueError, KeyError, TypeError) as error:
+            raise ReleaseError(f"could not read {CASK_PATH} from {TAP}: {error!r}")
+
+    def published_sha256(self):
+        """GitHub hashes the DMG as it is uploaded, so this is the checksum of
+        exactly what Homebrew will download."""
+        result = run("gh", "api", f"repos/{REPO}/releases/tags/{self.tag}",
+                     "--jq", f'.assets[] | select(.name == "{self.dmg.name}") | .digest',
+                     capture=True, check=False)
+        if result.returncode != 0:
+            raise ReleaseError(f"could not read the assets of {self.tag}")
+        return asset_sha256(result.stdout.strip())
 
     def update_tap(self):
         step(f"Pointing the Homebrew cask at {self.tag}")
-        sha256 = hashlib.sha256(self.dmg.read_bytes()).hexdigest()
-        text = cask(self.version, sha256)
+        text = cask(self.version, self.published_sha256())
         published, blob = self.published_cask()
         if published == text:
             print(f"{TAP} already has {self.version}")
@@ -481,10 +499,10 @@ class Release:
     def tap(self):
         if self.prerelease:
             raise ReleaseError("release candidates are never offered through Homebrew")
-        if not self.dmg.exists() or not can_resume(self.state(), self.version, self.tag_commit()):
-            raise ReleaseError(f"dist/ does not hold the {self.version} build")
         if not self.release_exists():
             raise ReleaseError(f"publish {self.tag} first")
+        if not self.can_push_to_tap():
+            raise ReleaseError(f"gh cannot push to {TAP}")
         self.update_tap()
 
     def publish(self):

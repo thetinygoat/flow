@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
 from release import (
+    asset_sha256,
     FEED_KEEP,
     SPARKLE_NS,
     VERSION,
@@ -158,6 +159,16 @@ class CaskTests(unittest.TestCase):
 
     def test_lets_brew_upgrade_the_app(self):
         self.assertNotIn("auto_updates", cask("0.5.0", "ab" * 32))
+
+
+class AssetDigestTests(unittest.TestCase):
+    def test_reads_the_sha256(self):
+        self.assertEqual(asset_sha256("sha256:" + "ab" * 32), "ab" * 32)
+
+    def test_refuses_a_missing_or_other_digest(self):
+        for digest in ["", "null", "sha512:" + "ab" * 64, "sha256:abc"]:
+            with self.assertRaises(ReleaseError):
+                asset_sha256(digest)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from release import (
     ReleaseError,
     is_prerelease,
     can_resume,
+    cask,
     developer_id,
     notarization_result,
     parse_sign_update,
@@ -144,6 +145,19 @@ class AppcastTests(unittest.TestCase):
         for n in range(FEED_KEEP + 3):
             feed = add(feed, n + 1, now=START + timedelta(days=n))
         self.assertEqual(sorted(builds(feed)), list(range(4, FEED_KEEP + 4)))
+
+
+class CaskTests(unittest.TestCase):
+    def test_names_the_release_and_its_checksum(self):
+        text = cask("0.5.0", "ab" * 32)
+        self.assertIn('version "0.5.0"\n', text)
+        self.assertIn(f'sha256 "{"ab" * 32}"\n', text)
+
+    def test_leaves_the_download_url_to_homebrew(self):
+        self.assertIn("/download/v#{version}/Flow-#{version}.dmg", cask("0.5.0", "ab" * 32))
+
+    def test_lets_brew_upgrade_the_app(self):
+        self.assertNotIn("auto_updates", cask("0.5.0", "ab" * 32))
 
 
 if __name__ == "__main__":

@@ -146,7 +146,7 @@ def cask(version, sha256):
 
   url "https://github.com/{REPO}/releases/download/v#{{version}}/Flow-#{{version}}.dmg"
   name "Flow"
-  desc "Terminal for keeping track of coding agents"
+  desc "Calmer terminal for everyday work"
   homepage "https://getflowterm.app/"
 
   livecheck do

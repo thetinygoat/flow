@@ -41,6 +41,18 @@ final class AgentAdapterTests: XCTestCase {
         XCTAssertNil(AgentAdapter.openCode.translateNotification)
         XCTAssertNotNil(AgentAdapter.codex.translateNotification)
     }
+
+    func testEachAgentResumesItsSessionByID() {
+        XCTAssertEqual(AgentAdapter.claudeCode.resumeCommand(sessionID: "f4793da3-6bca"), "claude --resume f4793da3-6bca")
+        XCTAssertEqual(AgentAdapter.codex.resumeCommand(sessionID: "019a-b2"), "codex resume 019a-b2")
+        XCTAssertEqual(AgentAdapter.openCode.resumeCommand(sessionID: "ses_4bX9"), "opencode --session ses_4bX9")
+    }
+
+    func testAnIDThatIsNotOneWordResumesNothing() {
+        for id in ["", "a b", "a;rm -rf ~", "$(id)", "a\nb", "é"] {
+            XCTAssertNil(AgentAdapter.claudeCode.resumeCommand(sessionID: id), id)
+        }
+    }
 }
 
 final class ClaudeCodeTests: XCTestCase {

@@ -9,7 +9,7 @@ final class SessionTests: XCTestCase {
         let last = Session.Workspace(id: UUID(), customName: "last", tabs: [secondTab], selectedTab: 0)
         for (selection, expected) in [(1, middle.id), (2, last.id)] {
             let store = TestStore()
-            store.restore(.init(workspaces: [empty, middle, last], selectedWorkspace: selection)) { id, directory, _ in
+            store.restore(.init(workspaces: [empty, middle, last], selectedWorkspace: selection)) { id, directory, _, _ in
                 FakeLeaf(id: id, workingDirectory: directory)
             }
             XCTAssertEqual(store.workspaces.map(\.id), [middle.id, last.id])
@@ -24,7 +24,7 @@ final class SessionTests: XCTestCase {
         let empty = Session.Workspace(id: UUID(), customName: nil, tabs: [], selectedTab: 0)
         let last = Session.Workspace(id: UUID(), customName: nil, tabs: [tab], selectedTab: 0)
         let store = TestStore()
-        store.restore(.init(workspaces: [first, empty, last], selectedWorkspace: 1)) { id, directory, _ in
+        store.restore(.init(workspaces: [first, empty, last], selectedWorkspace: 1)) { id, directory, _, _ in
             FakeLeaf(id: id, workingDirectory: directory)
         }
         XCTAssertEqual(store.selected?.id, last.id)
@@ -87,7 +87,7 @@ final class SessionTests: XCTestCase {
 
         let loaded = try XCTUnwrap(Session.load(from: url))
         let restored = TestStore()
-        restored.restore(loaded.windows[0]) { id, directory, _ in
+        restored.restore(loaded.windows[0]) { id, directory, _, _ in
             FakeLeaf(id: id, workingDirectory: directory)
         }
 
@@ -117,7 +117,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(decoded, session)
 
         let restored = TestStore()
-        restored.restore(decoded.windows[0]) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
+        restored.restore(decoded.windows[0]) { id, directory, _, _ in FakeLeaf(id: id, workingDirectory: directory) }
 
         XCTAssertEqual(restored.workspaces.count, 2)
         XCTAssertTrue(restored.selected === restored.workspaces[0])
@@ -165,7 +165,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(window.workspaces[0].tabs.map(\.zoomedPane), [1, nil])
 
         let restored = TestStore()
-        restored.restore(window) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
+        restored.restore(window) { id, directory, _, _ in FakeLeaf(id: id, workingDirectory: directory) }
         let restoredTab = restored.workspaces[0].tabs[0]
         XCTAssertEqual(restoredTab.panes.zoomed?.workingDirectory, "/b")
         XCTAssertTrue(restoredTab.focusedLeaf === restoredTab.panes.zoomed, "the zoomed pane gets focus")
@@ -180,7 +180,7 @@ final class SessionTests: XCTestCase {
             selectedWorkspace: 0,
             frame: nil)
         let restored = TestStore()
-        restored.restore(window) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
+        restored.restore(window) { id, directory, _, _ in FakeLeaf(id: id, workingDirectory: directory) }
         XCTAssertNil(restored.workspaces[0].tabs[0].panes.zoomed)
     }
 
@@ -204,7 +204,7 @@ final class SessionTests: XCTestCase {
         let decoded = try! JSONDecoder().decode(Session.self, from: data)
         var leafWorkspaces: [UUID] = []
         let restored = TestStore()
-        restored.restore(decoded.windows[0]) { id, directory, workspace in
+        restored.restore(decoded.windows[0]) { id, directory, workspace, _ in
             leafWorkspaces.append(workspace)
             return FakeLeaf(id: id, workingDirectory: directory)
         }
@@ -216,6 +216,40 @@ final class SessionTests: XCTestCase {
 
     func testMissingFileLoadsNil() {
         XCTAssertNil(Session.load(from: URL(fileURLWithPath: "/nonexistent/session.json")))
+    }
+
+    func testATerminalKeepsItsAgentThroughASaveAndRestore() {
+        let store = TestStore()
+        let workspace = store.addWorkspace()
+        let withAgent = FakeLeaf(workingDirectory: "/a"), without = FakeLeaf(workingDirectory: "/b")
+        let tab = TestTab(leaf: withAgent)
+        tab.panes.split(withAgent, direction: .right, with: without)
+        workspace.add(tab)
+        let agent = Session.Agent(name: "claude", sessionID: "s1")
+
+        let saved = store.snapshot { $0 === withAgent ? agent : nil }
+        let decoded = try! JSONDecoder().decode(Session.self, from: JSONEncoder().encode(Session(windows: [saved])))
+        var restored: [String: String] = [:]
+        TestStore().restore(decoded.windows[0]) { id, directory, _, agent in
+            restored[directory!] = agent?.sessionID ?? "none"
+            return FakeLeaf(id: id, workingDirectory: directory)
+        }
+        XCTAssertEqual(restored, ["/a": "s1", "/b": "none"])
+    }
+
+    func testASessionSavedBeforeAgentsWereKeptStillLoads() throws {
+        let id = UUID()
+        let json = """
+        {"windows":[{"selectedWorkspace":0,"workspaces":[{"id":"\(UUID().uuidString)","selectedTab":0,
+        "tabs":[{"layout":{"terminal":{"id":"\(id.uuidString)","workingDirectory":"/a"}}}]}]}]}
+        """
+        let session = try JSONDecoder().decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.windows[0].workspaces[0].tabs[0].layout, .terminal(id: id, workingDirectory: "/a", agent: nil))
+    }
+
+    func testATerminalWithoutAnAgentSavesNoAgentKey() throws {
+        let json = String(decoding: try JSONEncoder().encode(Session.Layout.terminal(id: UUID(), workingDirectory: "/a")), as: UTF8.self)
+        XCTAssertFalse(json.contains("agent"))
     }
 }
 
@@ -267,7 +301,7 @@ final class SessionPerformanceTests: XCTestCase {
         let restored = TestStore()
         var snapshots: [Session.Window] = []
         restored.onChange = { snapshots.append(restored.snapshot()) }
-        restored.restore(saved) { id, directory, _ in FakeLeaf(id: id, workingDirectory: directory) }
+        restored.restore(saved) { id, directory, _, _ in FakeLeaf(id: id, workingDirectory: directory) }
         XCTAssertEqual(snapshots, [saved])
     }
 

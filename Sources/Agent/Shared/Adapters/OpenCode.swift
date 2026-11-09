@@ -5,7 +5,8 @@ extension AgentAdapter {
         name: "opencode",
         binary: "opencode",
         launch: .environment(OpenCode.environment),
-        translate: { _ in nil }
+        translate: { _ in nil },
+        resume: { ["--session", $0] }
     )
 }
 

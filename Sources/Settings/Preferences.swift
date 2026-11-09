@@ -9,6 +9,7 @@ enum Preferences {
     static let needsInputSound = "AgentNeedsInputSound"
     static let finishedNotification = "AgentFinishedNotification"
     static let finishedSound = "AgentFinishedSound"
+    static let resumeAgents = "ResumeAgents"
 
     static func register(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
@@ -16,6 +17,7 @@ enum Preferences {
             needsInputSound: "Ping",
             finishedNotification: true,
             finishedSound: "Glass",
+            resumeAgents: true,
         ])
     }
 

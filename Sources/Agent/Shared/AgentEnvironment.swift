@@ -14,6 +14,9 @@ enum AgentEnvironment {
     static let disabledKey = "FLOW_AGENTS_DISABLED"
     /// Set by a shim, so `flw launch` can look for the real binary past it.
     static let shimDirectoryKey = "FLOW_SHIM_DIR"
+    /// The command a restored terminal's shell integration runs at the first
+    /// prompt, to start the terminal's agent session again.
+    static let resumeKey = "FLOW_RESUME"
 
     static let socketDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("flow", isDirectory: true)

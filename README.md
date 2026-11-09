@@ -30,6 +30,14 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 Flow needs macOS 14 or later.
 
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask thetinygoat/tap/flowterm
+```
+
+Or by hand:
+
 1. Download the latest `.dmg` from [releases](https://github.com/thetinygoat/flow/releases/latest).
 2. Open it and drag Flow into Applications.
 3. Open Flow.

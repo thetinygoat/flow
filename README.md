@@ -16,7 +16,7 @@
 
 A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
 
-![Flow with Claude Code, Codex and OpenCode side by side in split panes, and workspaces with their paths and git branches in the sidebar](assets/screenshot.png)
+![Flow with Claude Code and OpenCode side by side in split panes, the switcher open to go to any tab or pane, and workspaces with their paths and git branches in the sidebar](assets/screenshot.png)
 
 ## Why Flow?
 

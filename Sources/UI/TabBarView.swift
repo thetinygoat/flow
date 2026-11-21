@@ -151,17 +151,17 @@ private final class TabItemView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         if isSelected || isHovered {
-            NSColor.white.withAlphaComponent(isSelected ? 0.06 : 0.04).setFill()
+            NSColor.labelColor.withAlphaComponent(isSelected ? 0.06 : 0.04).setFill()
             bounds.fill()
         }
         if isSelected {
             NSColor.controlAccentColor.setFill()
             NSRect(x: 0, y: bounds.height - 2, width: bounds.width, height: 2).fill()
         } else {
-            NSColor.white.withAlphaComponent(isHovered ? 0.25 : 0.1).setFill()
+            NSColor.labelColor.withAlphaComponent(isHovered ? 0.25 : 0.1).setFill()
             NSRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1).fill()
         }
-        NSColor.white.withAlphaComponent(0.1).setFill()
+        NSColor.labelColor.withAlphaComponent(0.1).setFill()
         NSRect(x: bounds.width - 1, y: 0, width: 1, height: bounds.height).fill()
     }
 

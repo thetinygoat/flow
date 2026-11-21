@@ -20,7 +20,6 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(Double(get(Option.fontSize.key, Float(0))), Option.fontSize.defaultValue)
         XCTAssertEqual(get(Option.fontThicken.key, true), Option.fontThicken.defaultValue)
         XCTAssertEqual(string(Option.cursorStyle.key), Option.cursorStyle.defaultValue)
-        XCTAssertEqual(get(Option.backgroundOpacity.key, Double(0)), Option.backgroundOpacity.defaultValue)
         XCTAssertEqual(get(Option.unfocusedSplitOpacity.key, Double(0)), Option.unfocusedSplitOpacity.defaultValue)
         XCTAssertEqual(string(Option.scrollbar.key), Option.scrollbar.defaultValue)
         XCTAssertEqual(string(Option.confirmClose.key), Option.confirmClose.defaultValue)
@@ -33,8 +32,26 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(config.notifyOnCommandFinishAfter, Option.notifyOnCommandFinishAfter.defaultValue)
     }
 
+    func testTheWindowStaysOpaqueWhateverTheFileSays() throws {
+        XCTAssertEqual(Self.initialized, GHOSTTY_SUCCESS)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let theme = directory.appendingPathComponent("translucent")
+        try "background-opacity = 0.5\n".write(to: theme, atomically: true, encoding: .utf8)
+        let file = directory.appendingPathComponent("config")
+        try "theme = \(theme.path)\nbackground-blur = 30\n".write(to: file, atomically: true, encoding: .utf8)
+        let config = try GhosttyConfig(file: file)
+        var opacity = 0.0
+        var blur: Int16 = -1
+        XCTAssertTrue(ghostty_config_get(config.cValue, &opacity, "background-opacity", 18))
+        XCTAssertTrue(ghostty_config_get(config.cValue, &blur, "background-blur", 15))
+        XCTAssertEqual(opacity, 1)
+        XCTAssertEqual(blur, 0)
+    }
+
     func testNumbersUseADecimalPointInEveryLocale() {
-        XCTAssertEqual(Option.backgroundOpacity.format(0.85), "0.85")
+        XCTAssertEqual(Option.unfocusedSplitOpacity.format(0.85), "0.85")
         XCTAssertEqual(Option.fontSize.format(13.5), "13.5")
         XCTAssertEqual(Option.fontSize.format(14), "14")
     }
@@ -52,15 +69,6 @@ final class ConfigSettingTests: XCTestCase {
         XCTAssertEqual(ConfigDuration.format(.seconds(120)), "2m")
         XCTAssertEqual(ConfigDuration.format(.milliseconds(500)), "500ms")
         XCTAssertEqual(ConfigDuration.format(.milliseconds(1500)), "1500ms")
-    }
-
-    func testBlurIsOnForAnyRadius() {
-        XCTAssertEqual(Option.backgroundBlur.parse("true"), true)
-        XCTAssertEqual(Option.backgroundBlur.parse("f"), false)
-        XCTAssertEqual(Option.backgroundBlur.parse("30"), true)
-        XCTAssertEqual(Option.backgroundBlur.parse("0"), false)
-        XCTAssertNil(Option.backgroundBlur.parse("macos-glass-regular"))
-        XCTAssertEqual(Option.backgroundBlur.format(true), "true")
     }
 
     /// The theme standing in for Ghostty's own colors in a light and dark

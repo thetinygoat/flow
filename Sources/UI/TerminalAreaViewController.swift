@@ -13,7 +13,6 @@ final class TerminalAreaViewController: NSViewController, TabBarViewDelegate {
 
     private let tabBar = TabBarView()
 
-    /// Stays opaque even when the terminal is translucent, so tab titles stay readable.
     var backgroundColor: NSColor {
         get { tabBar.backgroundColor }
         set {

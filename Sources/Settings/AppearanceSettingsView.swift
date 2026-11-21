@@ -75,16 +75,11 @@ struct AppearanceSettingsView: View {
             }
 
             Section("Window") {
-                LabeledContent("Background opacity") {
-                    SavedOnReleaseSlider(title: "Background opacity", value: store.binding(Option.backgroundOpacity), range: 0.2...1)
-                }
                 LabeledContent("Dim unfocused panes") {
                     SavedOnReleaseSlider(title: "Dim unfocused panes", value: Binding(
                         get: { 1 - store.value(Option.unfocusedSplitOpacity) },
                         set: { store.set(Option.unfocusedSplitOpacity, ((1 - $0) * 100).rounded() / 100) }), range: 0...0.85)
                 }
-                Toggle("Background blur", isOn: store.binding(Option.backgroundBlur))
-                    .disabled(store.value(Option.backgroundOpacity) >= 1 || store.hasUnknownValue(Option.backgroundBlur))
                 Toggle("Show scroll bar", isOn: Binding(
                     get: { store.value(Option.scrollbar) != "never" },
                     set: { store.set(Option.scrollbar, $0 ? "system" : "never") }))

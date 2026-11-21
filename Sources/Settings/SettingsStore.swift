@@ -68,12 +68,6 @@ final class SettingsStore {
         return themeCache.documents
     }
 
-    /// True when the file sets the option to something this window cannot
-    /// show, which a change here would replace.
-    func hasUnknownValue<Value>(_ setting: ConfigSetting<Value>) -> Bool {
-        document[setting.key].map { setting.parse($0) == nil } ?? false
-    }
-
     /// Setting an option to what applies without it removes it from the file;
     /// anything else is written, even Ghostty's default when a theme sets
     /// another value.

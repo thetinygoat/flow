@@ -1,5 +1,4 @@
 import AppKit
-import GhosttyKit
 
 /// One window: workspace sidebar on the left, terminal area on the right.
 final class MainWindowController: NSWindowController {
@@ -92,24 +91,14 @@ final class MainWindowController: NSWindowController {
         fatalError("init(coder:) is not supported")
     }
 
-    /// Ghostty renders the terminal background with the configured opacity, but
-    /// only a non-opaque window lets the desktop show through it.
-    func applyAppearance(config: GhosttyConfig, app: ghostty_app_t) {
+    func applyAppearance(config: GhosttyConfig) {
         guard let window else { return }
         window.appearance = config.windowAppearance
         terminalArea.backgroundColor = config.backgroundColor
         let dim = config.unfocusedSplitDimming
         terminalArea.paneTreeView.unfocusedFill = dim > 0.001 ? config.unfocusedSplitFill.withAlphaComponent(dim) : nil
         terminalArea.show(store.selected)
-        if config.backgroundOpacity < 1 {
-            window.isOpaque = false
-            window.backgroundColor = .white.withAlphaComponent(0.001)
-            // Applies the configured radius, so a reload with blur off clears it.
-            ghostty_set_window_background_blur(app, Unmanaged.passUnretained(window).toOpaque())
-        } else {
-            window.isOpaque = true
-            window.backgroundColor = config.backgroundColor
-        }
+        window.backgroundColor = config.backgroundColor
     }
 
     /// Re-reads the store and updates the sidebar, tab strip, and window title.

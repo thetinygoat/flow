@@ -16,6 +16,9 @@ final class GhosttyConfig {
             ghostty_config_load_file(config, file.path)
         }
         ghostty_config_load_recursive_files(config)
+        if let opaque = Bundle(for: GhosttyConfig.self).url(forResource: "opaque-window", withExtension: "config") {
+            ghostty_config_load_file(config, opaque.path)
+        }
         ghostty_config_finalize(config)
         cValue = config
 
@@ -32,16 +35,6 @@ final class GhosttyConfig {
 
     deinit {
         ghostty_config_free(cValue)
-    }
-
-    var backgroundOpacity: Double {
-        value(for: "background-opacity", default: 1)
-    }
-
-    /// Positive values are a blur radius. Ghostty reserves negative values for
-    /// macOS glass styles, which flow does not support yet.
-    var backgroundBlur: Int16 {
-        value(for: "background-blur", default: 0)
     }
 
     var backgroundColor: NSColor {

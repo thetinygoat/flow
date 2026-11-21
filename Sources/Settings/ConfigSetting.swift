@@ -132,13 +132,6 @@ enum Option {
     static let fontThicken = ConfigSetting<Bool>("font-thicken", default: false)
     static let cursorStyle = ConfigSetting<String>("cursor-style", default: "block", choices: ["block", "bar", "underline", "block_hollow"])
     static let cursorBlink = ConfigSetting<Bool>("cursor-style-blink", default: true)
-    static let backgroundOpacity = ConfigSetting<Double>("background-opacity", default: 1)
-    /// On or off. Ghostty also takes a radius, where `true` is its default of
-    /// 20; any radius above 0 reads as on and stays until blur is turned off.
-    static let backgroundBlur = ConfigSetting<Bool>(
-        key: "background-blur", defaultValue: false,
-        parse: { text in ConfigBool.parse(text) ?? Int(text).map { $0 > 0 } },
-        format: { String($0) })
     static let unfocusedSplitOpacity = ConfigSetting<Double>("unfocused-split-opacity", default: 0.7)
     static let scrollbar = ConfigSetting<String>("scrollbar", default: "system", choices: ["system", "never"])
     static let command = ConfigSetting<String>("command", default: "")
@@ -159,8 +152,8 @@ enum Option {
     static let notifyOnCommandFinishAfter = ConfigSetting<Duration>("notify-on-command-finish-after", default: .seconds(5))
 
     static let keys = [
-        fontFamily, theme, fontSize.key, fontThicken.key, cursorStyle.key, cursorBlink.key, backgroundOpacity.key,
-        backgroundBlur.key, unfocusedSplitOpacity.key, scrollbar.key, command.key, confirmClose.key, copyOnSelect.key,
+        fontFamily, theme, fontSize.key, fontThicken.key, cursorStyle.key, cursorBlink.key,
+        unfocusedSplitOpacity.key, scrollbar.key, command.key, confirmClose.key, copyOnSelect.key,
         shellIntegrationFeatures.key, mouseHideWhileTyping.key, autoSecureInput.key, notifyOnCommandFinish.key,
         notifyOnCommandFinishAction.key, notifyOnCommandFinishAfter.key,
     ]

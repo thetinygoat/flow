@@ -264,7 +264,7 @@ final class TerminalSurfaceView: NSView {
     /// look like a terminal that stopped responding.
     override func draw(_ dirtyRect: NSRect) {
         guard surface == nil, let config = runtime?.config else { return }
-        config.backgroundColor.withAlphaComponent(config.backgroundOpacity).setFill()
+        config.backgroundColor.setFill()
         dirtyRect.intersection(bounds).fill()
         guard defersStart else { return }
         let note = NSAttributedString(string: "Starts when chosen", attributes: [

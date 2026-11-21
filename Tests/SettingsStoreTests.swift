@@ -154,12 +154,6 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertNil(store.saveError)
     }
 
-    func testCannotShowAGlassBlur() throws {
-        let file = directory.appendingPathComponent("config")
-        try "background-blur = macos-glass-regular\n".write(to: file, atomically: true, encoding: .utf8)
-        XCTAssertTrue(SettingsStore(file: file).hasUnknownValue(Option.backgroundBlur))
-    }
-
     func testPromptCursorSwitchKeepsTheOtherSwitches() throws {
         let file = directory.appendingPathComponent("config")
         try "shell-integration-features = sudo\n".write(to: file, atomically: true, encoding: .utf8)
@@ -185,16 +179,16 @@ final class SettingsStoreTests: XCTestCase {
 
     func testAThemesValueShowsAndADefaultChoiceOverridesIt() throws {
         let theme = directory.appendingPathComponent("glassy")
-        try "background = #000000\nbackground-opacity = 0.5\n".write(to: theme, atomically: true, encoding: .utf8)
+        try "background = #000000\nunfocused-split-opacity = 0.5\n".write(to: theme, atomically: true, encoding: .utf8)
         let file = directory.appendingPathComponent("config")
         try "theme = \(theme.path)\n".write(to: file, atomically: true, encoding: .utf8)
         let store = SettingsStore(file: file)
-        XCTAssertEqual(store.value(Option.backgroundOpacity), 0.5)
+        XCTAssertEqual(store.value(Option.unfocusedSplitOpacity), 0.5)
 
-        store.set(Option.backgroundOpacity, 1)
-        XCTAssertEqual(store.values(for: Option.backgroundOpacity.key), ["1"])
-        store.set(Option.backgroundOpacity, 0.5)
-        XCTAssertEqual(store.values(for: Option.backgroundOpacity.key), [])
+        store.set(Option.unfocusedSplitOpacity, 0.7)
+        XCTAssertEqual(store.values(for: Option.unfocusedSplitOpacity.key), ["0.7"])
+        store.set(Option.unfocusedSplitOpacity, 0.5)
+        XCTAssertEqual(store.values(for: Option.unfocusedSplitOpacity.key), [])
     }
 
     func testDoesNotReportIncludedFallbackFonts() throws {

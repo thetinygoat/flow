@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtime.onConfigChange = { [weak self] in
             guard let self else { return }
             for window in self.windows {
-                window.controller.applyAppearance(config: self.runtime.config, app: self.runtime.app)
+                window.controller.applyAppearance(config: self.runtime.config)
             }
             self.loadedSettings?.reload(problems: self.runtime.config.diagnostics)
         }
@@ -251,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.controller.agentIndicator = { [unowned self] terminal in
             agentSessions.indicator(for: [terminal])
         }
-        window.controller.applyAppearance(config: runtime.config, app: runtime.app)
+        window.controller.applyAppearance(config: runtime.config)
         windows.append(window)
         return window
     }

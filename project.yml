@@ -28,6 +28,8 @@ targets:
       - path: Resources/Assets.xcassets
       - path: LICENSE
         buildPhase: resources
+      - path: Resources/opaque-window.config
+        buildPhase: resources
       - path: THIRD_PARTY_LICENSES.md
         buildPhase: resources
       - path: Vendor/GhosttyResources/terminfo
@@ -178,6 +180,8 @@ targets:
       - path: Sources/Settings/Preferences.swift
       - path: Sources/Settings/SettingsStore.swift
       - path: Sources/Settings/Themes.swift
+      - path: Resources/opaque-window.config
+        buildPhase: resources
       - path: Sources/ServiceProvider.swift
       - path: Sources/UI/ClipboardConfirmation.swift
       - path: Sources/UI/UntrustedLinkAlert.swift

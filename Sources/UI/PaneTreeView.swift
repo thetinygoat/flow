@@ -3,7 +3,6 @@ import AppKit
 /// Renders a tab's pane tree as nested split views. Rebuilt whenever the tree's
 /// structure changes; divider drags write their ratio back into the tree.
 final class PaneTreeView: NSView {
-    /// Dividers are painted opaque in this color so nothing behind the window shows through them.
     var backgroundColor: NSColor = .black {
         didSet { splitViews.values.forEach { $0.backgroundColor = backgroundColor } }
     }

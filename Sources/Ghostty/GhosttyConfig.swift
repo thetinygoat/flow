@@ -47,6 +47,13 @@ final class GhosttyConfig {
         NSAppearance(named: backgroundColor.luminance > 0.5 ? .aqua : .darkAqua)
     }
 
+    /// A shade darker than the terminal. A light background takes less, or
+    /// the sidebar would turn grey.
+    var sidebarColor: NSColor {
+        let darkening = backgroundColor.luminance > 0.5 ? 0.05 : 0.25
+        return backgroundColor.blended(withFraction: darkening, of: .black) ?? backgroundColor
+    }
+
     var foregroundColor: NSColor {
         color(for: "foreground") ?? .textColor
     }

@@ -26,10 +26,14 @@ final class MainWindowController: NSWindowController {
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 700),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false)
         window.toolbarStyle = .unified
+        // The sidebar and the terminal run up under the title bar, which
+        // shows the tab's title in the terminal's column instead.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.contentViewController = content
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.minSize = NSSize(width: 600, height: 400)
@@ -62,6 +66,7 @@ final class MainWindowController: NSWindowController {
         ])
         sidebarAccessory.layoutAttribute = .leading
         window.addTitlebarAccessoryViewController(sidebarAccessory)
+        terminalArea.titlebarButtons = sidebarAccessory.view
     }
 
     private func titlebarButton(symbol: String, description: String, action: Selector) -> NSButton {
@@ -95,6 +100,7 @@ final class MainWindowController: NSWindowController {
         guard let window else { return }
         window.appearance = config.windowAppearance
         terminalArea.backgroundColor = config.backgroundColor
+        sidebar.backgroundColor = config.sidebarColor
         let dim = config.unfocusedSplitDimming
         terminalArea.paneTreeView.unfocusedFill = dim > 0.001 ? config.unfocusedSplitFill.withAlphaComponent(dim) : nil
         terminalArea.show(store.selected)

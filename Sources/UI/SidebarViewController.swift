@@ -75,27 +75,32 @@ final class SidebarViewController: NSViewController, NSTableViewDataSource, NSTa
         NotificationCenter.default.addObserver(self, selector: #selector(updateHoveredRow), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
         tableView.onPointerMove = { [weak self] in self?.updateHoveredRow() }
 
-        let container = NSVisualEffectView()
-        container.material = .sidebar
-        container.blendingMode = .behindWindow
-        // The sidebar material lets a bright desktop colour the whole sidebar,
-        // so a wash of the window colour keeps only a hint of it.
-        let tint = SidebarTint()
-        tint.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(tint)
-        container.addSubview(scrollView)
+        let container = background.content
+        let divider = Hairline()
+        for subview in [scrollView, divider] {
+            subview.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(subview)
+        }
         NSLayoutConstraint.activate([
-            tint.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            tint.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            tint.topAnchor.constraint(equalTo: container.topAnchor),
-            tint.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            // The window's buttons sit in the title bar above the list.
+            scrollView.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: divider.leadingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            divider.widthAnchor.constraint(equalToConstant: 1),
+            divider.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            divider.topAnchor.constraint(equalTo: container.topAnchor),
+            divider.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
-        view = container
+        view = background
     }
+
+    /// A shade darker than the terminal, so the list reads as its own column.
+    var backgroundColor: NSColor = .windowBackgroundColor {
+        didSet { background.color = backgroundColor }
+    }
+
+    private let background = SidebarBackground()
 
     /// A preview keeps watching the repositories it moved away from, as the
     /// palette puts them back when it closes.
@@ -368,14 +373,68 @@ private final class WorkspaceTableView: NSTableView {
     }
 }
 
-/// A wash of the window colour over the sidebar. It sets the colour again
-/// in each layer update, since an NSBox keeps the one it first drew with
-/// when the window turns light or dark.
-private final class SidebarTint: NSView {
+/// Liquid Glass tinted with the sidebar colour where macOS has it, and the
+/// plain colour before that. Glass draws over views beside it, so the
+/// sidebar's views go in `content`.
+private final class SidebarBackground: NSView {
+    let content = NSView()
+    private let glass: NSView?
+
+    var color: NSColor = .windowBackgroundColor {
+        didSet { applyColor() }
+    }
+
+    override init(frame: NSRect) {
+        let host: NSView
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            // The window rounds its own corners; the sidebar meets the terminal
+            // in a straight line.
+            glass.cornerRadius = 0
+            glass.contentView = content
+            self.glass = glass
+            host = glass
+        } else {
+            glass = nil
+            host = content
+        }
+        super.init(frame: frame)
+        host.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(host)
+        NSLayoutConstraint.activate([
+            host.leadingAnchor.constraint(equalTo: leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: trailingAnchor),
+            host.topAnchor.constraint(equalTo: topAnchor),
+            host.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        applyColor()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
     override var wantsUpdateLayer: Bool { true }
 
     override func updateLayer() {
-        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8).cgColor
+        layer?.backgroundColor = color.cgColor
+    }
+
+    private func applyColor() {
+        if #available(macOS 26, *), let glass = glass as? NSGlassEffectView {
+            glass.tintColor = color
+        }
+        needsDisplay = true
+    }
+}
+
+/// The line between the sidebar and the terminal. Its colour follows the
+/// window's light or dark appearance, which a layer colour set once would not.
+private final class Hairline: NSView {
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.1).cgColor
     }
 }
 

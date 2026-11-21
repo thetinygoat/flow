@@ -2,8 +2,7 @@ import AppKit
 
 /// The window's content: the workspace sidebar beside the terminal area. The
 /// sidebar is a plain view with a width rather than a split view item, whose
-/// look AppKit changes between macOS versions, and it has no divider for a
-/// translucent window to show through.
+/// look AppKit changes between macOS versions.
 final class WindowContentViewController: NSViewController {
     static let widthRange: ClosedRange<CGFloat> = 200...400
     private static let widthKey = "SidebarWidth"

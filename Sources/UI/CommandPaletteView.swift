@@ -5,11 +5,13 @@ import AppKit
 /// Escape or a click outside cancels. As in VS Code, pressing the palette's
 /// shortcut again or an arrow while holding ⌘ steps through the list and
 /// letting go of ⌘ chooses the item, so a quick ⌘P P goes back to the previous
-/// place and ⌘I I to the agent that has waited longest.
+/// workspace, ⇧⌘P P to the previous place and ⌘I I to the agent that has
+/// waited longest.
 final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let mode: CommandPalette.Mode
     /// The terminal in view, which the palette starts on so that stepping once
-    /// goes to the previous place or the agent that has waited longest.
+    /// goes to the previous workspace or place, or the agent that has waited
+    /// longest.
     private let current: UUID?
     /// The terminal the palette was opened from. Its menu commands, such as
     /// Find or a font size change, stay enabled while the palette has the
@@ -25,7 +27,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private static let visibleRows = 9
 
     private var items: [CommandPalette.Item]
-    private let agentIndicator: @MainActor (UUID) -> AgentIndicator?
+    private let agentIndicator: @MainActor ([UUID]) -> AgentIndicator?
     private var shown: [CommandPalette.Item] = []
     /// The selected item's terminal, so a search that keeps the same best
     /// match previews nothing again.
@@ -42,7 +44,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     private var tableHeight: NSLayoutConstraint!
 
     init(_ mode: CommandPalette.Mode, items: [CommandPalette.Item], current: UUID?,
-         agentIndicator: @escaping @MainActor (UUID) -> AgentIndicator?) {
+         agentIndicator: @escaping @MainActor ([UUID]) -> AgentIndicator?) {
         self.mode = mode
         self.current = current
         self.items = items
@@ -276,7 +278,7 @@ final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSour
     }
 
     private func showAgent(in view: PaletteItemView, row: Int) {
-        let indicator = agentIndicator(shown[row].terminal)
+        let indicator = agentIndicator(shown[row].terminals)
         view.agentIndicator = indicator
         view.alphaValue = mode.dimsWorkingAgents && indicator == .working ? 0.5 : 1
     }

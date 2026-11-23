@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private static let actionsKeepingThePalette: Set<Selector> = [
-        #selector(showPlaces), #selector(showAgents),
+        #selector(showWorkspaces), #selector(showPlaces), #selector(showAgents),
         #selector(NSText.copy(_:)), #selector(NSText.paste(_:)), #selector(NSText.selectAll(_:)),
     ]
 
@@ -248,8 +248,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.controller.terminalArea.agentIndicator = { [unowned self] tab in
             agentSessions.indicator(for: tab.panes.surfaces.map(\.id))
         }
-        window.controller.agentIndicator = { [unowned self] terminal in
-            agentSessions.indicator(for: [terminal])
+        window.controller.agentIndicator = { [unowned self] terminals in
+            agentSessions.indicator(for: terminals)
         }
         window.controller.applyAppearance(config: runtime.config, app: runtime.app)
         windows.append(window)
@@ -368,6 +368,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Command palette
 
+    @objc private func showWorkspaces() {
+        keyWindow.map { showPalette(.workspaces, in: $0) }
+    }
+
     @objc private func showPlaces() {
         keyWindow.map { showPalette(.places, in: $0) }
     }
@@ -376,7 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keyWindow.map { showPalette(.agents, in: $0) }
     }
 
-    /// The places are the window's own. The agents are every window's, since
+    /// The workspaces and places are the window's own. The agents are every window's, since
     /// one waiting in another window is as much the user's to answer.
     private func showPalette(_ mode: CommandPalette.Mode, in window: TerminalWindow) {
         window.showCommandPalette(mode, items: paletteItems(mode, in: window)) { [weak self] item in
@@ -402,6 +406,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func paletteItems(_ mode: CommandPalette.Mode, in window: TerminalWindow) -> [CommandPalette.Item] {
         switch mode {
+        case .workspaces:
+            return CommandPalette.recentFirst(CommandPalette.workspaces(in: window.store), recentlyFocused: window.store.recentlyFocused)
         case .places:
             return CommandPalette.recentFirst(paletteItems(in: window), recentlyFocused: window.store.recentlyFocused)
         case .agents:
@@ -562,7 +568,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
-        viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
+        viewMenu.addItem(withTitle: "Go to Workspace", action: #selector(showWorkspaces), keyEquivalent: "p")
+        let placesItem = viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
+        placesItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: "i")
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
@@ -617,7 +625,7 @@ extension AppDelegate: NSMenuItemValidation {
         if menuItem.action == #selector(renameWorkspace) {
             return keyWindow?.store.selected != nil
         }
-        if menuItem.action == #selector(showPlaces) || menuItem.action == #selector(showAgents) {
+        if [#selector(showWorkspaces), #selector(showPlaces), #selector(showAgents)].contains(menuItem.action) {
             return keyWindow != nil
         }
         return true

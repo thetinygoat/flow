@@ -171,6 +171,45 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(locations, ["b": "api › Tab 1 › Left", "a": "api › Tab 1 › Top right", "c": "api › Tab 1 › Bottom right"])
     }
 
+    // MARK: Workspaces
+
+    func testListsEachWorkspaceAsTheTerminalItShows() {
+        let store = TestStore()
+        let a = FakeLeaf("vim", workingDirectory: "/src/api"), b = FakeLeaf("logs"), c = FakeLeaf("tail", workingDirectory: "/var/log")
+        let api = store.addWorkspace(customName: "api")
+        api.add(TestTab(leaf: a))
+        let split = TestTab(leaf: b)
+        split.panes.split(b, direction: .right, with: c)
+        split.focus(c)
+        api.add(split)
+        api.select(api.tabs[0])
+        let web = store.addWorkspace(customName: "web")
+        web.add(TestTab(leaf: FakeLeaf("zsh")))
+        let items = CommandPalette.workspaces(in: store)
+        XCTAssertEqual(items.map { "\($0.title) | \($0.detail)" }, ["api | /src/api", "web | "])
+        XCTAssertEqual(items[0].terminal, a.id)
+        XCTAssertEqual(items[0].terminals, [a, b, c].map(\.id))
+
+        api.select(split)
+        XCTAssertEqual(CommandPalette.workspaces(in: store)[0].terminal, c.id)
+        XCTAssertEqual(CommandPalette.workspaces(in: store)[0].layout.highlighted, 1)
+    }
+
+    func testAWorkspaceRanksByItsMostRecentlyFocusedTerminal() {
+        let store = TestStore()
+        let a = FakeLeaf(), b = FakeLeaf(), c = FakeLeaf()
+        let api = store.addWorkspace(customName: "api")
+        api.add(TestTab(leaf: a))
+        api.add(TestTab(leaf: b))
+        api.select(api.tabs[0])
+        store.addWorkspace(customName: "web").add(TestTab(leaf: c))
+        store.noteFocus(a)
+        store.noteFocus(c)
+        store.noteFocus(b)
+        let items = CommandPalette.recentFirst(CommandPalette.workspaces(in: store), recentlyFocused: store.recentlyFocused)
+        XCTAssertEqual(items.map(\.title), ["api", "web"])
+    }
+
     // MARK: Recency
 
     func testMostRecentlyFocusedComeFirst() {
@@ -337,7 +376,8 @@ final class CommandPaletteTests: XCTestCase {
     }
 
     private func item(_ title: String, location: String = "") -> Item {
-        Item(terminal: UUID(), title: title, detail: "", workspace: "", location: location,
+        let terminal = UUID()
+        return Item(terminal: terminal, terminals: [terminal], title: title, detail: "", workspace: "", location: location,
              layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
     }
 }
@@ -346,7 +386,8 @@ final class CommandPaletteTests: XCTestCase {
 final class CommandPaletteViewTests: XCTestCase {
     private func items(_ count: Int) -> [CommandPalette.Item] {
         (0..<count).map { index in
-            CommandPalette.Item(terminal: UUID(), title: "\(index)", detail: "", workspace: "", location: "",
+            let terminal = UUID()
+            return CommandPalette.Item(terminal: terminal, terminals: [terminal], title: "\(index)", detail: "", workspace: "", location: "",
                                 layout: .init(frames: [CGRect(x: 0, y: 0, width: 1, height: 1)], highlighted: 0))
         }
     }

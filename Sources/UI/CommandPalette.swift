@@ -1,16 +1,18 @@
 import Foundation
 
-/// What the command palette lists: every terminal in a window, as a tab or as
-/// a pane of a split tab, or only the terminals with agents. Choosing an item
-/// goes to its terminal.
+/// What the command palette lists: a window's workspaces, every terminal in
+/// a window, as a tab or as a pane of a split tab, or only the terminals with
+/// agents. Choosing an item goes to its terminal; a workspace's is the one it
+/// shows.
 enum CommandPalette {
-    /// Every tab and pane, most recently used first, or the agents in order
-    /// of how long they have needed the user.
+    /// The workspaces or every tab and pane, most recently used first, or the
+    /// agents in order of how long they have needed the user.
     enum Mode {
-        case places, agents
+        case workspaces, places, agents
 
         var placeholder: String {
             switch self {
+            case .workspaces: "Go to workspace"
             case .places: "Go to tab or pane"
             case .agents: "Go to agent"
             }
@@ -19,6 +21,7 @@ enum CommandPalette {
         /// Shown when there is nothing to list before any search.
         var emptyMessage: String {
             switch self {
+            case .workspaces: "No workspaces"
             case .places: "No terminals"
             case .agents: "No running agents"
             }
@@ -32,14 +35,18 @@ enum CommandPalette {
 
     struct Item: Equatable {
         var terminal: UUID
+        /// Every terminal the row stands for, whose agents its dot sums up.
+        var terminals: [UUID]
         var title: String
-        /// The terminal's directory, unless it is already the title.
+        /// The terminal's directory. A tab or pane leaves it out when it is
+        /// already the title; a workspace shows it as the sidebar does.
         var detail: String
         /// The only part of where the terminal is that the row shows. Moving
         /// through the list shows the place itself, and the layout its pane.
         var workspace: String
         /// The workspace, tab and pane, which a search matches, so "tab 1"
-        /// and "left" find terminals without the row naming them.
+        /// and "left" find terminals without the row naming them. A
+        /// workspace row has nothing to add to its title.
         var location: String
         /// The agent running in the terminal, which a search matches though
         /// the row doesn't name it.
@@ -76,18 +83,33 @@ enum CommandPalette {
                 let panes = tab.panes.leaves
                 let frames = frames(of: tab.panes.root, in: CGRect(x: 0, y: 0, width: 1, height: 1))
                 guard panes.count > 1 else {
-                    return [Item(terminal: tab.focusedLeaf.id, title: tab.title, detail: directory(of: tab.focusedLeaf),
+                    return [Item(terminal: tab.focusedLeaf.id, terminals: [tab.focusedLeaf.id], title: tab.title, detail: directory(of: tab.focusedLeaf),
                                  workspace: workspace.name, location: location, agent: agent(tab.focusedLeaf.id),
                                  layout: PaneLayout(frames: frames, highlighted: 0))]
                 }
                 let zoomed = panes.firstIndex { $0 === tab.panes.zoomed }
                 return zip(panes.indices, zip(panes, positions(in: tab.panes.root))).map { index, pane in
                     let (leaf, position) = pane
-                    return Item(terminal: leaf.id, title: leaf.displayTitle, detail: directory(of: leaf),
+                    return Item(terminal: leaf.id, terminals: [leaf.id], title: leaf.displayTitle, detail: directory(of: leaf),
                                 workspace: workspace.name, location: "\(location) › \(position)", agent: agent(leaf.id),
                                 layout: PaneLayout(frames: frames, highlighted: index, zoomed: zoomed))
                 }
             }
+        }
+    }
+
+    /// In sidebar order, each as the sidebar shows it, with the split of the
+    /// tab it shows.
+    static func workspaces<Leaf>(in store: WorkspaceStoreModel<Leaf>) -> [Item] {
+        store.workspaces.compactMap { workspace in
+            guard let tab = workspace.selectedTab else { return nil }
+            let panes = tab.panes.leaves
+            let layout = PaneLayout(frames: frames(of: tab.panes.root, in: CGRect(x: 0, y: 0, width: 1, height: 1)),
+                                    highlighted: panes.firstIndex { $0 === tab.focusedLeaf } ?? 0,
+                                    zoomed: panes.firstIndex { $0 === tab.panes.zoomed })
+            return Item(terminal: tab.focusedLeaf.id, terminals: workspace.tabs.flatMap { $0.panes.leaves.map(\.id) },
+                        title: workspace.name, detail: tab.focusedLeaf.workingDirectory?.abbreviatingHome ?? "",
+                        workspace: "", location: "", layout: layout)
         }
     }
 
@@ -130,12 +152,14 @@ enum CommandPalette {
     // MARK: Order
 
     /// Most recently focused first, so the place in view leads and the one
-    /// before it follows. Terminals not focused yet keep their order.
+    /// before it follows. An item ranks by its most recently focused terminal,
+    /// and items with none focused yet keep their order.
     static func recentFirst(_ items: [Item], recentlyFocused: [UUID]) -> [Item] {
         let rank = Dictionary(recentlyFocused.enumerated().map { ($1, $0) }) { first, _ in first }
         return items.enumerated()
-            .sorted { (rank[$0.element.terminal] ?? .max, $0.offset) < (rank[$1.element.terminal] ?? .max, $1.offset) }
-            .map(\.element)
+            .map { (item: $0.element, key: ($0.element.terminals.compactMap { rank[$0] }.min() ?? .max, $0.offset)) }
+            .sorted { $0.key < $1.key }
+            .map(\.item)
     }
 
     /// The agent in view, then the ones waiting for input, the finished

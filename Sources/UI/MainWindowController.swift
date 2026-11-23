@@ -8,7 +8,7 @@ final class MainWindowController: NSWindowController {
     private let store: WorkspaceStore
     private let content: WindowContentViewController
     private(set) var commandPalette: CommandPaletteView?
-    var agentIndicator: @MainActor (UUID) -> AgentIndicator? = { _ in nil }
+    var agentIndicator: @MainActor ([UUID]) -> AgentIndicator? = { _ in nil }
     var onResetZoom: (() -> Void)?
     var onNewWorkspace: (() -> Void)?
     private let sidebarAccessory = NSTitlebarAccessoryViewController()

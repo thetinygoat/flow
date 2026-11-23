@@ -24,8 +24,10 @@ enum KeyboardShortcuts {
             Shortcut(title: "Show or hide the sidebar", keys: ["⌘", "B"]),
         ]),
         Section(title: "Go to", shortcuts: [
-            Shortcut(title: "Go to a tab or pane", keys: ["⌘", "P"]),
-            Shortcut(title: "Go back to the previous place", keys: ["⌘", "P", "P"]),
+            Shortcut(title: "Go to a workspace", keys: ["⌘", "P"]),
+            Shortcut(title: "Go back to the previous workspace", keys: ["⌘", "P", "P"]),
+            Shortcut(title: "Go to a tab or pane", keys: ["⇧", "⌘", "P"]),
+            Shortcut(title: "Go back to the previous tab or pane", keys: ["⇧", "⌘", "P", "P"]),
             Shortcut(title: "Go to an agent", keys: ["⌘", "I"]),
             Shortcut(title: "Go to the agent waiting longest", keys: ["⌘", "I", "I"]),
             Shortcut(title: "Step up the list, going there on letting go of ⌘", keys: ["⌘", "↑"]),

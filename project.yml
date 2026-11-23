@@ -191,6 +191,8 @@ targets:
       - path: Sources/UI/TabBarView.swift
       - path: Sources/UI/AgentDotView.swift
       - path: Sources/UI/KeyboardShortcuts.swift
+      - path: Sources/Settings/KeyTrigger.swift
+      - path: Sources/Settings/KeyBindings.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

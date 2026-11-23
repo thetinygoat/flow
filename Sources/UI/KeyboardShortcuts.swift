@@ -6,6 +6,11 @@ enum KeyboardShortcuts {
         var title: String
         /// Each modifier and the key, one per keycap.
         var keys: [String]
+        /// The command whose key the row shows, for a key Settings can change.
+        var action: String?
+        /// Shows the command's key pressed twice, which the palettes take as
+        /// going back.
+        var repeats = false
     }
 
     struct Section: Equatable {
@@ -20,16 +25,16 @@ enum KeyboardShortcuts {
             Shortcut(title: "Last workspace", keys: ["⌘", "9"]),
             Shortcut(title: "Previous workspace", keys: ["⇧", "⌘", "["]),
             Shortcut(title: "Next workspace", keys: ["⇧", "⌘", "]"]),
-            Shortcut(title: "Rename workspace", keys: ["⇧", "⌘", "R"]),
+            Shortcut(title: "Rename workspace", keys: ["⇧", "⌘", "R"], action: "rename_workspace"),
             Shortcut(title: "Show or hide the sidebar", keys: ["⌘", "B"]),
         ]),
         Section(title: "Go to", shortcuts: [
-            Shortcut(title: "Go to a workspace", keys: ["⌘", "P"]),
-            Shortcut(title: "Go back to the previous workspace", keys: ["⌘", "P", "P"]),
-            Shortcut(title: "Go to a tab or pane", keys: ["⇧", "⌘", "P"]),
-            Shortcut(title: "Go back to the previous tab or pane", keys: ["⇧", "⌘", "P", "P"]),
-            Shortcut(title: "Go to an agent", keys: ["⌘", "I"]),
-            Shortcut(title: "Go to the agent waiting longest", keys: ["⌘", "I", "I"]),
+            Shortcut(title: "Go to a workspace", keys: ["⌘", "P"], action: "toggle_workspace_palette"),
+            Shortcut(title: "Go back to the previous workspace", keys: ["⌘", "P", "P"], action: "toggle_workspace_palette", repeats: true),
+            Shortcut(title: "Go to a tab or pane", keys: ["⇧", "⌘", "P"], action: "toggle_command_palette"),
+            Shortcut(title: "Go back to the previous tab or pane", keys: ["⇧", "⌘", "P", "P"], action: "toggle_command_palette", repeats: true),
+            Shortcut(title: "Go to an agent", keys: ["⌘", "I"], action: "toggle_agent_palette"),
+            Shortcut(title: "Go to the agent waiting longest", keys: ["⌘", "I", "I"], action: "toggle_agent_palette", repeats: true),
             Shortcut(title: "Step up the list, going there on letting go of ⌘", keys: ["⌘", "↑"]),
             Shortcut(title: "Step down the list, going there on letting go of ⌘", keys: ["⌘", "↓"]),
         ]),
@@ -61,4 +66,42 @@ enum KeyboardShortcuts {
             Shortcut(title: "Reload configuration", keys: ["⇧", "⌘", ","]),
         ]),
     ]
+
+    /// The list with the keys in effect for the commands Settings can
+    /// change. A row whose command has no key is left out.
+    static func current(_ bindings: KeyBindings) -> [Section] {
+        all.map { section in
+            Section(title: section.title, shortcuts: section.shortcuts.compactMap { shortcut in
+                guard let action = shortcut.action else { return shortcut }
+                guard let key = bindings.shortcut(for: action) else { return nil }
+                var shortcut = shortcut
+                shortcut.keys = key.symbols + (shortcut.repeats ? [key.keySymbol] : [])
+                return shortcut
+            })
+        }
+    }
+
+    /// The commands whose key Settings can change, with their default.
+    struct Command: Identifiable, Equatable {
+        var title: String
+        /// The `keybind` action: Ghostty's for the tab and pane palette,
+        /// Flow's own for the others.
+        var action: String
+        var defaultKey: KeyTrigger
+        /// Flow runs it from its menu. libghostty has no such action.
+        var isFlows: Bool
+
+        var id: String { action }
+    }
+
+    static let changeable: [Command] = [
+        Command(title: "Go to a workspace", action: "toggle_workspace_palette", defaultKey: KeyTrigger("super+p")!, isFlows: true),
+        Command(title: "Go to a tab or pane", action: "toggle_command_palette", defaultKey: KeyTrigger("super+shift+p")!, isFlows: false),
+        Command(title: "Go to an agent", action: "toggle_agent_palette", defaultKey: KeyTrigger("super+i")!, isFlows: true),
+        Command(title: "Rename workspace", action: "rename_workspace", defaultKey: KeyTrigger("super+shift+r")!, isFlows: true),
+    ]
+
+    static func command(for action: String) -> Command? {
+        changeable.first { $0.action == action }
+    }
 }

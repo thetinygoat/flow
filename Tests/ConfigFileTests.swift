@@ -85,6 +85,13 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(ConfigFile.namingOriginal("\(config.path):3:font-size: bad"), "\(config.path):3:font-size: bad")
     }
 
+    func testLibghosttyGetsFlowsKeysUnbound() throws {
+        let config = try file("flow/config", "keybind = super+1=toggle_agent_palette\nfont-size = 14\n")
+        var copied: String?
+        ConfigFile.withGhosttyFile(for: config) { copied = try? String(contentsOf: $0, encoding: .utf8) }
+        XCTAssertEqual(copied, "keybind = super+1=unbind\nfont-size = 14\nkeybind = super+digit_1=unbind\n")
+    }
+
     func testRefusesToReplaceALinkLoop() throws {
         let a = directory.appendingPathComponent("a"), b = directory.appendingPathComponent("b")
         try FileManager.default.createSymbolicLink(atPath: a.path, withDestinationPath: "b")

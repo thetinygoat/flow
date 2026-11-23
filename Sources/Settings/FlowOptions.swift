@@ -82,13 +82,17 @@ enum FlowOption {
 /// Flow's options as the config file set them when it was last loaded.
 struct FlowOptions {
     private let document: ConfigDocument
+    /// The keys of the commands Settings can change.
+    let bindings: KeyBindings
 
-    init(_ document: ConfigDocument = ConfigDocument("")) {
+    init(_ document: ConfigDocument = ConfigDocument(""), includes: [ConfigDocument] = []) {
         self.document = document
+        bindings = KeyBindings(document: document, includes: includes)
     }
 
     init(file: URL) {
-        self.init(ConfigDocument((try? String(contentsOf: file, encoding: .utf8)) ?? ""))
+        let document = ConfigDocument((try? String(contentsOf: file, encoding: .utf8)) ?? "")
+        self.init(document, includes: ConfigFile.includes(of: document, at: file).map(\.document))
     }
 
     func value<Value>(_ option: ConfigSetting<Value>) -> Value {

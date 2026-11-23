@@ -13,13 +13,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// opened is that one.
     private var closedLastWindow: Session.Window?
     private var workspaceMenu: WorkspaceMenu!
+    /// Items whose key Settings can change, with their `keybind` action.
+    private var changeableItems: [(item: NSMenuItem, action: String)] = []
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
     private let sessionWriter = SessionWriter()
     private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
-    private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
+    private var keyboardShortcutsWindow: KeyboardShortcutsWindowController?
     /// Made when Settings first opens, so the config is not read for it before.
     private var loadedSettings: SettingsStore?
     private var settings: SettingsStore {
@@ -101,9 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             logger.error("agent socket unavailable at \(listener.url.path, privacy: .public): \(error, privacy: .public)")
         }
-        applyOptions()
-
         NSApp.mainMenu = buildMainMenu()
+        applyOptions()
         NSApp.servicesProvider = serviceProvider
 
         let saved = Session.load()?.windows.filter { !$0.workspaces.isEmpty } ?? []
@@ -485,6 +486,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if SecureInput.shared.global != secureKeyboardEntry {
             SecureInput.shared.global = secureKeyboardEntry
         }
+        for (item, action) in changeableItems {
+            let equivalent = runtime.options.bindings.shortcut(for: action)?.menuKeyEquivalent
+            item.keyEquivalent = equivalent?.key ?? ""
+            item.keyEquivalentModifierMask = equivalent?.modifiers ?? []
+        }
+        keyboardShortcutsWindow?.update(KeyboardShortcuts.current(runtime.options.bindings))
     }
 
     @objc private func showSettings() {
@@ -497,7 +504,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showKeyboardShortcuts(_ sender: Any?) {
-        keyboardShortcutsWindow.show(KeyboardShortcuts.all)
+        let window = keyboardShortcutsWindow ?? KeyboardShortcutsWindowController()
+        keyboardShortcutsWindow = window
+        window.show(KeyboardShortcuts.current(runtime.options.bindings))
     }
 
     @objc private func showAbout() {
@@ -572,10 +581,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
-        viewMenu.addItem(withTitle: "Go to Workspace", action: #selector(showWorkspaces), keyEquivalent: "p")
-        let placesItem = viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
-        placesItem.keyEquivalentModifierMask = [.command, .shift]
-        viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: "i")
+        changeableItems += [
+            (viewMenu.addItem(withTitle: "Go to Workspace", action: #selector(showWorkspaces), keyEquivalent: ""), "toggle_workspace_palette"),
+            (viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: ""), "toggle_command_palette"),
+            (viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: ""), "toggle_agent_palette"),
+        ]
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")
@@ -586,8 +596,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         previousWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
         let nextWorkspaceItem = NSMenuItem(title: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
         nextWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
-        let renameItem = NSMenuItem(title: "Rename Workspace", action: #selector(renameWorkspace), keyEquivalent: "r")
-        renameItem.keyEquivalentModifierMask = [.command, .shift]
+        let renameItem = NSMenuItem(title: "Rename Workspace", action: #selector(renameWorkspace), keyEquivalent: "")
+        changeableItems.append((renameItem, "rename_workspace"))
         workspaceMenu = WorkspaceMenu(
             title: "Workspace",
             fixedItems: [previousWorkspaceItem, nextWorkspaceItem, .separator(), renameItem],

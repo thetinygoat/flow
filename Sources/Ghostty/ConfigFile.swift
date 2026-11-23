@@ -43,22 +43,33 @@ enum ConfigFile {
     /// report each one as unknown, so it never sees them.
     static let flowKeys = FlowOption.keys
 
-    /// Copies keep the original's path inside this folder, so a message
-    /// about a copy can name the original.
+    /// Each copy is named for the original's whole path, so a message about
+    /// a copy can name the original.
     static let ghosttyCopies = FileManager.default.temporaryDirectory.appendingPathComponent("flow-config", isDirectory: true)
 
     /// Hands libghostty the file, or a copy without Flow's options when it
-    /// sets any. The copy's relative paths still lead to the original's files,
-    /// and its lines keep their numbers. A file that is not UTF-8 text goes
-    /// as it is, since Flow cannot read its options.
+    /// sets any. In the copy a key bound to one of Flow's actions is unbound
+    /// instead, so no default of Ghostty's runs before Flow's menu. The
+    /// copy's relative paths still lead to the original's files, and its
+    /// lines keep their numbers. A file that is not UTF-8 text goes as it
+    /// is, since Flow cannot read its options.
     static func withGhosttyFile(for url: URL, flowKeys: Set<String> = flowKeys, _ load: (URL) -> Void) {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return load(url) }
         var document = ConfigDocument(text)
-        guard document.blankEntries(where: { key, _ in flowKeys.contains(key) }) else { return load(url) }
+        let blanked = document.blankEntries { key, _ in flowKeys.contains(key) }
+        var otherSpellings: [String] = []
+        let unbound = document.replaceValues(for: "keybind") { value in
+            guard let values = Keybind.ghosttyValues(for: value) else { return nil }
+            otherSpellings += values.dropFirst()
+            return values.first
+        }
+        // After every other line, so the lines keep their numbers.
+        otherSpellings.forEach { document.append("keybind", $0) }
+        guard blanked || unbound else { return load(url) }
         document.anchorPaths(at: url.deletingLastPathComponent())
-        let copy = ghosttyCopies.appendingPathComponent(String(url.standardizedFileURL.path.dropFirst()))
+        let copy = ghosttyCopies.appendingPathComponent(url.standardizedFileURL.path.addingPercentEncoding(withAllowedCharacters: copyNameCharacters)!)
         do {
-            try FileManager.default.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: ghosttyCopies, withIntermediateDirectories: true)
             try document.text.write(to: copy, atomically: true, encoding: .utf8)
         } catch {
             logger.error("could not copy \(url.path, privacy: .public) for libghostty: \(error, privacy: .public)")
@@ -70,10 +81,17 @@ enum ConfigFile {
 
     /// libghostty's messages start with the path of the file they are about.
     static func namingOriginal(_ message: String) -> String {
-        let copies = ghosttyCopies.path
-        guard message.hasPrefix(copies + "/") else { return message }
-        return String(message.dropFirst(copies.count))
+        let prefix = ghosttyCopies.path + "/"
+        guard message.hasPrefix(prefix) else { return message }
+        let rest = message.dropFirst(prefix.count)
+        let name = rest.prefix { $0 != ":" }
+        guard let original = name.removingPercentEncoding else { return message }
+        return original + rest.dropFirst(name.count)
     }
+
+    /// Without `/`, so the copy is one file, or `:`, which ends the path in
+    /// libghostty's messages.
+    private static let copyNameCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
 
     static let header = """
         # Flow settings. The Settings window rewrites the lines it manages; all

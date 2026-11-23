@@ -58,8 +58,7 @@ struct ConfigDocument: Equatable {
             guard let entry = Self.entry(lines[index]), Self.pathKeys.contains(entry.key),
                   var path = ConfigPath(entry.value), path.isRelative else { continue }
             path.path = path.resolved(from: directory).path
-            let ending = lines[index].hasSuffix("\r") ? "\r" : ""
-            lines[index] = "\(entry.key) = \(Self.format(path.value))\(ending)"
+            lines[index] = line(entry.key, path.value, endingLike: lines[index])
         }
     }
 
@@ -73,6 +72,33 @@ struct ConfigDocument: Equatable {
             blanked = true
         }
         return blanked
+    }
+
+    /// Changes the values the transform returns one for, each on its own
+    /// line. False when none changed.
+    mutating func replaceValues(for key: String, _ transform: (String) -> String?) -> Bool {
+        var replaced = false
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), entry.key == key, let value = transform(entry.value) else { continue }
+            lines[index] = line(key, value, endingLike: lines[index])
+            replaced = true
+        }
+        return replaced
+    }
+
+    mutating func removeEntries(where matches: (_ key: String, _ value: String) -> Bool) {
+        lines.removeAll { line in Self.entry(line).map { matches($0.key, $0.value) } ?? false }
+    }
+
+    /// Adds a value after every other line, for a key that may be set more
+    /// than once, such as `keybind`.
+    mutating func append(_ key: String, _ value: String) {
+        let ending = lines.contains { $0.hasSuffix("\r") } ? "\r" : ""
+        lines.append("\(key) = \(Self.format(value))\(ending)")
+    }
+
+    private func line(_ key: String, _ value: String, endingLike original: String) -> String {
+        "\(key) = \(Self.format(value))\(original.hasSuffix("\r") ? "\r" : "")"
     }
 
     /// The key and value of a line that sets something, read the way Ghostty

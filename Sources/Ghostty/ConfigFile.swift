@@ -41,7 +41,7 @@ enum ConfigFile {
 
     /// Options Flow reads itself. libghostty has none of them and would
     /// report each one as unknown, so it never sees them.
-    static let flowKeys: Set<String> = []
+    static let flowKeys = FlowOption.keys
 
     /// Copies keep the original's path inside this folder, so a message
     /// about a copy can name the original.

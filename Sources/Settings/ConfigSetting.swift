@@ -1,7 +1,7 @@
 import Foundation
 
-/// A Ghostty option the Settings window changes, with Ghostty's default so an
-/// option the file leaves out shows what is in effect.
+/// An option in the config file, Ghostty's or Flow's own, with its default so
+/// an option the file leaves out shows what is in effect.
 struct ConfigSetting<Value: Equatable> {
     let key: String
     let defaultValue: Value

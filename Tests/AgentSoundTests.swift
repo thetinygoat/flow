@@ -51,39 +51,34 @@ final class AgentSoundTests: XCTestCase {
     }
 
     func testTheDefaultSoundsExist() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
-        Preferences.register(in: defaults)
         for sound in [AgentSound.needsInput, .finished] {
-            let name = try XCTUnwrap(defaults.string(forKey: AgentAlert.soundPreference(sound)))
+            let name = FlowOptions().value(AgentAlert.soundOption(sound))
             XCTAssertNotNil(NSSound(named: name))
-            XCTAssertTrue(Preferences.sounds.contains(name))
+            XCTAssertTrue(FlowOption.sounds.contains(name))
         }
     }
 
     func testAlertsFollowTheSettings() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
-        Preferences.register(in: defaults)
         let waiting = update(.needsInput, state: .waiting, detail: "permission_prompt")
         let finished = update(.turnEnded, state: .idle)
 
-        var alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, defaults: defaults)
+        var alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, options: FlowOptions())
         XCTAssertEqual(alert.sound?.name, "Ping")
         XCTAssertNotNil(alert.notification)
 
-        defaults.set("", forKey: Preferences.needsInputSound)
-        defaults.set(false, forKey: Preferences.needsInputNotification)
-        alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, defaults: defaults)
+        var options = FlowOptions(ConfigDocument("agent-needs-input-sound = none\nagent-needs-input-notification = false\n"))
+        alert = AgentAlert.make(for: waiting, title: "t", isVisible: false, options: options)
         XCTAssertNil(alert.sound)
         XCTAssertNil(alert.notification)
 
-        defaults.set("Basso", forKey: Preferences.finishedSound)
-        alert = AgentAlert.make(for: finished, title: "t", isVisible: false, defaults: defaults)
+        options = FlowOptions(ConfigDocument("agent-finished-sound = Basso\n"))
+        alert = AgentAlert.make(for: finished, title: "t", isVisible: false, options: options)
         XCTAssertEqual(alert.sound?.name, "Basso")
         XCTAssertNotNil(alert.notification)
 
-        defaults.set(false, forKey: Preferences.finishedNotification)
+        options = FlowOptions(ConfigDocument("agent-finished-notification = false\n"))
         let attention = update(.attention, state: .working, attention: "look here")
-        XCTAssertNil(AgentAlert.make(for: attention, title: "t", isVisible: false, defaults: defaults).notification)
-        XCTAssertEqual(AgentAlert.make(for: finished, title: "t", isVisible: true, defaults: defaults), AgentAlert())
+        XCTAssertNil(AgentAlert.make(for: attention, title: "t", isVisible: false, options: options).notification)
+        XCTAssertEqual(AgentAlert.make(for: finished, title: "t", isVisible: true, options: options), AgentAlert())
     }
 }

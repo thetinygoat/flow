@@ -46,8 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Preferences.register()
         ConfigFile.createIfMissing()
+        FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.controller.applyAppearance(config: self.runtime.config, app: self.runtime.app)
             }
             self.loadedSettings?.reload(problems: self.runtime.config.diagnostics)
+            self.applyOptions()
         }
         notifications.isInView = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return false }
@@ -100,14 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             logger.error("agent socket unavailable at \(listener.url.path, privacy: .public): \(error, privacy: .public)")
         }
-        SecureInput.shared.global = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
-        // The Settings window changes secure keyboard entry through the defaults.
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main) { _ in
-            let enabled = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
-            if SecureInput.shared.global != enabled {
-                SecureInput.shared.global = enabled
-            }
-        }
+        applyOptions()
 
         NSApp.mainMenu = buildMainMenu()
         NSApp.servicesProvider = serviceProvider
@@ -450,7 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
-        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), defaults: .standard)
+        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), options: runtime.options)
         if let sound = alert.sound {
             agentSounds.play(sound.kind, named: sound.name)
         }
@@ -478,9 +472,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSecureKeyboardEntry(!SecureInput.shared.global)
     }
 
+    /// Takes effect at once, before the config file it is saved to reloads.
     private func setSecureKeyboardEntry(_ enabled: Bool) {
         SecureInput.shared.global = enabled
-        UserDefaults.standard.set(enabled, forKey: Preferences.secureKeyboardEntry)
+        settings.set(FlowOption.secureKeyboardEntry, enabled)
+    }
+
+    /// The options read at each load of the config file. Other options take
+    /// effect where they are used.
+    private func applyOptions() {
+        let secureKeyboardEntry = runtime.options.value(FlowOption.secureKeyboardEntry)
+        if SecureInput.shared.global != secureKeyboardEntry {
+            SecureInput.shared.global = secureKeyboardEntry
+        }
     }
 
     @objc private func showSettings() {

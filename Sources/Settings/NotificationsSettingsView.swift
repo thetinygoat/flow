@@ -3,23 +3,19 @@ import SwiftUI
 
 struct NotificationsSettingsView: View {
     let store: SettingsStore
-    @AppStorage(Preferences.needsInputNotification) private var needsInputNotification = true
-    @AppStorage(Preferences.needsInputSound) private var needsInputSound = ""
-    @AppStorage(Preferences.finishedNotification) private var finishedNotification = true
-    @AppStorage(Preferences.finishedSound) private var finishedSound = ""
 
     private var commandActions: Binding<CommandFinish.Actions> { store.binding(Option.notifyOnCommandFinishAction) }
 
     var body: some View {
         Form {
             Section("Agent needs input") {
-                Toggle("Notification", isOn: $needsInputNotification)
-                SoundPicker(selection: $needsInputSound)
+                Toggle("Notification", isOn: store.binding(FlowOption.needsInputNotification))
+                SoundPicker(selection: store.binding(FlowOption.needsInputSound))
             }
 
             Section {
-                Toggle("Notification", isOn: $finishedNotification)
-                SoundPicker(selection: $finishedSound)
+                Toggle("Notification", isOn: store.binding(FlowOption.finishedNotification))
+                SoundPicker(selection: store.binding(FlowOption.finishedSound))
             } header: {
                 Text("Agent finished")
             } footer: {
@@ -70,7 +66,7 @@ private struct SoundPicker: View {
         Picker("Sound", selection: $selection) {
             Text("None").tag("")
             Divider()
-            ForEach(Preferences.sounds, id: \.self) { name in
+            ForEach(FlowOption.sounds, id: \.self) { name in
                 Text(name).tag(name)
             }
         }

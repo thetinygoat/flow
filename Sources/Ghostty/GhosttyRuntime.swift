@@ -30,6 +30,8 @@ final class GhosttyRuntime {
     weak var delegate: GhosttyRuntimeDelegate?
     var onConfigChange: (() -> Void)?
     private(set) var config: GhosttyConfig
+    /// Loaded and reloaded with the config, from the same file.
+    private(set) var options: FlowOptions
     private(set) var app: ghostty_app_t!
     private let surfaces = NSHashTable<TerminalSurfaceView>.weakObjects()
     private var observers: [NSObjectProtocol] = []
@@ -40,6 +42,7 @@ final class GhosttyRuntime {
     init(configFile: URL = ConfigFile.url) throws {
         self.configFile = configFile
         config = try GhosttyConfig(file: configFile)
+        options = FlowOptions(file: configFile)
 
         var runtimeConfig = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
@@ -123,6 +126,7 @@ final class GhosttyRuntime {
     func reloadConfig() {
         guard let newConfig = try? GhosttyConfig(file: configFile) else { return }
         config = newConfig
+        options = FlowOptions(file: configFile)
         for surface in surfaces.allObjects {
             surface.configDidChange(newConfig)
         }

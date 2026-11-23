@@ -6,18 +6,28 @@ final class KeyTriggerTests: XCTestCase {
         KeyTrigger(text)
     }
 
-    func testReadsGhosttysSpellingsAsOneTrigger() {
-        let bracket = KeyTrigger([.super, .shift], "[")
-        XCTAssertEqual(trigger("super+shift+["), bracket)
-        XCTAssertEqual(trigger("cmd+shift+bracket_left"), bracket)
-        XCTAssertEqual(trigger("shift+command+left_bracket"), bracket)
-        XCTAssertEqual(trigger("ctrl+digit_1"), trigger("control+1"))
-        XCTAssertEqual(trigger("super+key_t"), trigger("super+T"))
+    func testReadsGhosttysOtherNamesForTheSameBinding() {
+        XCTAssertEqual(trigger("cmd+shift+bracket_left"), trigger("shift+command+left_bracket"))
+        XCTAssertEqual(trigger("super+T"), KeyTrigger(.super, "t"))
         XCTAssertEqual(trigger("opt+up"), KeyTrigger(.alt, "arrow_up"))
+        XCTAssertEqual(trigger("ctrl+one"), KeyTrigger(.ctrl, "1"))
         XCTAssertEqual(trigger("super++"), KeyTrigger(.super, "+"))
         XCTAssertEqual(trigger("super+plus"), KeyTrigger(.super, "+"))
-        XCTAssertEqual(trigger("super+equal"), KeyTrigger(.super, "="))
+        XCTAssertEqual(trigger("kp_1"), KeyTrigger([], "numpad_1"))
         XCTAssertEqual(trigger("f5"), KeyTrigger([], "f5"))
+    }
+
+    /// Ghostty binds a character and a key's place separately, though both
+    /// are the same press.
+    func testACharacterAndItsPlaceAreOnePressButTwoBindings() {
+        let pairs = [("super+key_t", "super+t"), ("ctrl+digit_1", "ctrl+1"), ("super+equal", "super+="), ("super+shift+bracket_left", "super+shift+[")]
+        for (place, character) in pairs {
+            XCTAssertNotEqual(trigger(place), trigger(character), place)
+            XCTAssertEqual(trigger(place)?.press, trigger(character), place)
+            XCTAssertEqual(trigger(place)?.ghosttySpellings, trigger(character)?.ghosttySpellings, place)
+        }
+        XCTAssertEqual(trigger("super+key_p")?.symbols, ["⌘", "P"])
+        XCTAssertEqual(trigger("super+equal")?.menuKeyEquivalent?.key, "=")
     }
 
     func testRefusesWhatIsNotOneKey() {
@@ -33,7 +43,8 @@ final class KeyTriggerTests: XCTestCase {
         XCTAssertEqual(Keybind("super+==unbind"), .bind(trigger: KeyTrigger(.super, "="), triggerText: "super+=", action: "unbind"))
         XCTAssertEqual(Keybind("super++=unbind"), .bind(trigger: KeyTrigger(.super, "+"), triggerText: "super++", action: "unbind"))
         XCTAssertEqual(KeyTrigger(.super, "1").ghosttySpellings, ["super+1", "super+digit_1"])
-        XCTAssertEqual(KeyTrigger(.super, "t").ghosttySpellings, ["super+t"])
+        XCTAssertEqual(KeyTrigger(.super, "t").ghosttySpellings, ["super+t", "super+key_t"])
+        XCTAssertEqual(KeyTrigger(.super, "enter").ghosttySpellings, ["super+enter"])
     }
 
     func testShowsKeycapsInMenuOrder() {

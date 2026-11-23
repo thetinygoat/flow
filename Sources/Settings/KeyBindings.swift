@@ -45,19 +45,21 @@ enum Keybind: Equatable {
     }
 
     /// What libghostty reads in place of a binding to one of Flow's actions:
-    /// the key unbound, so no default of Ghostty's runs before Flow's menu.
-    /// The first value takes the binding's place; the others unbind the
-    /// key's other spellings.
+    /// the key press unbound, so no binding of Ghostty's runs before Flow's
+    /// menu. The first value takes the binding's place; the others unbind
+    /// the press's other spelling.
     static func ghosttyValues(for value: String) -> [String]? {
         guard let keybind = Keybind(value), keybind.command?.isFlows == true,
               case .bind(let trigger, let triggerText, _) = keybind else { return nil }
-        return ["\(triggerText)=unbind"] + (trigger?.ghosttySpellings.dropFirst() ?? []).map { "\($0)=unbind" }
+        let others = trigger.map { trigger in trigger.ghosttySpellings.filter { KeyTrigger($0) != trigger } } ?? []
+        return ["\(triggerText)=unbind"] + others.map { "\($0)=unbind" }
     }
 }
 
 /// The keys of the commands Settings can change: their defaults, then the
 /// config's `keybind` lines in the order Ghostty reads them. A later line
-/// wins, and a key bound to anything else is taken from these commands.
+/// wins, and a key press bound to anything else, under either spelling, is
+/// taken from these commands.
 struct KeyBindings: Equatable {
     private var keys: [String: KeyTrigger]
 
@@ -74,7 +76,7 @@ struct KeyBindings: Equatable {
                 continue
             }
             guard let trigger else { continue }
-            keys = keys.filter { $0.value != trigger }
+            keys = keys.filter { $0.value.press != trigger.press }
             if let command = keybind.command, !(line.isIncluded && command.isFlows) {
                 keys[command.action] = trigger
             }
@@ -91,7 +93,7 @@ struct KeyBindings: Equatable {
     }
 
     func command(using key: KeyTrigger) -> KeyboardShortcuts.Command? {
-        keys.first { $0.value == key }.flatMap { KeyboardShortcuts.command(for: $0.key) }
+        keys.first { $0.value.press == key.press }.flatMap { KeyboardShortcuts.command(for: $0.key) }
     }
 }
 
@@ -111,7 +113,7 @@ extension ConfigDocument {
     mutating func setShortcut(_ key: KeyTrigger?, for command: KeyboardShortcuts.Command, includes: [ConfigDocument] = []) {
         resetShortcut(for: command)
         let current = KeyBindings(document: self, includes: includes).shortcut(for: command.action)
-        guard current != key else { return }
+        guard current?.press != key?.press else { return }
         // Ghostty keeps every key bound to its action until it is unbound.
         if let current, key == nil || !command.isFlows {
             current.ghosttySpellings.forEach { append("keybind", "\($0)=unbind") }
@@ -124,6 +126,6 @@ extension ConfigDocument {
     /// A binding to the command, or the unbinding of its default.
     private static func isShortcutLine(_ value: String, for command: KeyboardShortcuts.Command) -> Bool {
         guard let keybind = Keybind(value), case .bind(let trigger, _, let action) = keybind else { return false }
-        return action == command.action || (action == "unbind" && trigger == command.defaultKey)
+        return action == command.action || (action == "unbind" && trigger?.press == command.defaultKey.press)
     }
 }

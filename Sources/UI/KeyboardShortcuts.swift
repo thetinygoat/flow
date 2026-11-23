@@ -104,4 +104,36 @@ enum KeyboardShortcuts {
     static func command(for action: String) -> Command? {
         changeable.first { $0.action == action }
     }
+
+    /// Why the key can't be one of the changeable shortcuts, as a note, or
+    /// nil when it can. A key with only ⇧ or none would be taken from typing.
+    static func unavailable(_ key: KeyTrigger) -> String? {
+        let press = key.press
+        let keys = press.symbols.joined()
+        let isFunctionKey = press.key.hasPrefix("f") && Int(press.key.dropFirst()) != nil
+        if press.modifiers.isDisjoint(with: [.super, .ctrl, .alt]), !isFunctionKey {
+            return "Shortcuts need ⌘, ⌃ or ⌥."
+        }
+        // The terminal takes these before any menu sees them.
+        if press.modifiers.contains(.ctrl), press.key == "enter" || (press.key == "/" && press.modifiers == .ctrl) {
+            return "\(keys) goes to the terminal."
+        }
+        return fixedUses[press].map { "\(keys) is already the shortcut for \($0)." }
+    }
+
+    /// Keys in use that Settings finds on no menu item: the Workspace menu
+    /// has its items only while a terminal window is in front, and the
+    /// palettes step with ⌘↑ and ⌘↓.
+    private static let fixedUses: [KeyTrigger: String] = {
+        var uses: [KeyTrigger: String] = [
+            KeyTrigger(.super, "9"): "Last workspace",
+            KeyTrigger(.super, "arrow_up"): "Step up the list",
+            KeyTrigger(.super, "arrow_down"): "Step down the list",
+        ]
+        for number in 1...9 {
+            if number < 9 { uses[KeyTrigger(.super, "\(number)")] = "Switch workspace" }
+            uses[KeyTrigger(.ctrl, "\(number)")] = "Switch tab"
+        }
+        return uses
+    }()
 }

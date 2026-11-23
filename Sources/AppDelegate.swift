@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// opened is that one.
     private var closedLastWindow: Session.Window?
     private var workspaceMenu: WorkspaceMenu!
+    /// Secure Keyboard Entry as the config file last set it.
+    private var loadedSecureKeyboardEntry: Bool?
     /// Items whose key Settings can change, with their `keybind` action.
     private var changeableItems: [(item: NSMenuItem, action: String)] = []
     /// Folders macOS asked to open before launch finished.
@@ -49,7 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ConfigFile.createIfMissing()
-        FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
+        if !ConfigFile.isOverridden {
+            FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
+        }
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -481,9 +485,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The options read at each load of the config file. Other options take
     /// effect where they are used.
+    ///
+    /// Secure Keyboard Entry follows the file only when the file changes it,
+    /// so a reload can't undo the menu item's change while it can't be saved.
     private func applyOptions() {
         let secureKeyboardEntry = runtime.options.value(FlowOption.secureKeyboardEntry)
-        if SecureInput.shared.global != secureKeyboardEntry {
+        if secureKeyboardEntry != loadedSecureKeyboardEntry {
+            loadedSecureKeyboardEntry = secureKeyboardEntry
             SecureInput.shared.global = secureKeyboardEntry
         }
         for (item, action) in changeableItems {

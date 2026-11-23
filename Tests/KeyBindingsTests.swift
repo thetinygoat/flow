@@ -29,6 +29,9 @@ final class KeyBindingsTests: XCTestCase {
         XCTAssertEqual(moved.shortcut(for: "toggle_agent_palette"), key("super+p"))
         XCTAssertNil(moved.shortcut(for: "toggle_workspace_palette"))
         XCTAssertNil(bindings("keybind = super+p=new_tab\n").shortcut(for: "toggle_workspace_palette"), "taken by another action")
+        XCTAssertNil(bindings("keybind = super+key_p=new_tab\n").shortcut(for: "toggle_workspace_palette"), "the same press by its place")
+        XCTAssertEqual(bindings("keybind = super+key_p=new_tab\nkeybind = super+p=toggle_workspace_palette\n")
+            .shortcut(for: "toggle_workspace_palette"), key("super+p"))
         XCTAssertNil(bindings("keybind = shift+super+r=unbind\n").shortcut(for: "rename_workspace"))
         XCTAssertNil(bindings("keybind = clear\n").shortcut(for: "toggle_agent_palette"))
     }
@@ -40,8 +43,10 @@ final class KeyBindingsTests: XCTestCase {
     }
 
     func testLibghosttyGetsFlowsKeysUnbound() {
-        XCTAssertEqual(Keybind.ghosttyValues(for: "cmd+t=toggle_agent_palette"), ["cmd+t=unbind"])
+        XCTAssertEqual(Keybind.ghosttyValues(for: "cmd+t=toggle_agent_palette"), ["cmd+t=unbind", "super+key_t=unbind"])
         XCTAssertEqual(Keybind.ghosttyValues(for: "super+1=rename_workspace"), ["super+1=unbind", "super+digit_1=unbind"])
+        XCTAssertEqual(Keybind.ghosttyValues(for: "super+digit_1=rename_workspace"), ["super+digit_1=unbind", "super+1=unbind"])
+        XCTAssertEqual(Keybind.ghosttyValues(for: "super+enter=rename_workspace"), ["super+enter=unbind"])
         XCTAssertNil(Keybind.ghosttyValues(for: "super+u=toggle_command_palette"), "Ghostty's own action")
     }
 
@@ -54,7 +59,7 @@ final class KeyBindingsTests: XCTestCase {
         document.setShortcut(key("super+i"), for: command("toggle_agent_palette"))
         XCTAssertEqual(document.text, "font-size = 13\n", "back to its default, so nothing to write")
         document.setShortcut(nil, for: command("rename_workspace"))
-        XCTAssertEqual(document.text, "font-size = 13\nkeybind = shift+super+r=unbind\n")
+        XCTAssertEqual(document.text, "font-size = 13\nkeybind = shift+super+r=unbind\nkeybind = shift+super+key_r=unbind\n")
         document.resetShortcut(for: command("rename_workspace"))
         XCTAssertEqual(document.text, "font-size = 13\n")
     }
@@ -62,7 +67,7 @@ final class KeyBindingsTests: XCTestCase {
     func testTheTabAndPanePaletteLosesGhosttysDefault() {
         var document = ConfigDocument("")
         document.setShortcut(key("alt+super+p"), for: command("toggle_command_palette"))
-        XCTAssertEqual(document.text, "keybind = shift+super+p=unbind\nkeybind = alt+super+p=toggle_command_palette\n")
+        XCTAssertEqual(document.text, "keybind = shift+super+p=unbind\nkeybind = shift+super+key_p=unbind\nkeybind = alt+super+p=toggle_command_palette\n")
         XCTAssertTrue(document.hasShortcutLines(for: command("toggle_command_palette")))
         document.resetShortcut(for: command("toggle_command_palette"))
         XCTAssertEqual(document.text, "")
@@ -96,5 +101,27 @@ final class KeyBindingsTests: XCTestCase {
         let trigger = ghostty_config_trigger(config, "toggle_command_palette", 22)
         XCTAssertTrue(trigger.tag == GHOSTTY_TRIGGER_PHYSICAL && trigger.key.physical == GHOSTTY_KEY_UNIDENTIFIED,
                       "⇧⌘P is Ghostty's only key for it")
+    }
+
+    /// Through the copy Flow hands libghostty, under either spelling.
+    func testAKeyGivenToFlowsCommandIsFreeInGhostty() throws {
+        XCTAssertEqual(Self.initialized, GHOSTTY_SUCCESS)
+        func isBound(_ action: String, after lines: String) throws -> Bool {
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try lines.write(to: file, atomically: true, encoding: .utf8)
+            defer { try? FileManager.default.removeItem(at: file) }
+            let config = try GhosttyConfig(file: file)
+            XCTAssertEqual(config.diagnostics, [])
+            let trigger = ghostty_config_trigger(config.cValue, action, UInt(action.utf8.count))
+            return !(trigger.tag == GHOSTTY_TRIGGER_PHYSICAL && trigger.key.physical == GHOSTTY_KEY_UNIDENTIFIED)
+        }
+        XCTAssertTrue(try isBound("goto_tab:1", after: ""))
+        XCTAssertFalse(try isBound("goto_tab:1", after: "keybind = super+digit_1=toggle_agent_palette\n"))
+        XCTAssertFalse(try isBound("new_tab", after: """
+            keybind = super+t=unbind
+            keybind = super+key_p=new_tab
+            keybind = super+p=toggle_workspace_palette
+
+            """))
     }
 }

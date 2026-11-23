@@ -6,6 +6,12 @@ import UniformTypeIdentifiers
 enum ConfigFile {
     /// `~/.config/flow/config` (`flow-debug` for a debug build), or the file
     /// named by the FLOW_CONFIG environment variable.
+    /// FLOW_CONFIG names a file for a one-off run, such as a test, which
+    /// Flow uses as it is.
+    static var isOverridden: Bool {
+        ProcessInfo.processInfo.environment["FLOW_CONFIG"] != nil
+    }
+
     static var url: URL {
         if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
             return URL(fileURLWithPath: override)
@@ -104,7 +110,7 @@ enum ConfigFile {
     /// people who set Flow up through Ghostty. A debug build copies the
     /// installed Flow's instead.
     static func createIfMissing() {
-        guard ProcessInfo.processInfo.environment["FLOW_CONFIG"] == nil else { return }
+        guard !isOverridden else { return }
         do {
             if AppFolder.isDebugBuild {
                 try copy(installedURL, to: url)

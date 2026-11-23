@@ -55,6 +55,10 @@ struct KeyboardSettingsView: View {
     /// item has is refused, since the menu would still run that item.
     private func set(_ key: KeyTrigger?, for command: KeyboardShortcuts.Command, bindings: KeyBindings) {
         note = nil
+        if let key, let reason = KeyboardShortcuts.unavailable(key) {
+            note = reason
+            return
+        }
         if let key, let other = bindings.command(using: key), other != command {
             note = "\(key.symbols.joined()) moved from \(other.title) to \(command.title)."
         } else if let key, bindings.command(using: key) == nil, let item = Self.menuItem(using: key) {
@@ -69,8 +73,6 @@ struct KeyboardSettingsView: View {
         guard let equivalent = key.menuKeyEquivalent, let menu = NSApp.mainMenu else { return nil }
         let modifiers: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
         func find(in menu: NSMenu) -> String? {
-            // The Workspace menu fills in its items only as it opens.
-            menu.delegate?.menuNeedsUpdate?(menu)
             for item in menu.items {
                 if item.keyEquivalent == equivalent.key, item.keyEquivalentModifierMask.intersection(modifiers) == equivalent.modifiers {
                     return item.title
@@ -98,8 +100,8 @@ private struct ShortcutRecorder: NSViewRepresentable {
 }
 
 /// Shows a shortcut. Clicked, it takes the next key pressed, with the
-/// modifiers held, as the new one; Esc on its own or a click elsewhere stops
-/// without a change.
+/// modifiers held, as the new one; Esc on its own, a second click or another
+/// control taking the keyboard stops without a change.
 final class ShortcutRecorderView: NSView {
     var shortcut: KeyTrigger? {
         didSet { refresh() }

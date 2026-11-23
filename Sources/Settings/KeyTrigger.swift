@@ -1,9 +1,10 @@
 import AppKit
 
 /// A key and the modifiers held with it, as Ghostty's `keybind` option names
-/// them, such as `super+shift+p`. Ghostty's other spellings of the same key,
-/// such as `bracket_left` for `[` or `cmd` for `super`, read as the same
-/// trigger.
+/// them, such as `super+shift+p`. Two triggers are equal when Ghostty takes
+/// them as one binding: `cmd` is `super` and `left_bracket` is
+/// `bracket_left`, but `p`, the character, and `key_p`, the key's place, are
+/// separate bindings of the same key press.
 struct KeyTrigger: Hashable {
     struct Modifiers: OptionSet, Hashable {
         let rawValue: Int
@@ -30,8 +31,8 @@ struct KeyTrigger: Hashable {
     }
 
     var modifiers: Modifiers
-    /// The character a key types, such as `p` or `[`, or else Ghostty's name
-    /// for it, such as `enter` or `arrow_up`.
+    /// The character a key types, such as `p` or `[`, or Ghostty's name for
+    /// its place, such as `key_p` or `enter`.
     var key: String
 
     init(_ modifiers: Modifiers, _ key: String) {
@@ -84,12 +85,17 @@ struct KeyTrigger: Hashable {
         configValue(key: key)
     }
 
-    /// Ghostty binds its digit shortcuts twice, by the character and by the
-    /// key's place for layouts where the digits are shifted, so unbinding
-    /// one takes both.
+    /// The key press, by the character it types where it types one, so
+    /// `super+key_p` and `super+p` are one press.
+    var press: KeyTrigger {
+        KeyTrigger(modifiers, Self.placeCharacters[key] ?? key)
+    }
+
+    /// Both bindings of the press, by character and by place. Ghostty tries
+    /// the place first, so a key is only free once both are unbound.
     var ghosttySpellings: [String] {
-        guard key.count == 1, key.first?.isNumber == true else { return [configValue] }
-        return [configValue, configValue(key: "digit_\(key)")]
+        let press = press
+        return [press.configValue] + (Self.placeNames[press.key].map { [configValue(key: $0)] } ?? [])
     }
 
     private func configValue(key: String) -> String {
@@ -102,6 +108,7 @@ struct KeyTrigger: Hashable {
     }
 
     var keySymbol: String {
+        let key = press.key
         if let symbol = Self.keySymbols[key] { return symbol }
         if key.count == 1 { return key.uppercased() }
         if key.hasPrefix("f"), Int(key.dropFirst()) != nil { return key.uppercased() }
@@ -110,6 +117,7 @@ struct KeyTrigger: Hashable {
 
     /// Nil for a key a menu cannot show.
     var menuKeyEquivalent: (key: String, modifiers: NSEvent.ModifierFlags)? {
+        let key = press.key
         let equivalent: String
         if let special = Self.keyEquivalents[key] {
             equivalent = special
@@ -134,29 +142,40 @@ struct KeyTrigger: Hashable {
         "shift": .shift, "super": .super, "cmd": .super, "command": .super,
     ]
 
-    /// Ghostty's names for keys that type a character, under that character.
-    private static let characterNames: [String: String] = {
+    /// Ghostty's names for the places of keys that type a character, with
+    /// the character on a US keyboard.
+    private static let placeCharacters: [String: String] = {
         var names: [String: String] = [
-            "backquote": "`", "grave_accent": "`", "backslash": "\\", "bracket_left": "[", "left_bracket": "[",
-            "bracket_right": "]", "right_bracket": "]", "comma": ",", "equal": "=", "minus": "-", "period": ".",
-            "quote": "'", "apostrophe": "'", "semicolon": ";", "slash": "/", "plus": "+",
-            "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
-            "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+            "backquote": "`", "backslash": "\\", "bracket_left": "[", "bracket_right": "]", "comma": ",",
+            "equal": "=", "minus": "-", "period": ".", "quote": "'", "semicolon": ";", "slash": "/",
         ]
         for letter in "abcdefghijklmnopqrstuvwxyz" { names["key_\(letter)"] = String(letter) }
         for digit in 0...9 { names["digit_\(digit)"] = "\(digit)" }
         return names
     }()
 
-    private static let otherNames = ["up": "arrow_up", "down": "arrow_down", "left": "arrow_left", "right": "arrow_right"]
+    private static let placeNames = Dictionary(uniqueKeysWithValues: placeCharacters.map { ($1, $0) })
 
-    /// One spelling per key: its character, or Ghostty's name for it.
+    /// The older names Ghostty still reads, as it reads them: some for a
+    /// character, others for a place.
+    private static let olderNames: [String: String] = {
+        var names = [
+            "plus": "+", "apostrophe": "'", "grave_accent": "backquote", "left_bracket": "bracket_left",
+            "right_bracket": "bracket_right", "up": "arrow_up", "down": "arrow_down", "left": "arrow_left", "right": "arrow_right",
+        ]
+        for (digit, name) in ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"].enumerated() {
+            names[name] = "\(digit)"
+            names["kp_\(digit)"] = "numpad_\(digit)"
+        }
+        return names
+    }()
+
+    /// One spelling per binding: the character, or the name of the place.
     private static func canonicalKey(_ part: String) -> String? {
         guard !part.isEmpty else { return nil }
         if part == " " { return "space" }
         if part.count == 1 { return part.lowercased() }
-        if let character = characterNames[part] { return character }
-        if let name = otherNames[part] { return name }
+        if let name = olderNames[part] { return name }
         guard part.allSatisfy({ $0.isLowercase || $0.isNumber || $0 == "_" }), part.first?.isLetter == true else { return nil }
         return part
     }

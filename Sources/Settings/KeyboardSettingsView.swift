@@ -26,7 +26,9 @@ struct KeyboardSettingsView: View {
 
     private func row(_ command: KeyboardShortcuts.Command, bindings: KeyBindings) -> some View {
         let key = bindings.shortcut(for: command.action)
-        return LabeledContent(command.title) {
+        return HStack {
+            Text(command.title)
+            Spacer()
             HStack(spacing: 4) {
                 ShortcutRecorder(shortcut: key) { set($0, for: command, bindings: bindings) }
                     .frame(width: 110, height: 22)
@@ -48,6 +50,7 @@ struct KeyboardSettingsView: View {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
+            .fixedSize()
         }
     }
 

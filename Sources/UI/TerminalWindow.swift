@@ -188,7 +188,7 @@ final class TerminalWindow: NSObject, NSWindowDelegate {
     // MARK: Command palette
 
     /// Opens the palette, or steps to its next item when one of the same mode
-    /// is open; one of the other mode is cancelled first. The window shows the
+    /// is open; one of another mode is cancelled first. The window shows the
     /// selected item behind the palette while it is in this window, and
     /// otherwise where the palette was opened. `reveal` goes to the chosen
     /// item, in whichever window holds it.

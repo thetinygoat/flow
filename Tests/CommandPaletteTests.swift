@@ -186,7 +186,7 @@ final class CommandPaletteTests: XCTestCase {
         let web = store.addWorkspace(customName: "web")
         web.add(TestTab(leaf: FakeLeaf("zsh")))
         let items = CommandPalette.workspaces(in: store)
-        XCTAssertEqual(items.map { "\($0.title) | \($0.detail) | \($0.location)" }, ["api | /src/api | api", "web |  | web"])
+        XCTAssertEqual(items.map { "\($0.title) | \($0.detail)" }, ["api | /src/api", "web | "])
         XCTAssertEqual(items[0].terminal, a.id)
         XCTAssertEqual(items[0].terminals, [a, b, c].map(\.id))
 

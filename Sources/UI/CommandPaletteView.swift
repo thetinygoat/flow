@@ -10,7 +10,8 @@ import AppKit
 final class CommandPaletteView: NSView, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     let mode: CommandPalette.Mode
     /// The terminal in view, which the palette starts on so that stepping once
-    /// goes to the previous place or the agent that has waited longest.
+    /// goes to the previous workspace or place, or the agent that has waited
+    /// longest.
     private let current: UUID?
     /// The terminal the palette was opened from. Its menu commands, such as
     /// Find or a font size change, stay enabled while the palette has the

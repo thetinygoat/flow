@@ -38,13 +38,15 @@ enum CommandPalette {
         /// Every terminal the row stands for, whose agents its dot sums up.
         var terminals: [UUID]
         var title: String
-        /// The terminal's directory, unless it is already the title.
+        /// The terminal's directory. A tab or pane leaves it out when it is
+        /// already the title; a workspace shows it as the sidebar does.
         var detail: String
         /// The only part of where the terminal is that the row shows. Moving
         /// through the list shows the place itself, and the layout its pane.
         var workspace: String
         /// The workspace, tab and pane, which a search matches, so "tab 1"
-        /// and "left" find terminals without the row naming them.
+        /// and "left" find terminals without the row naming them. A
+        /// workspace row has nothing to add to its title.
         var location: String
         /// The agent running in the terminal, which a search matches though
         /// the row doesn't name it.
@@ -107,7 +109,7 @@ enum CommandPalette {
                                     zoomed: panes.firstIndex { $0 === tab.panes.zoomed })
             return Item(terminal: tab.focusedLeaf.id, terminals: workspace.tabs.flatMap { $0.panes.leaves.map(\.id) },
                         title: workspace.name, detail: tab.focusedLeaf.workingDirectory?.abbreviatingHome ?? "",
-                        workspace: "", location: workspace.name, layout: layout)
+                        workspace: "", location: "", layout: layout)
         }
     }
 

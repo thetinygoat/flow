@@ -83,6 +83,20 @@ final class ConfigSettingTests: XCTestCase {
         }
     }
 
+    func testLibghosttyReportsNoneOfFlowsOptionsAndTheRestWhereTheyAre() throws {
+        XCTAssertEqual(Self.initialized, GHOSTTY_SUCCESS)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try "agent-sound = Ping\nfont-size = 21\nnot-an-option = 1\n".write(to: file, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let config = try GhosttyConfig(file: file, flowKeys: ["agent-sound"])
+        XCTAssertEqual(config.diagnostics.count, 1)
+        XCTAssertTrue(config.diagnostics[0].hasPrefix("\(file.path):3:not-an-option"), config.diagnostics[0])
+        var fontSize: Float = 0
+        XCTAssertTrue(ghostty_config_get(config.cValue, &fontSize, "font-size", 9))
+        XCTAssertEqual(fontSize, 21)
+        XCTAssertEqual(GhosttyConfig(copying: config.cValue).diagnostics, config.diagnostics)
+    }
+
     func testChoicesReadGhosttysOtherSpellings() {
         XCTAssertEqual(Option.confirmClose.parse("1"), "true")
         XCTAssertEqual(Option.confirmClose.parse("F"), "false")

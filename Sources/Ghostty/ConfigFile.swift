@@ -37,6 +37,44 @@ enum ConfigFile {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config", isDirectory: true)
     }
 
+    // MARK: Flow's options
+
+    /// Options Flow reads itself. libghostty has none of them and would
+    /// report each one as unknown, so it never sees them.
+    static let flowKeys: Set<String> = []
+
+    /// Copies keep the original's path inside this folder, so a message
+    /// about a copy can name the original.
+    static let ghosttyCopies = FileManager.default.temporaryDirectory.appendingPathComponent("flow-config", isDirectory: true)
+
+    /// Hands libghostty the file, or a copy without Flow's options when it
+    /// sets any. The copy's relative paths still lead to the original's files,
+    /// and its lines keep their numbers. A file that is not UTF-8 text goes
+    /// as it is, since Flow cannot read its options.
+    static func withGhosttyFile(for url: URL, flowKeys: Set<String> = flowKeys, _ load: (URL) -> Void) {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return load(url) }
+        var document = ConfigDocument(text)
+        guard document.blankEntries(where: { key, _ in flowKeys.contains(key) }) else { return load(url) }
+        document.anchorPaths(at: url.deletingLastPathComponent())
+        let copy = ghosttyCopies.appendingPathComponent(String(url.standardizedFileURL.path.dropFirst()))
+        do {
+            try FileManager.default.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try document.text.write(to: copy, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("could not copy \(url.path, privacy: .public) for libghostty: \(error, privacy: .public)")
+            return load(url)
+        }
+        load(copy)
+        try? FileManager.default.removeItem(at: copy)
+    }
+
+    /// libghostty's messages start with the path of the file they are about.
+    static func namingOriginal(_ message: String) -> String {
+        let copies = ghosttyCopies.path
+        guard message.hasPrefix(copies + "/") else { return message }
+        return String(message.dropFirst(copies.count))
+    }
+
     static let header = """
         # Flow settings. The Settings window rewrites the lines it manages; all
         # other lines are preserved. All Ghostty options are supported.

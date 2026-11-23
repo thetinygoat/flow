@@ -63,6 +63,28 @@ final class ConfigFileTests: XCTestCase {
         XCTAssertEqual(ConfigDocument(ConfigFile.imported(from: [ghostty]))["font-size"], "14")
     }
 
+    func testLibghosttyGetsAFileWithoutFlowsOptionsAsItIs() throws {
+        let config = try file("flow/config", "font-size = 14\n")
+        var loaded: [URL] = []
+        ConfigFile.withGhosttyFile(for: config, flowKeys: ["agent-sound"]) { loaded.append($0) }
+        XCTAssertEqual(loaded, [config])
+    }
+
+    func testLibghosttyGetsACopyWithoutFlowsOptions() throws {
+        let config = try file("flow/config", "agent-sound = Ping\nconfig-file = keys\nfont-size = 14\n")
+        var copy: URL?
+        ConfigFile.withGhosttyFile(for: config, flowKeys: ["agent-sound"]) { url in
+            copy = url
+            XCTAssertEqual(try? String(contentsOf: url, encoding: .utf8),
+                           "\nconfig-file = \(directory.appendingPathComponent("flow/keys").path)\nfont-size = 14\n")
+        }
+        let copied = try XCTUnwrap(copy)
+        XCTAssertNotEqual(copied, config)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copied.path), "only kept while libghostty reads it")
+        XCTAssertEqual(ConfigFile.namingOriginal("\(copied.path):3:font-size: bad"), "\(config.path):3:font-size: bad")
+        XCTAssertEqual(ConfigFile.namingOriginal("\(config.path):3:font-size: bad"), "\(config.path):3:font-size: bad")
+    }
+
     func testRefusesToReplaceALinkLoop() throws {
         let a = directory.appendingPathComponent("a"), b = directory.appendingPathComponent("b")
         try FileManager.default.createSymbolicLink(atPath: a.path, withDestinationPath: "b")

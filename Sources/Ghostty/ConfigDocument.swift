@@ -51,17 +51,28 @@ struct ConfigDocument: Equatable {
     static let pathKeys = ["config-file", "custom-shader", "background-image", "bell-audio-path"]
 
     /// A document moved to another directory needs its relative paths made
-    /// absolute to keep pointing at the same files.
+    /// absolute to keep pointing at the same files. Each stays on its own
+    /// line, so the lines keep their numbers.
     mutating func anchorPaths(at directory: URL) {
-        for key in Self.pathKeys {
-            let values = values(for: key)
-            guard !values.isEmpty else { continue }
-            setValues(values.map { value in
-                guard var path = ConfigPath(value), path.isRelative else { return value }
-                path.path = path.resolved(from: directory).path
-                return path.value
-            }, for: key)
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), Self.pathKeys.contains(entry.key),
+                  var path = ConfigPath(entry.value), path.isRelative else { continue }
+            path.path = path.resolved(from: directory).path
+            let ending = lines[index].hasSuffix("\r") ? "\r" : ""
+            lines[index] = "\(entry.key) = \(Self.format(path.value))\(ending)"
         }
+    }
+
+    /// Empties the lines whose setting matches, keeping them as lines so the
+    /// ones after them keep their numbers. False when none matched.
+    mutating func blankEntries(where matches: (_ key: String, _ value: String) -> Bool) -> Bool {
+        var blanked = false
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), matches(entry.key, entry.value) else { continue }
+            lines[index] = ""
+            blanked = true
+        }
+        return blanked
     }
 
     /// The key and value of a line that sets something, read the way Ghostty

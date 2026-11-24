@@ -32,26 +32,28 @@ struct KeyboardSettingsView: View {
             HStack(spacing: 4) {
                 ShortcutRecorder(shortcut: key) { set($0, for: command, bindings: bindings) }
                     .frame(width: 110, height: 22)
-                Button {
+                button("xmark.circle.fill", help: "Remove the shortcut", enabled: key != nil) {
                     set(nil, for: command, bindings: bindings)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
                 }
-                .help("Remove the shortcut")
-                .disabled(key == nil)
-                Button {
+                button("arrow.uturn.backward.circle.fill", help: "Use the default shortcut",
+                       enabled: store.document.hasShortcutLines(for: command)) {
                     note = nil
                     store.update { $0.resetShortcut(for: command) }
-                } label: {
-                    Image(systemName: "arrow.uturn.backward.circle.fill")
                 }
-                .help("Use the default shortcut")
-                .disabled(!store.document.hasShortcutLines(for: command))
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
             .fixedSize()
         }
+    }
+
+    /// A colour set on a button replaces the dimming of a disabled one.
+    private func button(_ symbol: String, help: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(enabled ? .secondary : .quaternary)
+        .help(help)
+        .disabled(!enabled)
     }
 
     /// A key another of these commands had moves to this one. One a menu

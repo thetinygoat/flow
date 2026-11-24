@@ -47,6 +47,19 @@ final class ConfigDocumentTests: XCTestCase {
         XCTAssertEqual(document["command"], "")
     }
 
+    func testAnchoringKeepsEachPathOnItsOwnLine() {
+        var document = ConfigDocument("config-file = a\r\ntheme = Nord\r\nconfig-file = ?/b\r\ncustom-shader = \"my shader.glsl\"\r\n")
+        document.anchorPaths(at: URL(fileURLWithPath: "/etc/flow"))
+        XCTAssertEqual(document.text, "config-file = /etc/flow/a\r\ntheme = Nord\r\nconfig-file = ?/b\r\ncustom-shader = /etc/flow/my shader.glsl\r\n")
+    }
+
+    func testBlanksMatchingSettingsAndKeepsTheirLines() {
+        var document = ConfigDocument("# agent-sound = Ping\nagent-sound = Ping\ntheme = Nord\n")
+        XCTAssertFalse(document.blankEntries { key, _ in key == "font-size" })
+        XCTAssertTrue(document.blankEntries { key, _ in key == "agent-sound" })
+        XCTAssertEqual(document.text, "# agent-sound = Ping\n\ntheme = Nord\n")
+    }
+
     func testReadsWindowsLineEndingsAndKeepsThem() {
         var document = ConfigDocument("font-size = 12\r\ntheme = Nord\r\n")
         XCTAssertEqual(document["font-size"], "12")

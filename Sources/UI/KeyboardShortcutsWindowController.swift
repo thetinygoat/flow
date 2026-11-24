@@ -24,6 +24,20 @@ final class KeyboardShortcutsWindowController: NSWindowController {
     func show(_ sections: [KeyboardShortcuts.Section]) {
         guard let window else { return }
         let wasVisible = window.isVisible
+        setContent(sections)
+        if !wasVisible { window.center() }
+        showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// While the window is open it shows the keys in effect.
+    func update(_ sections: [KeyboardShortcuts.Section]) {
+        guard window?.isVisible == true else { return }
+        setContent(sections)
+    }
+
+    private func setContent(_ sections: [KeyboardShortcuts.Section]) {
+        guard let window else { return }
         let content = Self.content(for: sections)
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -38,9 +52,6 @@ final class KeyboardShortcutsWindowController: NSWindowController {
         window.contentView = scrollView
         let maximumHeight = (window.screen ?? NSScreen.main).map { $0.visibleFrame.height * 0.85 } ?? 640
         window.setContentSize(NSSize(width: Self.width, height: min(content.fittingSize.height, maximumHeight)))
-        if !wasVisible { window.center() }
-        showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
     }
 
     private static func content(for sections: [KeyboardShortcuts.Section]) -> NSView {

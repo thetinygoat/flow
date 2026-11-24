@@ -6,6 +6,12 @@ import UniformTypeIdentifiers
 enum ConfigFile {
     /// `~/.config/flow/config` (`flow-debug` for a debug build), or the file
     /// named by the FLOW_CONFIG environment variable.
+    /// FLOW_CONFIG names a file for a one-off run, such as a test, which
+    /// Flow uses as it is.
+    static var isOverridden: Bool {
+        ProcessInfo.processInfo.environment["FLOW_CONFIG"] != nil
+    }
+
     static var url: URL {
         if let override = ProcessInfo.processInfo.environment["FLOW_CONFIG"] {
             return URL(fileURLWithPath: override)
@@ -37,6 +43,62 @@ enum ConfigFile {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config", isDirectory: true)
     }
 
+    // MARK: Flow's options
+
+    /// Options Flow reads itself. libghostty has none of them and would
+    /// report each one as unknown, so it never sees them.
+    static let flowKeys = FlowOption.keys
+
+    /// Each copy is named for the original's whole path, so a message about
+    /// a copy can name the original.
+    static let ghosttyCopies = FileManager.default.temporaryDirectory.appendingPathComponent("flow-config", isDirectory: true)
+
+    /// Hands libghostty the file, or a copy without Flow's options when it
+    /// sets any. In the copy a key bound to one of Flow's actions is unbound
+    /// instead, so no default of Ghostty's runs before Flow's menu. The
+    /// copy's relative paths still lead to the original's files, and its
+    /// lines keep their numbers. A file that is not UTF-8 text goes as it
+    /// is, since Flow cannot read its options.
+    static func withGhosttyFile(for url: URL, flowKeys: Set<String> = flowKeys, _ load: (URL) -> Void) {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return load(url) }
+        var document = ConfigDocument(text)
+        let blanked = document.blankEntries { key, _ in flowKeys.contains(key) }
+        var otherSpellings: [String] = []
+        let unbound = document.replaceValues(for: "keybind") { value in
+            guard let values = Keybind.ghosttyValues(for: value) else { return nil }
+            otherSpellings += values.dropFirst()
+            return values.first
+        }
+        // After every other line, so the lines keep their numbers.
+        otherSpellings.forEach { document.append("keybind", $0) }
+        guard blanked || unbound else { return load(url) }
+        document.anchorPaths(at: url.deletingLastPathComponent())
+        let copy = ghosttyCopies.appendingPathComponent(url.standardizedFileURL.path.addingPercentEncoding(withAllowedCharacters: copyNameCharacters)!)
+        do {
+            try FileManager.default.createDirectory(at: ghosttyCopies, withIntermediateDirectories: true)
+            try document.text.write(to: copy, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("could not copy \(url.path, privacy: .public) for libghostty: \(error, privacy: .public)")
+            return load(url)
+        }
+        load(copy)
+        try? FileManager.default.removeItem(at: copy)
+    }
+
+    /// libghostty's messages start with the path of the file they are about.
+    static func namingOriginal(_ message: String) -> String {
+        let prefix = ghosttyCopies.path + "/"
+        guard message.hasPrefix(prefix) else { return message }
+        let rest = message.dropFirst(prefix.count)
+        let name = rest.prefix { $0 != ":" }
+        guard let original = name.removingPercentEncoding else { return message }
+        return original + rest.dropFirst(name.count)
+    }
+
+    /// Without `/`, so the copy is one file, or `:`, which ends the path in
+    /// libghostty's messages.
+    private static let copyNameCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+
     static let header = """
         # Flow settings. The Settings window rewrites the lines it manages; all
         # other lines are preserved. All Ghostty options are supported.
@@ -48,7 +110,7 @@ enum ConfigFile {
     /// people who set Flow up through Ghostty. A debug build copies the
     /// installed Flow's instead.
     static func createIfMissing() {
-        guard ProcessInfo.processInfo.environment["FLOW_CONFIG"] == nil else { return }
+        guard !isOverridden else { return }
         do {
             if AppFolder.isDebugBuild {
                 try copy(installedURL, to: url)

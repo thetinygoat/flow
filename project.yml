@@ -175,7 +175,7 @@ targets:
       - path: Sources/Workspace/GitStatus.swift
       - path: Sources/Ghostty
       - path: Sources/Settings/ConfigSetting.swift
-      - path: Sources/Settings/Preferences.swift
+      - path: Sources/Settings/FlowOptions.swift
       - path: Sources/Settings/SettingsStore.swift
       - path: Sources/Settings/Themes.swift
       - path: Sources/ServiceProvider.swift
@@ -191,6 +191,8 @@ targets:
       - path: Sources/UI/TabBarView.swift
       - path: Sources/UI/AgentDotView.swift
       - path: Sources/UI/KeyboardShortcuts.swift
+      - path: Sources/Settings/KeyTrigger.swift
+      - path: Sources/Settings/KeyBindings.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.thetinygoat.flowTests

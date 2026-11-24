@@ -4,7 +4,6 @@ import SwiftUI
 struct GeneralSettingsView: View {
     let store: SettingsStore
     let updater: SPUUpdater
-    @AppStorage(Preferences.secureKeyboardEntry) private var secureKeyboardEntry = false
     @State private var command = ""
     @State private var choosesCustomCommand = false
     @State private var checksForUpdates = false
@@ -86,11 +85,11 @@ struct GeneralSettingsView: View {
     private var secureInput: Binding<SecureInputChoice> {
         Binding(
             get: {
-                if secureKeyboardEntry { return .always }
+                if store.value(FlowOption.secureKeyboardEntry) { return .always }
                 return store.value(Option.autoSecureInput) ? .passwordPrompts : .off
             },
             set: { choice in
-                secureKeyboardEntry = choice == .always
+                store.set(FlowOption.secureKeyboardEntry, choice == .always)
                 store.set(Option.autoSecureInput, choice != .off)
             })
     }

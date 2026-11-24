@@ -16,6 +16,8 @@ final class SettingsStore {
     /// Settings this window shows that an included file overrides, so a
     /// change made here would not take effect.
     private(set) var overrides: [String] = []
+    /// The files the config includes, which Ghostty reads after it.
+    private(set) var includes: [ConfigDocument] = []
 
     /// Set while the file exists but cannot be read as text. Settings then
     /// leaves it alone, since writing would replace whatever is in it.
@@ -117,7 +119,8 @@ final class SettingsStore {
         return save()
     }
 
-    private func update(_ change: @escaping (inout ConfigDocument) -> Void) {
+    /// Any change to the document, saved like the others.
+    func update(_ change: @escaping (inout ConfigDocument) -> Void) {
         if pendingSave == nil {
             refreshFromDisk()
         }
@@ -182,7 +185,9 @@ final class SettingsStore {
     /// Included font families are added as fallbacks rather than replacing
     /// the ones set here, so they are not reported.
     private func findOverrides() {
-        overrides = ConfigFile.includes(of: document, at: file).flatMap { include in
+        let included = ConfigFile.includes(of: document, at: file)
+        includes = included.map(\.document)
+        overrides = included.flatMap { include in
             Option.keys.filter { $0 != Option.fontFamily && !include.document.values(for: $0).isEmpty }.map { key in
                 "\(key) is set in \(include.url.path.abbreviatingHome), which overrides the value in this window"
             }

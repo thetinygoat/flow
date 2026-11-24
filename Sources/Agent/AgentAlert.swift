@@ -7,13 +7,13 @@ struct AgentAlert: Equatable {
     var sound: (kind: AgentSound, name: String)?
     var notification: AgentNotification?
 
-    static func make(for update: AgentSessionStore.Update, title: String, isVisible: Bool, defaults: UserDefaults) -> AgentAlert {
+    static func make(for update: AgentSessionStore.Update, title: String, isVisible: Bool, options: FlowOptions) -> AgentAlert {
         var alert = AgentAlert()
-        if let sound = AgentSound.make(for: update, isVisible: isVisible),
-           let name = defaults.string(forKey: soundPreference(sound)), !name.isEmpty {
-            alert.sound = (sound, name)
+        if let sound = AgentSound.make(for: update, isVisible: isVisible) {
+            let name = options.value(soundOption(sound))
+            if !name.isEmpty { alert.sound = (sound, name) }
         }
-        if let kind = notificationKind(update.kind), defaults.bool(forKey: notificationPreference(kind)) {
+        if let kind = notificationKind(update.kind), options.value(notificationOption(kind)) {
             alert.notification = AgentNotification.make(for: update, title: title, isVisible: isVisible)
         }
         return alert
@@ -28,12 +28,12 @@ struct AgentAlert: Equatable {
         }
     }
 
-    static func soundPreference(_ sound: AgentSound) -> String {
-        sound == .needsInput ? Preferences.needsInputSound : Preferences.finishedSound
+    static func soundOption(_ sound: AgentSound) -> ConfigSetting<String> {
+        sound == .needsInput ? FlowOption.needsInputSound : FlowOption.finishedSound
     }
 
-    private static func notificationPreference(_ sound: AgentSound) -> String {
-        sound == .needsInput ? Preferences.needsInputNotification : Preferences.finishedNotification
+    private static func notificationOption(_ sound: AgentSound) -> ConfigSetting<Bool> {
+        sound == .needsInput ? FlowOption.needsInputNotification : FlowOption.finishedNotification
     }
 
     static func == (lhs: AgentAlert, rhs: AgentAlert) -> Bool {

@@ -13,13 +13,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// opened is that one.
     private var closedLastWindow: Session.Window?
     private var workspaceMenu: WorkspaceMenu!
+    /// Secure Keyboard Entry as the config file last set it.
+    private var loadedSecureKeyboardEntry: Bool?
+    /// Items whose key Settings can change, with their `keybind` action.
+    private var changeableItems: [(item: NSMenuItem, action: String)] = []
     /// Folders macOS asked to open before launch finished.
     private var pendingDirectories: [String]? = []
     private var pendingSave: DispatchWorkItem?
     private let sessionWriter = SessionWriter()
     private var keyMonitor: Any?
     private lazy var aboutWindow = AboutWindowController()
-    private lazy var keyboardShortcutsWindow = KeyboardShortcutsWindowController()
+    private var keyboardShortcutsWindow: KeyboardShortcutsWindowController?
     /// Made when Settings first opens, so the config is not read for it before.
     private var loadedSettings: SettingsStore?
     private var settings: SettingsStore {
@@ -46,8 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Preferences.register()
         ConfigFile.createIfMissing()
+        if !ConfigFile.isOverridden {
+            FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
+        }
         do {
             runtime = try GhosttyRuntime()
         } catch {
@@ -65,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.controller.applyAppearance(config: self.runtime.config, app: self.runtime.app)
             }
             self.loadedSettings?.reload(problems: self.runtime.config.diagnostics)
+            self.applyOptions()
         }
         notifications.isInView = { [weak self] id in
             guard let self, let (window, surface) = self.surface(withID: id) else { return false }
@@ -100,16 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             logger.error("agent socket unavailable at \(listener.url.path, privacy: .public): \(error, privacy: .public)")
         }
-        SecureInput.shared.global = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
-        // The Settings window changes secure keyboard entry through the defaults.
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: UserDefaults.standard, queue: .main) { _ in
-            let enabled = UserDefaults.standard.bool(forKey: Preferences.secureKeyboardEntry)
-            if SecureInput.shared.global != enabled {
-                SecureInput.shared.global = enabled
-            }
-        }
-
         NSApp.mainMenu = buildMainMenu()
+        applyOptions()
         NSApp.servicesProvider = serviceProvider
 
         let saved = Session.load()?.windows.filter { !$0.workspaces.isEmpty } ?? []
@@ -450,7 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let (window, surface) = surface(withID: update.surface) else { return }
         let workspace = window.store.workspace(containing: surface)?.0.name
         let title = [workspace, surface.title, surface.workingDirectory?.abbreviatingHome].compactMap { $0 }.first { !$0.isEmpty } ?? "Flow"
-        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), defaults: .standard)
+        let alert = AgentAlert.make(for: update, title: title, isVisible: window.isInView(surface), options: runtime.options)
         if let sound = alert.sound {
             agentSounds.play(sound.kind, named: sound.name)
         }
@@ -478,9 +477,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSecureKeyboardEntry(!SecureInput.shared.global)
     }
 
+    /// Takes effect at once, before the config file it is saved to reloads.
     private func setSecureKeyboardEntry(_ enabled: Bool) {
         SecureInput.shared.global = enabled
-        UserDefaults.standard.set(enabled, forKey: Preferences.secureKeyboardEntry)
+        settings.set(FlowOption.secureKeyboardEntry, enabled)
+    }
+
+    /// The options read at each load of the config file. Other options take
+    /// effect where they are used.
+    ///
+    /// Secure Keyboard Entry follows the file only when the file changes it,
+    /// so a reload can't undo the menu item's change while it can't be saved.
+    private func applyOptions() {
+        let secureKeyboardEntry = runtime.options.value(FlowOption.secureKeyboardEntry)
+        if secureKeyboardEntry != loadedSecureKeyboardEntry {
+            loadedSecureKeyboardEntry = secureKeyboardEntry
+            SecureInput.shared.global = secureKeyboardEntry
+        }
+        for (item, action) in changeableItems {
+            let equivalent = runtime.options.bindings.shortcut(for: action)?.menuKeyEquivalent
+            item.keyEquivalent = equivalent?.key ?? ""
+            item.keyEquivalentModifierMask = equivalent?.modifiers ?? []
+        }
+        keyboardShortcutsWindow?.update(KeyboardShortcuts.current(runtime.options.bindings))
     }
 
     @objc private func showSettings() {
@@ -493,7 +512,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showKeyboardShortcuts(_ sender: Any?) {
-        keyboardShortcutsWindow.show(KeyboardShortcuts.all)
+        let window = keyboardShortcutsWindow ?? KeyboardShortcutsWindowController()
+        keyboardShortcutsWindow = window
+        window.show(KeyboardShortcuts.current(runtime.options.bindings))
     }
 
     @objc private func showAbout() {
@@ -568,10 +589,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         zoomItem.keyEquivalentModifierMask = [.command, .shift]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Toggle Sidebar", action: #selector(MainWindowController.toggleWorkspaceSidebar(_:)), keyEquivalent: "b")
-        viewMenu.addItem(withTitle: "Go to Workspace", action: #selector(showWorkspaces), keyEquivalent: "p")
-        let placesItem = viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: "p")
-        placesItem.keyEquivalentModifierMask = [.command, .shift]
-        viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: "i")
+        changeableItems += [
+            (viewMenu.addItem(withTitle: "Go to Workspace", action: #selector(showWorkspaces), keyEquivalent: ""), "toggle_workspace_palette"),
+            (viewMenu.addItem(withTitle: "Go to Tab or Pane", action: #selector(showPlaces), keyEquivalent: ""), "toggle_command_palette"),
+            (viewMenu.addItem(withTitle: "Go to Agent", action: #selector(showAgents), keyEquivalent: ""), "toggle_agent_palette"),
+        ]
         let fullScreenItem = viewMenu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreenItem.keyEquivalentModifierMask = [.command, .control]
         mainMenu.addItem(submenu: viewMenu, title: "View")
@@ -582,8 +604,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         previousWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
         let nextWorkspaceItem = NSMenuItem(title: "Next Workspace", action: #selector(nextWorkspace), keyEquivalent: "]")
         nextWorkspaceItem.keyEquivalentModifierMask = [.command, .shift]
-        let renameItem = NSMenuItem(title: "Rename Workspace", action: #selector(renameWorkspace), keyEquivalent: "r")
-        renameItem.keyEquivalentModifierMask = [.command, .shift]
+        let renameItem = NSMenuItem(title: "Rename Workspace", action: #selector(renameWorkspace), keyEquivalent: "")
+        changeableItems.append((renameItem, "rename_workspace"))
         workspaceMenu = WorkspaceMenu(
             title: "Workspace",
             fixedItems: [previousWorkspaceItem, nextWorkspaceItem, .separator(), renameItem],

@@ -10,10 +10,10 @@ final class GhosttyConfig {
     let cValue: ghostty_config_t
 
     /// Without a file, the config holds Ghostty's defaults.
-    init(file: URL? = ConfigFile.url) throws {
+    init(file: URL? = ConfigFile.url, flowKeys: Set<String> = ConfigFile.flowKeys) throws {
         guard let config = ghostty_config_new() else { throw GhosttyError.apiFailed }
         if let file, FileManager.default.fileExists(atPath: file.path) {
-            ghostty_config_load_file(config, file.path)
+            ConfigFile.withGhosttyFile(for: file, flowKeys: flowKeys) { ghostty_config_load_file(config, $0.path) }
         }
         ghostty_config_load_recursive_files(config)
         ghostty_config_finalize(config)
@@ -132,7 +132,7 @@ final class GhosttyConfig {
 
     var diagnostics: [String] {
         (0..<ghostty_config_diagnostics_count(cValue)).map { index in
-            String(cString: ghostty_config_get_diagnostic(cValue, UInt32(index)).message)
+            ConfigFile.namingOriginal(String(cString: ghostty_config_get_diagnostic(cValue, UInt32(index)).message))
         }
     }
 }

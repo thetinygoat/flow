@@ -51,17 +51,54 @@ struct ConfigDocument: Equatable {
     static let pathKeys = ["config-file", "custom-shader", "background-image", "bell-audio-path"]
 
     /// A document moved to another directory needs its relative paths made
-    /// absolute to keep pointing at the same files.
+    /// absolute to keep pointing at the same files. Each stays on its own
+    /// line, so the lines keep their numbers.
     mutating func anchorPaths(at directory: URL) {
-        for key in Self.pathKeys {
-            let values = values(for: key)
-            guard !values.isEmpty else { continue }
-            setValues(values.map { value in
-                guard var path = ConfigPath(value), path.isRelative else { return value }
-                path.path = path.resolved(from: directory).path
-                return path.value
-            }, for: key)
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), Self.pathKeys.contains(entry.key),
+                  var path = ConfigPath(entry.value), path.isRelative else { continue }
+            path.path = path.resolved(from: directory).path
+            lines[index] = line(entry.key, path.value, endingLike: lines[index])
         }
+    }
+
+    /// Empties the lines whose setting matches, keeping them as lines so the
+    /// ones after them keep their numbers. False when none matched.
+    mutating func blankEntries(where matches: (_ key: String, _ value: String) -> Bool) -> Bool {
+        var blanked = false
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), matches(entry.key, entry.value) else { continue }
+            lines[index] = ""
+            blanked = true
+        }
+        return blanked
+    }
+
+    /// Changes the values the transform returns one for, each on its own
+    /// line. False when none changed.
+    mutating func replaceValues(for key: String, _ transform: (String) -> String?) -> Bool {
+        var replaced = false
+        for index in lines.indices {
+            guard let entry = Self.entry(lines[index]), entry.key == key, let value = transform(entry.value) else { continue }
+            lines[index] = line(key, value, endingLike: lines[index])
+            replaced = true
+        }
+        return replaced
+    }
+
+    mutating func removeEntries(where matches: (_ key: String, _ value: String) -> Bool) {
+        lines.removeAll { line in Self.entry(line).map { matches($0.key, $0.value) } ?? false }
+    }
+
+    /// Adds a value after every other line, for a key that may be set more
+    /// than once, such as `keybind`.
+    mutating func append(_ key: String, _ value: String) {
+        let ending = lines.contains { $0.hasSuffix("\r") } ? "\r" : ""
+        lines.append("\(key) = \(Self.format(value))\(ending)")
+    }
+
+    private func line(_ key: String, _ value: String, endingLike original: String) -> String {
+        "\(key) = \(Self.format(value))\(original.hasSuffix("\r") ? "\r" : "")"
     }
 
     /// The key and value of a line that sets something, read the way Ghostty

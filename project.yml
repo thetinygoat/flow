@@ -165,6 +165,7 @@ targets:
       - path: Tests
       - path: Sources/Logger.swift
       - path: Sources/AppFolder.swift
+      - path: Sources/Telemetry.swift
       - path: Sources/UI/CommandPalette.swift
       - path: Sources/UI/CommandPaletteView.swift
       - path: Sources/Workspace/PaneTree.swift

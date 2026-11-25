@@ -14,7 +14,7 @@
   <a href="https://getflowterm.app/changelog/">Changelog</a>
 </p>
 
-A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
+A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts.
 
 ![Flow with Claude Code and OpenCode side by side in split panes, the switcher open to go to any tab or pane, and workspaces with their paths and git branches in the sidebar](assets/screenshot.png)
 
@@ -24,7 +24,7 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 **Made for agents.** Flow shows what Claude Code, Codex and OpenCode are doing in each workspace, and tells you when one finishes or needs you. See [Agents](#agents).
 
-**Private and simple.** No account, no telemetry, no tracking. Your terminal is yours.
+**Private and simple.** No account, and Flow never sends what you type or run. It counts active installs anonymously, and [you can turn that off](#telemetry).
 
 ## Install
 
@@ -93,6 +93,14 @@ Choose **Flow › Settings…** (<kbd>⌘</kbd><kbd>,</kbd>) to pick the shell, 
 Settings writes to `~/.config/flow/config`, a plain text file in Ghostty's format that you can also edit by hand. The first time Flow opens, it copies your Ghostty config into this file, so your fonts, theme and keybindings carry over. After that, Flow reads only its own file. Settings changes only the lines it needs to and keeps your comments. **Settings › Advanced** opens the file in your editor and lists any problems in it. See [Configuration](https://getflowterm.app/docs/configuration/) for more.
 
 Flow aims to support every Ghostty setting, but some don't work in Flow yet. If a setting you rely on has no effect, [open an issue](https://github.com/thetinygoat/flow/issues/new).
+
+## Telemetry
+
+Flow counts how many installs are active. On the first use of each day, week and month (UTC), it sends one event to [Aptabase](https://aptabase.com) with the Flow version and the macOS version. The weekly event also has the week Flow was installed, or `earlier` for installs older than telemetry. There is no user or device ID: each send has a new random session ID. Aptabase sees the IP address of the request. It says it doesn't store the address, and uses it for country, region and a hash that changes daily.
+
+Flow never sends what you type, commands, output, paths, repository names or anything about your agents.
+
+To turn it off, switch off **Settings › Miscellaneous › Send anonymous usage counts**, or add `telemetry = false` to the config file.
 
 ## Build from source
 

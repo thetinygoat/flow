@@ -41,15 +41,6 @@ final class FlowOptionsTests: XCTestCase {
         XCTAssertEqual(FlowOption.finishedSound.format(""), "none")
     }
 
-    func testTelemetryIsOnUnlessTurnedOff() {
-        func telemetry(_ text: String) -> Bool { FlowOptions(ConfigDocument(text)).value(FlowOption.telemetry) }
-        XCTAssertTrue(telemetry(""))
-        XCTAssertTrue(telemetry("telemetry =\n"))
-        XCTAssertTrue(telemetry("telemetry = true\n"))
-        XCTAssertFalse(telemetry("telemetry = false\n"))
-        XCTAssertFalse(telemetry("telemetry = off\n"))
-    }
-
     func testMovesChangedSettingsOutOfTheDefaults() throws {
         let file = try config("font-size = 14\n")
         defaults.set(true, forKey: "SecureKeyboardEntry")

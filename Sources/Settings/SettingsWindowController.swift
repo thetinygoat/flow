@@ -16,7 +16,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         tabs.addTabViewItem(Self.pane("Notifications", symbol: "bell.badge", store: store, NotificationsSettingsView(store: store)))
         tabs.addTabViewItem(Self.pane("Keyboard", symbol: "keyboard", store: store, KeyboardSettingsView(store: store)))
         tabs.addTabViewItem(Self.pane("Advanced", symbol: "gearshape.2", store: store, AdvancedSettingsView(store: store, reload: reload)))
-        tabs.addTabViewItem(Self.pane("Miscellaneous", symbol: "ellipsis.circle", store: store, MiscellaneousSettingsView(store: store)))
         let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.toolbarStyle = .preference

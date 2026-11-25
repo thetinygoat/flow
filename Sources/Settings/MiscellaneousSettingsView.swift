@@ -10,7 +10,7 @@ struct MiscellaneousSettingsView: View {
             } header: {
                 Text("Telemetry")
             } footer: {
-                Text("Collects only usage data, nothing else.")
+                Text("Limited to app usage data. Terminal content is never collected.")
                     .settingsFooter()
             }
         }

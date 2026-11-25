@@ -96,11 +96,9 @@ Flow aims to support every Ghostty setting, but some don't work in Flow yet. If 
 
 ## Telemetry
 
-Flow sends anonymous usage telemetry. On the first use of each day, week and month (UTC), it sends one event to [Aptabase](https://aptabase.com) with the Flow version and the macOS version. The weekly event also has the week Flow was installed, or `earlier` for installs older than telemetry. There is no user or device ID: each send has a new random session ID. Aptabase sees the IP address of the request. It says it doesn't store the address, and uses it for country, region and a hash that changes daily.
+Flow sends anonymous usage telemetry the first time you use it each day, week and month. It includes the Flow version, the macOS version and the week you installed Flow. Flow never sends what you type, commands, output, file paths or repository names. [Telemetry](https://getflowterm.app/docs/telemetry/) lists the exact data.
 
-Flow never sends what you type, commands, output, paths, repository names or anything about your agents.
-
-To turn it off, switch off **Settings › Miscellaneous › Send anonymous usage telemetry**, or add `telemetry = false` to the config file.
+To turn it off, open **Settings › Miscellaneous** and turn off **Send anonymous usage telemetry**, or add `telemetry = false` to the config file.
 
 ## Build from source
 

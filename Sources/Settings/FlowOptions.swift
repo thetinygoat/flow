@@ -8,9 +8,16 @@ enum FlowOption {
     static let needsInputSound = sound("agent-needs-input-sound", default: "Ping")
     static let finishedNotification = ConfigSetting<Bool>("agent-finished-notification", default: true)
     static let finishedSound = sound("agent-finished-sound", default: "Glass")
+    /// A misspelled value reads as off, since whoever wrote it was turning
+    /// telemetry off.
+    static let telemetry = ConfigSetting<Bool>(
+        key: "telemetry", defaultValue: true,
+        parse: { $0.isEmpty ? nil : ConfigBool.parse($0) ?? false },
+        format: { String($0) })
 
     static let keys: Set<String> = [
         secureKeyboardEntry.key, needsInputNotification.key, needsInputSound.key, finishedNotification.key, finishedSound.key,
+        telemetry.key,
     ]
 
     /// A sound's name, or `none` for silence, which reads as no name. An empty

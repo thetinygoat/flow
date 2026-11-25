@@ -24,7 +24,7 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 **Made for agents.** Flow shows what Claude Code, Codex and OpenCode are doing in each workspace, and tells you when one finishes or needs you. See [Agents](#agents).
 
-**Private and simple.** No account, and Flow never sends what you type or run. It counts active installs anonymously, and [you can turn that off](#telemetry).
+**Private and simple.** No account, and Flow never sends what you type or run. It sends anonymous usage telemetry, which [you can turn off](#telemetry).
 
 ## Install
 
@@ -96,11 +96,11 @@ Flow aims to support every Ghostty setting, but some don't work in Flow yet. If 
 
 ## Telemetry
 
-Flow counts how many installs are active. On the first use of each day, week and month (UTC), it sends one event to [Aptabase](https://aptabase.com) with the Flow version and the macOS version. The weekly event also has the week Flow was installed, or `earlier` for installs older than telemetry. There is no user or device ID: each send has a new random session ID. Aptabase sees the IP address of the request. It says it doesn't store the address, and uses it for country, region and a hash that changes daily.
+Flow sends anonymous usage telemetry. On the first use of each day, week and month (UTC), it sends one event to [Aptabase](https://aptabase.com) with the Flow version and the macOS version. The weekly event also has the week Flow was installed, or `earlier` for installs older than telemetry. There is no user or device ID: each send has a new random session ID. Aptabase sees the IP address of the request. It says it doesn't store the address, and uses it for country, region and a hash that changes daily.
 
 Flow never sends what you type, commands, output, paths, repository names or anything about your agents.
 
-To turn it off, switch off **Settings › Miscellaneous › Send anonymous usage counts**, or add `telemetry = false` to the config file.
+To turn it off, switch off **Settings › Miscellaneous › Send anonymous usage telemetry**, or add `telemetry = false` to the config file.
 
 ## Build from source
 

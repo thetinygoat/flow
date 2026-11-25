@@ -24,7 +24,7 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 **Made for agents.** Flow shows what Claude Code, Codex and OpenCode are doing in each workspace, and tells you when one finishes or needs you. See [Agents](#agents).
 
-**Private and simple.** No account, and Flow never sends what you type or run. It sends anonymous usage telemetry, which [you can turn off](#telemetry).
+**Private and simple.** No account, and Flow never sends what you type or run.
 
 ## Install
 

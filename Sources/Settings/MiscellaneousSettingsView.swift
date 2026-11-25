@@ -5,8 +5,13 @@ struct MiscellaneousSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Telemetry") {
+            Section {
                 Toggle("Send anonymous usage telemetry", isOn: store.binding(FlowOption.telemetry))
+            } header: {
+                Text("Telemetry")
+            } footer: {
+                Text("Collects only usage data, nothing else.")
+                    .settingsFooter()
             }
         }
         .formStyle(.grouped)

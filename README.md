@@ -14,7 +14,7 @@
   <a href="https://getflowterm.app/changelog/">Changelog</a>
 </p>
 
-A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts.
+A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agents or just a shell. Flow stays deliberately minimal and simple, with no accounts and no telemetry.
 
 ![Flow with Claude Code and OpenCode side by side in split panes, the switcher open to go to any tab or pane, and workspaces with their paths and git branches in the sidebar](assets/screenshot.png)
 
@@ -24,7 +24,7 @@ A fast, native terminal built on Ghostty, for everyday work. Run a fleet of agen
 
 **Made for agents.** Flow shows what Claude Code, Codex and OpenCode are doing in each workspace, and tells you when one finishes or needs you. See [Agents](#agents).
 
-**Private and simple.** No account, and Flow never sends what you type or run. It sends anonymous usage telemetry, which [you can turn off](#telemetry).
+**Private and simple.** No account, no telemetry, no tracking. Your terminal is yours.
 
 ## Install
 
@@ -93,12 +93,6 @@ Choose **Flow › Settings…** (<kbd>⌘</kbd><kbd>,</kbd>) to pick the shell, 
 Settings writes to `~/.config/flow/config`, a plain text file in Ghostty's format that you can also edit by hand. The first time Flow opens, it copies your Ghostty config into this file, so your fonts, theme and keybindings carry over. After that, Flow reads only its own file. Settings changes only the lines it needs to and keeps your comments. **Settings › Advanced** opens the file in your editor and lists any problems in it. See [Configuration](https://getflowterm.app/docs/configuration/) for more.
 
 Flow aims to support every Ghostty setting, but some don't work in Flow yet. If a setting you rely on has no effect, [open an issue](https://github.com/thetinygoat/flow/issues/new).
-
-## Telemetry
-
-Flow sends anonymous usage telemetry the first time you use it each day, week and month. It includes the Flow version, the macOS version and the week you installed Flow. Flow never sends what you type, commands, output, file paths or repository names. [Telemetry](https://getflowterm.app/docs/telemetry/) lists the exact data.
-
-To turn it off, open **Settings › Miscellaneous** and turn off **Send anonymous usage telemetry**, or add `telemetry = false` to the config file.
 
 ## Build from source
 

@@ -39,7 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private let notifications = DesktopNotifications()
     private let agentSounds = AgentSounds()
-    private let telemetry = Telemetry()
     /// Sparkle asks on the second launch whether to check for updates
     /// automatically; nothing is checked before the user agrees.
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -51,7 +50,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        telemetry.recordInstall(isNew: !FileManager.default.fileExists(atPath: ConfigFile.url.path))
         ConfigFile.createIfMissing()
         if !ConfigFile.isOverridden {
             FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
@@ -137,15 +135,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             guard let self else { return }
             windows.compactMap(\.focusedSurface).forEach(markSeenIfInView)
-            telemetry.recordActivity()
-        }
-        // Flow stays active through a night's sleep, so a new day's first use
-        // can come without it becoming active again.
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard NSApp.isActive else { return }
-            self?.telemetry.recordActivity()
         }
         // A menu command acts on where the palette was opened, not on a place
         // it is only previewing, so the palette is cancelled first. Editing
@@ -505,7 +494,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             loadedSecureKeyboardEntry = secureKeyboardEntry
             SecureInput.shared.global = secureKeyboardEntry
         }
-        telemetry.isEnabled = runtime.options.value(FlowOption.telemetry)
         for (item, action) in changeableItems {
             let equivalent = runtime.options.bindings.shortcut(for: action)?.menuKeyEquivalent
             item.keyEquivalent = equivalent?.key ?? ""

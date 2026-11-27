@@ -51,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        telemetry.recordInstall(isNew: !FileManager.default.fileExists(atPath: ConfigFile.url.path))
+        let isNewInstall = !FileManager.default.fileExists(atPath: ConfigFile.url.path)
+        telemetry.recordInstall(isNew: isNewInstall)
         ConfigFile.createIfMissing()
         if !ConfigFile.isOverridden {
             FlowOption.moveFromDefaults(.standard, domain: Bundle.main.bundleIdentifier ?? "", to: ConfigFile.url)
@@ -123,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         windows.forEach { $0.show() }
         NSApp.activate()
+        Notices.show(Notices.due(isNewInstall: isNewInstall), in: windows.first?.window)
         pendingDirectories?.forEach { openWorkspace(in: $0, newWindow: false) }
         pendingDirectories = nil
 

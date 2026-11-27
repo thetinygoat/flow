@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><filter id="inset" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer><feGaussianBlur in="inv" stdDeviation="16"/><feOffset dy="18" result="io"/><feFlood flood-color="#000" flood-opacity="0.85"/><feComposite in2="io" operator="in"/><feComposite in2="SourceAlpha" operator="in" result="sh"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="sh"/></feMerge></filter>
+<filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="16" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<linearGradient id="bez" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9ADB6"/><stop offset="0.5" stop-color="#7A7E88"/><stop offset="1" stop-color="#4E5159"/></linearGradient>
+<linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.15"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0.35"/></linearGradient>
+<radialGradient id="scr" cx="0.42" cy="0.62" r="0.85"><stop offset="0" stop-color="#4A1A14"/><stop offset="0.6" stop-color="#240C09"/><stop offset="1" stop-color="#0E0403"/></radialGradient>
+<clipPath id="sc"><rect x="100" y="100" width="824" height="824" rx="162"/></clipPath></defs>
+<rect width="1024" height="1024" fill="url(#bez)"/>
+<rect x="8" y="8" width="1008" height="1008" rx="222" fill="none" stroke="url(#rim)" stroke-width="10"/>
+<rect x="78" y="78" width="868" height="868" rx="182" fill="#0A0B0D"/>
+</svg>

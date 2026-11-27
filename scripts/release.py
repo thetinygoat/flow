@@ -338,7 +338,11 @@ class Release:
         shutil.rmtree(DIST, ignore_errors=True)
         DIST.mkdir(parents=True)
         run("xcodegen", "generate", "--quiet")
-        run("xcodebuild", "-scheme", "flow", "-configuration", "Release", "-derivedDataPath", BUILD, "build", "-quiet")
+        # A release candidate replaces the installed Flow, so its own icon
+        # shows that a pre-release is running.
+        icon = "AppIcon-RC" if self.prerelease else "AppIcon"
+        run("xcodebuild", "-scheme", "flow", "-configuration", "Release", "-derivedDataPath", BUILD,
+            f"ASSETCATALOG_COMPILER_APPICON_NAME={icon}", "build", "-quiet")
         plist = APP / "Contents" / "Info.plist"
         built = output("/usr/libexec/PlistBuddy", "-c", "Print :CFBundleShortVersionString", plist)
         number = output("/usr/libexec/PlistBuddy", "-c", "Print :CFBundleVersion", plist)

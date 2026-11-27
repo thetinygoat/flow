@@ -28,6 +28,9 @@ targets:
       - path: Resources/AppIcon-Debug.icon
         type: file
         buildPhase: resources
+      - path: Resources/AppIcon-RC.icon
+        type: file
+        buildPhase: resources
       - path: Resources/Assets.xcassets
       - path: LICENSE
         buildPhase: resources
